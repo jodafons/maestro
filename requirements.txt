@@ -16,7 +16,6 @@ flask_admin
 flask_bootstrap
 flask_cors
 flask_restful
-Gaugi
 prettytable
 sqlalchemy_utils
 kubernetes

@@ -342,8 +342,8 @@ class TaskParser:
 
 
     if interactive:
-        from orchestra.Pilot import Clock
-        from orchestra import SECOND
+        from server.main import Clock
+        from server import SECOND
         import os
         clock = Clock(10*SECOND)
         while True:

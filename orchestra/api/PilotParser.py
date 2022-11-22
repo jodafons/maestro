@@ -3,12 +3,14 @@ __all__ = ["PilotParser"]
 
 import traceback, time, os, argparse
 
-import orchestra
-from orchestra import Schedule, Pilot
+import server
+from server import Pilot
 from orchestra.mailing import Postman
 from orchestra.utils import *
 from orchestra.utils import get_config
 import socket
+
+from server import Schedule
 
 config = get_config()
 
@@ -55,7 +57,7 @@ class PilotParser:
     fromEmail = config['from_email']
     toEmail   = config['to_email']
     password  = config['password']
-    orch_path = os.path.dirname(orchestra.__file__)
+    orch_path = os.path.dirname(server.__file__)
     postman = Postman( fromEmail, password , toEmail, orch_path+'/mailing/templates')
 
     while True:
@@ -65,7 +67,7 @@ class PilotParser:
         # create the postman
 
         schedule = Schedule(self.__db, postman)
-        from orchestra.Schedule import compile
+        from server.schedule import compile
         compile(schedule)
 
         # create the pilot

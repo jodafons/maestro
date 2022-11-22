@@ -9,13 +9,12 @@ from email.mime.text import MIMEText
 from jinja2 import Environment, FileSystemLoader
 import traceback
 
-import os, sys
 
 class Postman:
 
-  def __init__ (self, email, password, send_email, templates ):
+  def __init__ (self, email, password, toEmail, templates ):
     self.__myEmail = email
-    self.__toEmail = send_email
+    self.__toEmail = toEmail
     self.__myPassword = password
     self.__smtpServer = 'smtp.gmail.com'
     self.__smtpPort = 587
