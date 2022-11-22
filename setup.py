@@ -1,8 +1,17 @@
 import setuptools
+import os
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+here = os.path.dirname(os.path.realpath(__file__))
+requirements_path = os.path.join(here, "requirements.txt")
+readme_path = os.path.join(here, "README.md")
 
+requirements = []
+with open(requirements_path) as _fp:
+    for line in _fp.readlines():
+        requirements.append(line)
+
+with open(readme_path, "r") as _fp:
+    long_description = _fp.read()
 
 
 setuptools.setup(
@@ -16,32 +25,7 @@ setuptools.setup(
   author = 'João Victor da Fonseca Pinto',
   author_email = 'jodafons@lps.ufrj.br',
   url = 'https://github.com/jodafons/orchestra',
-  keywords = [],
-  install_requires=[
-          'Flask_Security',
-          'passlib',
-          'PTable',
-          'Flask_Mail',
-          'numpy',
-          'requests',
-          'Werkzeug',
-          'SQLAlchemy',
-          'Jinja2',
-          'Flask',
-          'Flask_Login',
-          'Flask_SQLAlchemy',
-          'BeneDict',
-          'flask_admin',
-          'flask_bootstrap',
-          'flask_cors',
-          'flask_restful',
-          'Gaugi',
-          'prettytable',
-          'sqlalchemy_utils',
-          'psycopg2-binary',
-          'prometheus_client',
-          'ansi2html',
-      ],
+  install_requires=requirements,
   scripts=['scripts/maestro.py', 'scripts/run_orchestra.py'],
   classifiers=[
     'Development Status :: 4 - Beta',

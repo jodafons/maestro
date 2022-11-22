@@ -21,5 +21,4 @@ sqlalchemy_utils
 kubernetes
 psycopg2-binary
 prometheus_client
-docker
 ansi2html
