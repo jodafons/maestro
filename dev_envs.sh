@@ -12,6 +12,7 @@ export ORCHESTRA_EMAIL_TOKEN="@LPS_Cluster#2019"
 # Set all orchestra configurations
 export ORCHESTRA_BASEPATH=$PWD
 
-
+git config --global user.name "jodafons"
+git config --global user.email "jodafons@lps.ufrj.br"
 
 
