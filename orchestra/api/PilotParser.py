@@ -41,7 +41,7 @@ class PilotParser:
     fromEmail = os.environ["ORCHESTRA_MAIL_FROM"]
     toEmail   = os.environ["ORCHESTRA_MAIL_TO"]
     password  = os.environ["ORCHESTRA_MAIL_TOKEN"]
-    basepath  = os.environ["ORCHESTRA_BASEPATH"])
+    basepath  = os.environ["ORCHESTRA_BASEPATH"]
     postman = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
 
     while True:

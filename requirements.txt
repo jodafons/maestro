@@ -22,3 +22,5 @@ kubernetes
 psycopg2-binary
 prometheus_client
 ansi2html
+colorama
+psutil

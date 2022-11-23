@@ -3,10 +3,10 @@ __all__ = ["Consumer"]
 
 
 import os, time, subprocess, traceback, psutil
-from database.models import Device
+from orchestra.database.models import Device
 from orchestra.status import JobStatus
 from orchestra.server import Slot
-from orchesta import ERROR
+from orchestra import ERROR
 
 
 

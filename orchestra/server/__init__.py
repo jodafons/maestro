@@ -1,13 +1,9 @@
 
-__all__ = ["JobStatus"]
+__all__ = ["Slot", "Clock"]
 
 
 import time
 
-
-from . import database
-__all__.extend(database.__all__)
-from .database import *
 
 from . import mailing
 __all__.extend(mailing.__all__)

@@ -1,13 +1,12 @@
 
-from orchestra.utils import get_config
-from orchestra.database import *
+import os
+from orchestra.database.models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-config = get_config()
 
 
-engine = create_engine(config["postgres"])
+engine = create_engine(os.environ['ORCHESTRA_DATABASE_HOST'])
 Session = sessionmaker(bind=engine)
 session = Session()
 Base.metadata.create_all(engine)

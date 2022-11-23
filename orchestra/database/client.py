@@ -1,21 +1,13 @@
 
-__all__ = ["Database"]
+__all__ = ["postgres_client"]
 
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from orchestra.database import Task, Job, Device
-from orchestra.utils import *
 from orchestra.status import TaskStatus, JobStatus
+from orchestra import INFO, ERROR
 import traceback
-from colorama import *
-from colorama import init
-init(autoreset=True)
-
-
-INFO = Style.BRIGHT + Fore.GREEN
-ERROR = Style.BRIGHT + Fore.RED
-
 
 
 class postgres_client:
@@ -26,7 +18,7 @@ class postgres_client:
     print(INFO+f"Connecting into {host}")
 
     try:
-      self.__engine = create_engine(url)
+      self.__engine = create_engine(host)
       Session= sessionmaker(bind=self.__engine)
       self.__session = Session()
     except Exception as e:

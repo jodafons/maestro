@@ -2,10 +2,13 @@
 
 __all__ = ['Pilot']
 
-from database.models import Device
-from consumer import Consumer
+from orchestra.database.models import Device
+from orchestra.server.consumer import Consumer
+from orchestra.server import Clock
 import socket
-from . import Clock, SECONDS
+
+SECONDS = 1
+
 
 class Pilot:
 

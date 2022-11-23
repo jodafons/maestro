@@ -1,5 +1,5 @@
 
-__all__ = []
+__all__ = ["ERROR", "INFO"]
 
 from colorama import *
 from colorama import init
@@ -10,6 +10,10 @@ ERROR = Style.BRIGHT + Fore.RED
 from . import status
 __all__.extend( status.__all__ )
 from .status import *
+
+from . import database
+__all__.extend( database.__all__ )
+from .database import *
 
 from . import api
 __all__.extend( api.__all__ )

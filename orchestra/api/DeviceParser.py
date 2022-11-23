@@ -2,7 +2,7 @@
 __all__ = ["DeviceParser"]
 
 import argparse
-from orchestra.server.database.models import Device
+from orchestra.database.models import Device
 from prettytable import PrettyTable
 
 
@@ -17,7 +17,7 @@ class DeviceParser:
       create_parser.add_argument('-n', '--hostname', action='store', dest='hostname', required=True,
                                   help = "The name of the device.")
       create_parser.add_argument('-d','--device', action='store', dest='device', type=int, default=-1,
-                                  help = "The device number")
+                                  help = "The device GPU number.")
       create_parser.add_argument('-s','--slots', action='store', dest='slots', type=int, default=1,
                                   help = "The number of slots for this device")
       create_parser.add_argument('-e','--enabled', action='store', dest='enabled', type=int, default=1,
@@ -69,7 +69,7 @@ class DeviceParser:
     # Loop over all datasets inside of the username
     for device in self.__db.devices():
 
-      t.add_row(  [device.hostname,
+      t.add_row(  [device.host,
                    device.gpu,
                    'gpu' if device.gpu>=0 else 'cpu',
                    '%d/%d'%(device.enabled, device.slots),

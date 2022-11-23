@@ -3,9 +3,9 @@
 __all__ = ["compile", "Schedule"]
 
 
-from orchestra.server.database.models import Job
+from orchestra.database.models import Job
 from orchestra.status import JobStatus, TaskAction
-from orchesta import INFO, ERROR
+from orchestra import INFO, ERROR
 from sqlalchemy import and_
 import traceback
 
@@ -19,45 +19,44 @@ class Schedule:
     self.states = []
 
 
-  def transition( self, source, destination, chain ):
-    if type(chain) is not list:
-      chain=[chain]
-    self.states.append( (source, chain, destination) )
+  def transition( self, source, dest, relationship ):
+    if type(relationship) is not list:
+      relationship=[relationship]
+    self.states.append( (source, relationship, dest) )
 
 
   def run(self):
 
     self.treat_running_jobs_not_alive()
     for task in self.db.tasks():
-      self.(task)
-
+      self.eval(task)
 
     self.db.commit()
     return True
 
 
 
-  def pulse(self, task):
+  def eval(self, task):
 
     # Get the current JobStatus information
     current = task.JobStatus
     # Run all JobStatus triggers to find the correct transiction
-    for source, chain, dest in self.states:
+    for source, relationship, dest in self.states:
       # Check if the current JobStatus is equal than this JobStatus
       if source == current:
-        passed = True
+        answer = True
         # Execute all triggers into this JobStatus
-        for hypo in chain:
+        for question in relationship:
           try:
-            passed = hypo(self.db, task) 
+            answer = question(self.db, task) 
           except Exception as e:
             print(ERROR+e)
             traceback.print_exc()
             taskname = task.name
             print(ERROR + f"Exception raise in state {current} for this task {taskname}")
-          if not passed:
+          if not answer:
             break
-        if passed:
+        if answer:
           task.status = dest
           break
 
