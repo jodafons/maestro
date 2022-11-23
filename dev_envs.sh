@@ -3,9 +3,14 @@
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH
 
+export ORCHESTRA_DATABASE_HOST="postgres://joao.pinto:1234@146.164.147.44:5432/orchestra"
+export ORCHESTRA_EMAIL_FROM="cluster@lps.ufrj.br"
+export ORCHESTRA_EMAIL_TO="jodafons@lps.ufrj.br"
+export ORCHESTRA_EMAIL_TOKEN=""
+
 
 # Set all orchestra configurations
-export ORCH_PATH=`pwd`
+export ORCHESTRA_BASEPATH=$PWD
 
 
 

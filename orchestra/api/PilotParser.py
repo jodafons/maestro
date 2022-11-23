@@ -1,20 +1,12 @@
 
 __all__ = ["PilotParser"]
 
-import traceback, time, os, argparse
+import traceback, time, os, argparse, socket
 
-import server
-from server import Pilot
-from orchestra.mailing import Postman
-from orchestra.utils import *
-from orchestra.utils import get_config
-import socket
-
-from server import Schedule
-
-config = get_config()
-
-
+from orchestra.server.main import Pilot
+from orchestra.server.mailing import Postman
+from orchestra.server.schedule import Schedule, compile
+from orchestra import ERROR
 
 class PilotParser:
 
@@ -24,13 +16,9 @@ class PilotParser:
     if args:
 
       run_parser = argparse.ArgumentParser(description = 'Run pilot command lines.' , add_help = False)
-
-      run_parser.add_argument('-n','--node', action='store',
-               dest='node', required = False, default = socket.gethostname() ,
-               help = "The node name registered into the database.")
       run_parser.add_argument('-m','--master', action='store_true',
                dest='master', required = False ,
-               help = "This is a master branch. One node must be a master.")
+               help = "This is a master branch. One hostname must be a master.")
 
       parent = argparse.ArgumentParser(description = '',add_help = False)
       subparser = parent.add_subparsers(dest='option')
@@ -42,45 +30,35 @@ class PilotParser:
   def compile( self, args ):
     if args.mode == 'pilot':
       if args.option == 'run':
-        self.run( args.node, args.master )
+        self.run( args.master )
       else:
-        MSG_FATAL("Not valid option.")
+        print("Not valid option.")
 
 
 
-
-  #
-  # List datasets
-  #
-  def run( self, nodename , master):
+  def run( self, master):
     
-    fromEmail = config['from_email']
-    toEmail   = config['to_email']
-    password  = config['password']
-    orch_path = os.path.dirname(server.__file__)
-    postman = Postman( fromEmail, password , toEmail, orch_path+'/mailing/templates')
+    fromEmail = os.environ["ORCHESTRA_MAIL_FROM"]
+    toEmail   = os.environ["ORCHESTRA_MAIL_TO"]
+    password  = os.environ["ORCHESTRA_MAIL_TOKEN"]
+    basepath  = os.environ["ORCHESTRA_BASEPATH"])
+    postman = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
 
     while True:
       try:
-
         self.__db.reconnect()
         # create the postman
-
         schedule = Schedule(self.__db, postman)
-        from server.schedule import compile
         compile(schedule)
-
         # create the pilot
-        pilot = Pilot(nodename, self.__db, schedule, postman, master=master )
-        pilot.init()
+        pilot = Pilot(self.__db, schedule, postman, master=master )
         pilot.run()
         
       except Exception as e:
         traceback.print_exc()
-        subject = "[Cluster LPS] (ALARM) Orchestra stop"
         message=traceback.format_exc()
-        postman.send(subject,message)
-        print(message)
+        postman.send("[Cluster LPS] (ALARM) Orchestra stop",message)
+        print(ERROR+message)
         time.sleep(10)
 
 

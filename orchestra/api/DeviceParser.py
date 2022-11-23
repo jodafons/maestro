@@ -1,8 +1,8 @@
 
 __all__ = ["DeviceParser"]
 
-from orchestra.utils import *
 import argparse
+from orchestra.server.database.models import Device
 from prettytable import PrettyTable
 
 
@@ -14,7 +14,7 @@ class DeviceParser:
     if args:
 
       create_parser = argparse.ArgumentParser(description = 'Device create command lines.' , add_help = False)
-      create_parser.add_argument('-n', '--nodename', action='store', dest='nodename', required=True,
+      create_parser.add_argument('-n', '--hostname', action='store', dest='hostname', required=True,
                                   help = "The name of the device.")
       create_parser.add_argument('-d','--device', action='store', dest='device', type=int, default=-1,
                                   help = "The device number")
@@ -40,24 +40,15 @@ class DeviceParser:
 
 
   def compile( self, args ):
-    # Dataset CLI
     if args.mode == 'device':
       if args.option == 'create':
-        ok, answer = self.create(args.nodename, args.device, args.slots, args.enabled)
-        if not ok:
-          MSG_FATAL(answer)
-        else:
-          MSG_INFO(answer)
-
+        _, answer = self.create(args.hostname, args.device, args.slots, args.enabled)
+        print(answer)
       elif args.option == 'list':
-        ok, answer = self.list()
-        if not ok:
-          MSG_FATAL(answer)
-        else:
-          print(answer)
-
+        _, answer = self.list()
+        print(answer)
       else:
-        MSG_FATAL( "Not valid option.")
+        print( "Not valid option.")
 
 
 
@@ -78,7 +69,7 @@ class DeviceParser:
     # Loop over all datasets inside of the username
     for device in self.__db.devices():
 
-      t.add_row(  [device.nodename,
+      t.add_row(  [device.hostname,
                    device.gpu,
                    'gpu' if device.gpu>=0 else 'cpu',
                    '%d/%d'%(device.enabled, device.slots),
@@ -92,10 +83,11 @@ class DeviceParser:
   #
   # create a node
   #
-  def create( self, nodename, device, slots, enabled):
+  def create( self, hostname, device, slots, enabled):
 
-    if not self.__db.create_device( nodename, enabled, slots, device=device ):
-      return (False, 'Failed to create the node into the database')
+    device = Device(host=hostname, enabled=enabled, slots=slots, gpu=device)
+    self.__db.session().add(device)
+    self.__db.commit()
     return (True, "Successfully created." )
 
 
