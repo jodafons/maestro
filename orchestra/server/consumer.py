@@ -6,6 +6,7 @@ import os, time, subprocess, traceback, psutil
 from database.models import Device
 from orchestra.status import JobStatus
 from orchestra.server import Slot
+from orchesta import ERROR
 
 
 
@@ -84,8 +85,6 @@ class Job:
       return True
     else:
       return False
-
-
 
 
   #
@@ -226,10 +225,6 @@ class Consumer:
       total = self.device_db.slots
       print(INFO+f"Updating slots with {enabled}/{total}")
   
-
-
-
-
 
   def pop(self):
     for slot in self.slots:
