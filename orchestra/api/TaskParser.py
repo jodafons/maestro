@@ -4,17 +4,12 @@ __all__ = ["TaskParser"]
 
 import glob, traceback, os, argparse
 
-from orchestra.database.models import Task,Job
+from orchestra.database.models import Task, Job
 from orchestra.status import JobStatus, TaskStatus, TaskAction
 from orchestra.api import test_locally, remove_extension
 from sqlalchemy import and_, or_
 from prettytable import PrettyTable
 from tqdm import tqdm
-from curses import OK
-
-
-
-
 
 
 #
@@ -26,7 +21,6 @@ class TaskParser:
   def __init__(self , db, args=None):
 
     self.__db = db
-
     if args:
 
       # Create Task
@@ -195,7 +189,6 @@ class TaskParser:
       os.makedir(volume, exist_ok=True)
 
     try:
-      task_db = Task()
       task_db = Task( self.__db.generate_id(Task),
                       name=taskname,
                       volume=volume,
@@ -219,7 +212,7 @@ class TaskParser:
 
       if skip_local_test:
         self.__db.session().add(task)
-        if not dry_run
+        if not dry_run:
           self.__db.commit()
         return (True, "Succefully created.")
 
@@ -240,20 +233,19 @@ class TaskParser:
 
 
 
-  def delete( self, task_id_list, force=False , remove=False):
+  def delete( self, task_ids, force=False , remove=False):
 
-
-    for id in task_id_list:
+    for task_id in task_ids:
 
       # Get task by id
-      task = self.__db.session().query(Task).filter(Task.id==id).first()
+      task = self.__db.session().query(Task).filter(Task.id==task_id).first()
       if not task:
-        return (False, "The task with id (%d) does not exist into the data base"%id )
+        return (False, f"The task with id ({task_id}) does not exist into the data base" )
       
       # Check possible status before continue
       if not force:
         if not task.status in [TaskStatus.BROKEN, TaskStatus.KILLED, TaskStatus.FINALIZED, TaskStatus.COMPLETED]:
-          return (False, "The task with current status %s can not be deleted. The task must be in COMPLETED, finalized, killed or broken TaskStatus."% task.getStatus() )
+          return (False, f"The task with current status {task.status} can not be deleted. The task must be in completed, finalized, killed or broken status.")
       
       volume = task.volume
 
@@ -283,7 +275,7 @@ class TaskParser:
 
 
     # helper function to print my large table
-    def ptable( tasks, list_all ):
+    def table( tasks, list_all ):
       t = PrettyTable([
 
                         'TaskID'    ,
@@ -297,74 +289,64 @@ class TaskParser:
                         'kill'      ,
                         'killed'    ,
                         'broken'    ,
-                        'State'     ,
+                        'Status'     ,
                         ])
 
       def count( jobs ):
-        states = [TaskStatus.REGISTERED, TaskStatus.ASSIGNED, TaskStatus.TESTING, 
-                  TaskStatus.RUNNING   , TaskStatus.COMPLETED, TaskStatus.FAILED, 
-                  TaskStatus.KILL      , TaskStatus.KILLED  , TaskStatus.BROKEN]
-
-        total = { str(key):0 for key in states }
+        status = [JobStatus.REGISTERED, JobStatus.ASSIGNED , JobStatus.TESTING, 
+                  JobStatus.RUNNING   , JobStatus.COMPLETED, JobStatus.FAILED, 
+                  JobStatus.KILL      , JobStatus.KILLED   , JobStatus.BROKEN]
+        total = { str(key):0 for key in status }
         for job in jobs:
-          for s in states:
-            if job.state==s: total[str(s)]+=1
+          for s in status:
+            if job.status==s: total[s]+=1
         return total
 
       for task in tasks:
         jobs = task.jobs
-        if not list_all and (task.state == TaskStatus.COMPLETED):
+        if not list_all and (task.status == TaskStatus.COMPLETED):
           continue
+
         total = count(jobs)
-        registered    = total[ TaskStatus.REGISTERED]
-        assigned      = total[ TaskStatus.ASSIGNED  ] 
-        testing       = total[ TaskStatus.TESTING   ] 
-        running       = total[ TaskStatus.RUNNING   ] 
-        completed     = total[ TaskStatus.COMPLETED      ] 
-        failed        = total[ TaskStatus.FAILED    ] 
-        kill          = total[ TaskStatus.KILL      ] 
-        killed        = total[ TaskStatus.KILLED    ] 
-        broken        = total[ TaskStatus.BROKEN    ] 
-        state         = task.state
+        registered    = total[ JobStatus.REGISTERED]
+        assigned      = total[ JobStatus.ASSIGNED  ] 
+        testing       = total[ JobStatus.TESTING   ] 
+        running       = total[ JobStatus.RUNNING   ] 
+        completed     = total[ JobStatus.COMPLETED ] 
+        failed        = total[ JobStatus.FAILED    ] 
+        kill          = total[ JobStatus.KILL      ] 
+        killed        = total[ JobStatus.KILLED    ] 
+        broken        = total[ JobStatus.BROKEN    ] 
+        status        = task.status
 
         t.add_row(  [task.id, task.taskname, registered,  assigned, 
-                     testing, running, failed,  COMPLETED, kill, killed, broken, 
-                     state] )
+                     testing, running, failed, kill, killed, broken, 
+                     status] )
       return t
 
 
 
     if interactive:
-        from server.main import Clock
-        from server import SECOND
-        import os
-        clock = Clock(10*SECOND)
         while True:
-            if clock():
-                tasks = self.__db.tasks()
-
-                os.system("clear")
-                print(ptable(tasks, list_all))
+            time.sleep(10*SECONDS)
+            os.system("clear")
+            print(table(self.__db.tasks(), list_all))
     else:
-        tasks = self.__db.tasks()
-        t = ptable(tasks, list_all)
-        return (True, t)
+        return (True, table(self.__db.tasks(), list_all))
 
 
 
 
 
 
-  def kill( self, task_id_list ):
+  def kill( self, task_ids ):
 
-    for id in task_id_list:
+    for task_id in task_ids:
       try:
-        # Get task by id
-        task = self.__db.session().query(Task).filter(Task.id==id).first()
+        task = self.__db.session().query(Task).filter(Task.id==task_id).first()
         if not task:
-            return (False, "The task with id (%d) does not exist into the data base"%id )
-        # Send kill TaskStatus to the task
-        task.TaskStatus = TaskStatus.KILL
+            return (False, f"The task with id ({task_id}) does not exist into the data base")
+        task.action = TaskAction.KILL
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
@@ -375,18 +357,16 @@ class TaskParser:
 
 
 
-  def retry( self, task_id_list ):
+  def retry( self, task_ids ):
 
-    for id in task_id_list:
+    for task_id in task_ids:
       try:
-        task = self.__db.session().query(Task).filter(Task.id==id).first()
+        task = self.__db.session().query(Task).filter(Task.id==task_id).first()
         if not task:
-            return (False, "The task with id (%d) does not exist into the data base"%id )
-        
-        if task.state == TaskStatus.COMPLETED:
-            return (False, "The task with id (%d) is in COMPLETED TaskStatus. Can not retry."%id )
-
-        task.TaskStatus = TaskStatus.RETRY
+            return (False, f"The task with id ({task_id}) does not exist into the data base" )
+        if task.status == TaskStatus.COMPLETED:
+            return (False, f"The task with id ({task.status}) is in COMPLETED TaskStatus. Can not retry." )
+        task.status = TaskAction.RETRY
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()

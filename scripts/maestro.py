@@ -12,7 +12,7 @@ except:
 
 import sys, os, argparse
 from orchestra.database import postgres_client
-from orchestra.api import DeviceParser, PilotParser
+from orchestra.api import DeviceParser, PilotParser, TaskParser
 
 
 parser = argparse.ArgumentParser()
@@ -24,7 +24,7 @@ db = postgres_client( os.environ['ORCHESTRA_DATABASE_HOST'] )
 parsers = [
             PilotParser(db, commands),
             DeviceParser(db, commands),
-            #TaskParser(db, commands),
+            TaskParser(db, commands),
           ]
 
 

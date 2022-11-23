@@ -1,4 +1,4 @@
-__all__ = ["remove_extensions","test_locally"]
+__all__ = ["remove_extension","test_locally"]
 
 
 
