@@ -4,7 +4,8 @@ __all__ = ["Consumer"]
 
 import os, time, subprocess, traceback, psutil
 from database.models import Device
-from . import JobStatus
+from orchestra.status import JobStatus
+from orchestra.server import Slot
 
 
 
@@ -14,7 +15,7 @@ class Job:
 
     self.job = job_db
     self.slot = slot
-    self.volume = job_db.volume()
+    self.workarea = job_db.workarea
     self.command = job_db.command
     self.pending=True
     self.broken=False
@@ -34,18 +35,21 @@ class Job:
     self.__proc_stat = None
    
 
+  def db(self):
+    return self.job_db
+
 
   #
   # Run the job process
   #
   def run(self):
 
-    os.makedirs(self.volume, exist_ok=True)
+    os.makedirs(self.workarea, exist_ok=True)
     try:
       self.pending=False
       self.killed=False
       self.broken=False
-      command = 'cd %s' % self.volume + ' && '
+      command = 'cd %s' % self.workarea + ' && '
       command+= self.command
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
       time.sleep(2)
@@ -54,7 +58,7 @@ class Job:
 
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       self.broken=True
       return False
 
@@ -103,41 +107,7 @@ class Job:
       return JobStatus.COMPLETED
 
 
-  #
-  # Update timer into the database
-  #
-  def ping(self):
-    self.job_db.ping()
 
-
-
-#
-# Individual Slot to control the Queue
-#
-class Slot:
-
-  def __init__(self, device=-1):
-    self.device = device
-    self.__enable = False
-    self.__available = True
-
-  def available( self ):
-    return (self.__available and self.__enable)
-
-  def lock( self ):
-    self.available = False
-
-  def unlock( self ):
-    self.__available = True
-
-  def enable(self):
-    self.__enable=True
-
-  def disable(self):
-    self.__enable=False
-
-  def enabled(self):
-    return self.__enable
 
 
 
@@ -150,13 +120,29 @@ class Consumer:
   def __init__(self, device, db):
     self.db = db
     self.device_db = device
-    self.slots = []
     self.total = 0
-
     self.slots = [Slot(device.gpu) for _ in range(self.device_db.slots)]
     for slot_id in range(self.device_db.enabled):
         self.slots[slot_id].enable()
         self.__total+=1
+    self.jobs = []
+
+
+  #
+  # Add a job into the slot
+  #
+  def __add__( self, job_db ):
+    slot = self.pop()
+    if slot:
+      job = Job( job_db , slot )
+      job_db.status = JobStatus.PENDING
+      self.jobs.append(job)
+      job.ping()
+      slot.lock()
+      return True
+    else:
+      return False
+
 
 
 
@@ -164,43 +150,48 @@ class Consumer:
 
     self.pull()
 
-    # Loop over all available consumers
-    for _, job in enumerate(self.__slots):
+    deactivate_jobs = []
 
-      job_db = job.job_db
+    # Loop over all available consumers
+    for _, job in enumerate(self.jobs):
+
       slot = job.slot
 
-      if job.status == JobStatus.KILL:
+      if job.db().status == JobStatus.KILL:
         job.kill()
 
       if job.status() == JobStatus.PENDING:
-        if not job.run():
-          job_db.status = JobStatus.BROKEN
+        if job.run():
+          job.db().status = JobStatus.RUNNING
+        else:
+          job.db().status = JobStatus.BROKEN
           slot.unlock()
-          self.__slots.remove(job)
-        else: # change to running State
-          job_db.status = JobStatus.RUNNING
+          deactivate_jobs.append(job)
 
       elif job.status() is JobStatus.FAILED:
-        job_db.status = JobStatus.FAILED
+        job.db().status = JobStatus.FAILED
         slot.unlock()
-        self.__slots.remove(job)
+        deactivate_jobs.append(job)
 
       elif job.status() is JobStatus.KILLED:
-        job_db.status = JobStatus.KILLED
+        job.db().status = JobStatus.KILLED
         slot.unlock()
-        self.__slots.remove(job)
+        deactivate_jobs.append(job)
 
       elif job.status() is JobStatus.RUNNING:
-        job.ping()
+        job.db().ping()
 
       elif job.status() is JobStatus.DONE:
-        job_db.status = JobStatus.DONE
+        job.db().status = JobStatus.DONE
         slot.unlock()
-        self.__slots.remove(job)
+        deactivate_jobs.append(job)
 
       # pull job status into the database
       self.db.commit()
+
+      # remove jobs from the queue
+      for job in deactivate_jobs:
+        self.jobs.remove(job)
 
     return True
 
@@ -208,10 +199,11 @@ class Consumer:
   def available(self):
     return True if len(self.slots) < self.size() else False
 
-
   def allocated( self ):
     return len(self.__slots)
 
+  def size(self):
+    return self.total
 
   
 
@@ -232,28 +224,14 @@ class Consumer:
     if total!= before:
       enabled = self.total
       total = self.device_db.slots
-      print('Updating slots with {enabled}/{total}')
+      print(INFO+f"Updating slots with {enabled}/{total}")
   
 
 
 
-  #
-  # Add a job into the slot
-  #
-  def push_back( self, job_db ):
-    slot = self.__get_slot()
-    if not slot:
-      return False
-    job = Job( job_db , slot )
-    job_db.status = JobStatus.PENDING
-    self.slots.append(job)
-    job.ping()
-    slot.lock()
 
 
-
-
-  def get_slot(self):
+  def pop(self):
     for slot in self.slots:
       if slot.available():
           return slot

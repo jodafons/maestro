@@ -1,8 +1,8 @@
 
 __all__ = ["JobStatus"]
 
-SECOND = 1
-MINUTE  = 60*SECOND
+
+import time
 
 
 from . import database
@@ -17,29 +17,45 @@ from . import schedule
 __all__.extend(schedule.__all__)
 from .schedule import *
 
+
+
+class Slot:
+
+  def __init__(self, device=-1):
+    self.device = device
+    self.__enable = False
+    self.__available = True
+
+  def available( self ):
+    return (self.__available and self.__enable)
+
+  def lock( self ):
+    self.available = False
+
+  def unlock( self ):
+    self.__available = True
+
+  def enable(self):
+    self.__enable=True
+
+  def disable(self):
+    self.__enable=False
+
+  def enabled(self):
+    return self.__enable
+
+
 from . import consumer
 __all__.extend(consumer.__all__)
 from .consumer import *
 
-from . import main
-__all__.extend(main.__all__)
-from .main import *
 
-
-
-
-
-
-
-
-import time
 
 class Clock:
 
   def __init__( self , maxseconds ):
     self.__maxseconds=maxseconds
     self.__then = None
-
 
   def __call__( self ):
     if self.__maxseconds is None:
@@ -57,4 +73,9 @@ class Clock:
 
   def reset(self):
     self.__then=None
+
+from . import main
+__all__.extend(main.__all__)
+from .main import *
+
 

@@ -1,16 +1,21 @@
-FROM jodafons/root-cern:base
-
-
+FROM tensorflow/tensorflow:2.3.2-gpu
 LABEL maintainer "Joao Victor da Fonseca Pinto <jodafons@lps.ufrj.br>"
-
 USER root
-ENV LC_ALL C.UTF-8
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV TERM screen
+SHELL [ "/bin/bash", "-c" ]
 
-COPY setup_envs.sh /setup_envs.sh
-COPY entrypoint.sh /entrypoint.sh
+RUN pip install --upgrade pip
 
-ENTRYPOINT ["/entrypoint.sh"]
+RUN mkdir /app
+WORKDIR /app
+
+COPY orchestra /app/orchestra
+COPY scripts /app/scripts
+COPY entrypoint.sh .
+COPY setup.py .
+COPY requirements.txt .
+COPY README.md .
+RUN ls
+RUN pip install .
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 

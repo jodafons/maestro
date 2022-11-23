@@ -1,6 +1,11 @@
 
 __all__ = []
 
+from colorama import *
+from colorama import init
+init(autoreset=True)
+INFO = Style.BRIGHT + Fore.GREEN
+ERROR = Style.BRIGHT + Fore.RED
 
 from . import status
 __all__.extend( status.__all__ )

@@ -6,24 +6,33 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from orchestra.database import Task, Job, Device
 from orchestra.utils import *
+from orchestra.status import TaskStatus, JobStatus
 import traceback
+from colorama import *
+from colorama import init
+init(autoreset=True)
 
+
+INFO = Style.BRIGHT + Fore.GREEN
+ERROR = Style.BRIGHT + Fore.RED
 
 
 
 class postgres_client:
 
-  def __init__( self, url):
+  def __init__( self, host):
 
-    self.url=url
+    self.host=host
+    print(INFO+f"Connecting into {host}")
+
     try:
-      MSG_INFO(url)
       self.__engine = create_engine(url)
       Session= sessionmaker(bind=self.__engine)
       self.__session = Session()
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
+
 
   def __del__(self):
     self.commit()
@@ -41,73 +50,45 @@ class postgres_client:
     self.session().close()
 
 
-  def reconnect(self):
-    self.close()
-    try:
-      self.__engine = create_engine(self.url)
-      Session= sessionmaker(bind=self.__engine)
-      self.__session = Session()
-    except Exception as e:
-      traceback.print_exc()
-      print(e)
-
-
-  
-
-  def create_task( self, taskname, volume ):
+  def create( self, name, workarea ):
                          
     try:
       task = Task(
         id=self.generateId(Task),
-        taskname=taskname,
-        volume=volume,
-        state='registered',
-      )
-      #self.session().add(task)
+        name=name,
+        workarea=workarea,
+        status=TaskStatus.REGISTERED)
       return task
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       return None
 
 
-  def create_job( self, task, jobname, inputfile, command, state='registered', id=None):
-
+  def attach( self, task, jobname, inputfile, command, 
+              status=JobStatus.REGISTERED, 
+              id=None):
     try:
       job = Job(
         id=self.generateId(Job) if id is None else id,
         command=command,
-        jobname = jobname,
+        name = jobname,
         inputfile=inputfile,
-        state=state
-      )
+        status=status)
       task+=job
       return job
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       return None
 
 
-  def create_device( self, nodename, enabled, slots, device=-1 ):
-
+  def task( self, name ):
     try:
-      device = Device(nodename=nodename, enabled=enabled, slots=slots, gpu=device)
-      self.session().add(device)
-      self.commit()
-      return device
+      return self.session().query(Task).filter(Task.name==name).first()
     except Exception as e:
       traceback.print_exc()
-      print(e)
-      return None
-
-
-  def task( self, taskname ):
-    try:
-      return self.session().query(Task).filter(Task.taskname==taskname).first()
-    except Exception as e:
-      traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       return None
 
 
@@ -116,7 +97,7 @@ class postgres_client:
       return self.session().query(Task).all()
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       return None
 
 
@@ -125,7 +106,7 @@ class postgres_client:
       return self.session().query(Device).all()
     except Exception as e:
       traceback.print_exc()
-      print(e)
+      print(ERROR+e)
       return None
 
 
