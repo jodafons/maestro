@@ -5,6 +5,7 @@ __all__ = ['Pilot']
 from orchestra.database.models import Device
 from orchestra.server.consumer import Consumer
 from orchestra.server import Clock
+from orchestra import INFO
 import socket
 
 SECONDS = 1
@@ -32,14 +33,16 @@ class Pilot:
 
     while True:
       if self.tictac():
+        print(INFO+'Run pilot...')
         if self.master:
           self.schedule.run()
-        else:
-          for consumer in self.consumers:
-            jobs_db = self.schedule.jobs()
-            while consumer.available() and len(jobs_db) > 0:
-              consumer+=jobs_db.pop()
-            consumer.run()
+        
+        for consumer in self.consumers:
+          n = consumer.size() - consumer.allocated()
+          jobs_db = self.schedule.jobs(n)
+          while consumer.available() and len(jobs_db) > 0:
+            consumer.push_back(jobs_db.pop())
+          consumer.run()
         
         self.tictac.reset()
 

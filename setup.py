@@ -24,9 +24,9 @@ setuptools.setup(
   packages=setuptools.find_packages(),
   author = 'João Victor da Fonseca Pinto',
   author_email = 'jodafons@lps.ufrj.br',
-  url = 'https://github.com/jodafons/orchestra',
+  url = 'https://github.com/jodafons/orchestra-server',
   install_requires=requirements,
-  scripts=['scripts/maestro.py', 'scripts/run_orchestra.py'],
+  scripts=['scripts/maestro.py'],
   classifiers=[
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',

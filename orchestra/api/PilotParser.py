@@ -38,20 +38,21 @@ class PilotParser:
 
   def run( self, master):
     
-    fromEmail = os.environ["ORCHESTRA_MAIL_FROM"]
-    toEmail   = os.environ["ORCHESTRA_MAIL_TO"]
-    password  = os.environ["ORCHESTRA_MAIL_TOKEN"]
-    basepath  = os.environ["ORCHESTRA_BASEPATH"]
-    postman = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
+    from_email = os.environ["ORCHESTRA_EMAIL_FROM"]
+    to_email   = os.environ["ORCHESTRA_EMAIL_TO"]
+    password   = os.environ["ORCHESTRA_EMAIL_TOKEN"]
+    basepath   = os.environ["ORCHESTRA_BASEPATH"]
+    postman    = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
+
 
     while True:
       try:
-        self.__db.reconnect()
+        #self.__db.reconnect()
         # create the postman
         schedule = Schedule(self.__db, postman)
         compile(schedule)
         # create the pilot
-        pilot = Pilot(self.__db, schedule, postman, master=master )
+        pilot = Pilot(self.__db, schedule, master=master )
         pilot.run()
         
       except Exception as e:

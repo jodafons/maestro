@@ -14,7 +14,6 @@ COPY entrypoint.sh .
 COPY setup.py .
 COPY requirements.txt .
 COPY README.md .
-RUN ls
 RUN pip install .
 
 ENTRYPOINT ["/app/entrypoint.sh"]
