@@ -6,6 +6,8 @@ class JobStatus:
 
     UNKNOWN    = 'Unknown'
     REGISTERED = "Registered"
+    ASSIGNED   = "Assigned"
+    TESTING    = "Testing"
     BROKEN     = "Broken"
     FAILED     = "Failed"
     KILL       = "Kill"

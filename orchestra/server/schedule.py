@@ -4,7 +4,7 @@ __all__ = ["compile", "Schedule"]
 
 
 from orchestra.database.models import Job
-from orchestra.status import JobStatus, TaskAction
+from orchestra.status import JobStatus, TaskStatus, TaskAction
 from orchestra import INFO, ERROR
 from sqlalchemy import and_
 import traceback
@@ -39,7 +39,7 @@ class Schedule:
   def eval(self, task):
 
     # Get the current JobStatus information
-    current = task.JobStatus
+    current = task.status
     # Run all JobStatus triggers to find the correct transiction
     for source, relationship, dest in self.states:
       # Check if the current JobStatus is equal than this JobStatus
@@ -48,12 +48,11 @@ class Schedule:
         # Execute all triggers into this JobStatus
         for question in relationship:
           try:
-            answer = question(self.db, task) 
+            answer = getattr(self, question)(task) 
           except Exception as e:
-            print(ERROR+e)
+            print(e)
             traceback.print_exc()
-            taskname = task.name
-            print(ERROR + f"Exception raise in state {current} for this task {taskname}")
+            print(ERROR + f"Exception raise in state {current} for this task {task.name}")
           if not answer:
             break
         if answer:
@@ -63,14 +62,14 @@ class Schedule:
 
 
 
-  def get_n_jobs(self, njobs):
+  def jobs(self, njobs):
     try:
       jobs = self.db.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
       jobs.reverse()
       return jobs
     except Exception as e:
       traceback.print_exc()
-      print(ERROR+e)
+      print(e)
       return []
 
 
@@ -79,7 +78,7 @@ class Schedule:
   # Get all running jobs into the job list
   #
   def get_all_running_jobs(self):
-    return self.db.session().query(Job).filter( and_( Job.JobStatus==JobStatus.RUNNING) ).with_for_update().all()
+    return self.db.session().query(Job).filter( and_( Job.status==JobStatus.RUNNING) ).with_for_update().all()
 
 
 
@@ -155,7 +154,7 @@ class Schedule:
   def all_jobs_were_killed( self, task ):
 
     total = len(self.db.session().query(Job).filter( Job.taskid==task.id ).all())
-    if ( len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.JobStatus==JobStatus.KILLED ) ).all()) == total ):
+    if ( len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.KILLED ) ).all()) == total ):
       return True
     else:
       return False
@@ -207,7 +206,7 @@ class Schedule:
   def all_jobs_are_registered( self, task ):
 
     total = len(self.db.session().query(Job).filter( Job.taskid==task.id ).all())
-    if len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.JobStatus==JobStatus.REGISTERED ) ).all()) == total:
+    if len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.REGISTERED ) ).all()) == total:
       return True
     else:
       return False
@@ -229,18 +228,18 @@ class Schedule:
   def assigned_all_jobs( self, task ):
 
     for job in task.jobs:
-      if job.JobStatus != JobStatus.COMPLETED:
-        job.JobStatus =  JobStatus.ASSIGNED
+      if job.status != JobStatus.COMPLETED:
+        job.status =  JobStatus.ASSIGNED
     return True
 
 
   #
   # Check if all jobs into this task are in completed status
   #
-  def all_jobs_completed( self, task ):
+  def all_jobs_are_completed( self, task ):
 
     total = len(self.db.session().query(Job).filter( Job.taskid==task.id ).all())
-    if len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.JobStatus==JobStatus.COMPLETED ) ).all()) == total:
+    if len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.COMPLETED ) ).all()) == total:
       return True
     else:
       return False
@@ -281,7 +280,7 @@ class Schedule:
   def send_email_task_completed( self, task ):
 
     subject = ("[LPS Cluster] Notification for task id %d")%(task.id)
-    message = ("The task with name %s was assigned with COMPLETED JobStatus.")%(task.taskname)
+    message = (f"The task with name {task.name} was assigned with COMPLETED JobStatus.")
     self.postman.send(subject, message)
     return True
 
@@ -290,7 +289,7 @@ class Schedule:
   def send_email_task_broken( self, task ):
 
     subject = ("[LPS Cluster] Notification for task id %d")%(task.id)
-    message = ("Your task with name %s was set to BROKEN JobStatus.")%(task.taskname)
+    message = (f"Your task with name {task.name} was set to BROKEN JobStatus.")
     self.postman.send(subject, message)
     return True
     
@@ -299,7 +298,7 @@ class Schedule:
   def send_email_task_finalized( self, task ):
 
     subject = ("[LPS Cluster] Notification for task id %d")%(task.id)
-    message = ("The task with name %s was assigned with FINALIZED JobStatus.")%(task.taskname)
+    message = (f"The task with name {task.name} was assigned with FINALIZED JobStatus.")
     self.postman.send(subject, message)
     return True
 
@@ -308,7 +307,7 @@ class Schedule:
   def send_email_task_killed( self, task ):
 
     subject = ("[LPS Cluster] Notification for task id %d")%(task.id)
-    message = ("The task with name %s was assigned with KILLED JobStatus.")%(task.taskname)
+    message = (f"The task with name {task.name} was assigned with KILLED JobStatus.")
     self.postman.send(subject, message)
     return True
 
@@ -334,19 +333,19 @@ class Schedule:
 #
 def compile(schedule):
 
-  #schedule.transition( source=JobStatus.REGISTERED, destination=JobStatus.TESTING    , trigger=['all_jobs_are_registered', 'assigned_one_job_to_test']         )
-  schedule.transition( source=JobStatus.REGISTERED, destination=JobStatus.TESTING    , trigger=['all_jobs_are_registered']         )
-  #schedule.transition( source=JobStatus.TESTING   , destination=JobStatus.TESTING    , trigger='test_job_still_running'                                        )
-  #schedule.transition( source=JobStatus.TESTING   , destination=JobStatus.BROKEN     , trigger=['test_job_fail','broken_all_jobs','send_email_task_broken']    )
-  #schedule.transition( source=JobStatus.TESTING   , destination=JobStatus.RUNNING    , trigger=['test_job_pass','assigned_all_jobs']                           )
-  schedule.transition( source=JobStatus.TESTING   , destination=JobStatus.RUNNING    , trigger=['assigned_all_jobs']                                           )
-  schedule.transition( source=JobStatus.BROKEN    , destination=JobStatus.REGISTERED , trigger='retry_all_jobs'                                                )
-  schedule.transition( source=JobStatus.RUNNING   , destination=JobStatus.COMPLETED  , trigger=['all_jobs_are_completed', 'send_email_task_completed']         )
-  schedule.transition( source=JobStatus.RUNNING   , destination=JobStatus.FINALIZED  , trigger=['all_jobs_ran','send_email_task_finalized']                    )
-  schedule.transition( source=JobStatus.RUNNING   , destination=JobStatus.KILL       , trigger='kill_all_jobs'                                                 )
-  schedule.transition( source=JobStatus.RUNNING   , destination=JobStatus.RUNNING    , trigger='check_not_allow_job_status_in_running_state'                   )
-  schedule.transition( source=JobStatus.FINALIZED , destination=JobStatus.RUNNING    , trigger='retry_all_failed_jobs'                                         )
-  schedule.transition( source=JobStatus.KILL      , destination=JobStatus.KILLED     , trigger=['all_jobs_were_killed','send_email_task_killed']               )
-  schedule.transition( source=JobStatus.KILLED    , destination=JobStatus.REGISTERED , trigger='retry_all_jobs'                                                )
-  schedule.transition( source=JobStatus.COMPLETED , destination=JobStatus.REGISTERED , trigger='retry_all_jobs'                                                )
+  #schedule.transition(source=TaskStatus.REGISTERED, dest=TaskStatus.TESTING    , relationship=['all_jobs_are_registered', 'assigned_one_job_to_test']         )
+  schedule.transition( source=TaskStatus.REGISTERED, dest=TaskStatus.TESTING    , relationship=['all_jobs_are_registered']         )
+  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.TESTING    , relationship='test_job_still_running'                                        )
+  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.BROKEN     , relationship=['test_job_fail','broken_all_jobs','send_email_task_broken']    )
+  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.RUNNING    , relationship=['test_job_pass','assigned_all_jobs']                           )
+  schedule.transition( source=TaskStatus.TESTING   , dest=TaskStatus.RUNNING    , relationship=['assigned_all_jobs']                                           )
+  schedule.transition( source=TaskStatus.BROKEN    , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
+  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.COMPLETED  , relationship=['all_jobs_are_completed', 'send_email_task_completed']         )
+  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.FINALIZED  , relationship=['all_jobs_ran','send_email_task_finalized']                    )
+  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.KILL       , relationship='kill_all_jobs'                                                 )
+  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.RUNNING    , relationship='check_not_allow_job_status_in_running_state'                   )
+  schedule.transition( source=TaskStatus.FINALIZED , dest=TaskStatus.RUNNING    , relationship='retry_all_failed_jobs'                                         )
+  schedule.transition( source=TaskStatus.KILL      , dest=TaskStatus.KILLED     , relationship=['all_jobs_were_killed','send_email_task_killed']               )
+  schedule.transition( source=TaskStatus.KILLED    , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
+  schedule.transition( source=TaskStatus.COMPLETED , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
 

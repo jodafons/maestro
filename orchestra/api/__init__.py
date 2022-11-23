@@ -22,7 +22,8 @@ def remove_extension(f, extensions="json|h5|pic|gz|tgz|csv"):
 
 def test_locally( job_db ):
 
-  from orchestra.server import Slot, Job
+  from orchestra.server.consumer import Job
+  from orchestra.server import Slot
   from orchestra.status import JobStatus
   job = Job( job_db, Slot(), extra_envs={'ORCHESTRA_LOCAL_TEST':'1'})
   job.slot.enable()
@@ -35,7 +36,7 @@ def test_locally( job_db ):
           return False
       elif job.status() == JobStatus.RUNNING:
           continue
-      elif job.status() == JobStatus.DONE:
+      elif job.status() == JobStatus.COMPLETED:
           job_db.status=JobStatus.REGISTERED
           return True
       else:

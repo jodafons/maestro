@@ -49,6 +49,7 @@ class Job (Base):
 
     # Local
     id        = Column(Integer, primary_key = True)
+    name      = Column(String)
     command   = Column(String , default="")
     status    = Column(String , default=JobStatus.REGISTERED)
     retry     = Column(Integer, default=0)

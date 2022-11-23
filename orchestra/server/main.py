@@ -21,10 +21,11 @@ class Pilot:
     # create consumers
     hostname = socket.gethostname()
     devices = db.session().query(Device).filter(Device.host==hostname).all()
-    self.consumers = [Consumer(device) for device in devices]
+    self.consumers = [Consumer(device, db) for device in devices]
     self.schedule = schedule
     self.master = master
     self.tictac = Clock( 10*SECONDS )
+    self.db = db
 
 
   def run(self):

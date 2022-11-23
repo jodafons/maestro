@@ -26,7 +26,7 @@ class Slot:
     return (self.__available and self.__enable)
 
   def lock( self ):
-    self.available = False
+    self.__available = False
 
   def unlock( self ):
     self.__available = True

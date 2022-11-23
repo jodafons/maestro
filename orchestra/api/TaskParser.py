@@ -186,39 +186,39 @@ class TaskParser:
 
     # create task volume
     if not dry_run:
-      os.makedir(volume, exist_ok=True)
+      os.makedirs(volume, exist_ok=True)
 
     try:
-      task_db = Task( self.__db.generate_id(Task),
+      task_db = Task( id=self.__db.generate_id(Task),
                       name=taskname,
                       volume=volume,
                       status=TaskStatus.HOLD,
                       action=TaskAction.WAITING)
 
-      files = glob.glob(inputdir+'/*', recursive=True)
+      files = glob.glob(inputfile+'/*', recursive=True)
 
       offset = self.__db.generate_id(Job)
-      for idx, inputfile in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
-        jobname = remove_extension( file.split('/')[-1] )
+      for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
+        workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
         job_db = Job(
                     id=offset+idx,
-                    command=command.replace('%IN',file),
-                    name = jobname,
-                    inputfile=inputfile,
+                    command=command.replace('%IN',fpath),
+                    workarea=workarea,
+                    inputfile=fpath,
                     status=JobStatus.REGISTERED)
-        task_db+=job_db
+        task_db.jobs.append(job_db)
 
       task_db.status = TaskStatus.REGISTERED
 
       if skip_local_test:
-        self.__db.session().add(task)
+        self.__db.session().add(task_db)
         if not dry_run:
           self.__db.commit()
         return (True, "Succefully created.")
 
 
-      if test_locally( task.jobs[0] ):
-        self.__db.session().add(task)
+      if test_locally( task_db.jobs[0] ):
+        self.__db.session().add(task_db)
         if not dry_run:
           self.__db.commit()  
         return (True, "Succefully created.")
@@ -247,19 +247,9 @@ class TaskParser:
         if not task.status in [TaskStatus.BROKEN, TaskStatus.KILLED, TaskStatus.FINALIZED, TaskStatus.COMPLETED]:
           return (False, f"The task with current status {task.status} can not be deleted. The task must be in completed, finalized, killed or broken status.")
       
-      volume = task.volume
-
-      # remove all jobs that allow to this task
       try:
-        self.__db.session().query(Job).filter(Job.taskid==id).delete()
-        self.__db.commit()
-      except Exception as e:
-        traceback.print_exc()
-
-
-      # remove the task table
-      try:
-        self.__db.session().query(Task).filter(Task.id==id).delete()
+        self.__db.session().query(Job).filter(Job.taskid==task_id).delete()
+        self.__db.session().query(Task).filter(Task.id==task_id).delete()
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
@@ -319,8 +309,8 @@ class TaskParser:
         broken        = total[ JobStatus.BROKEN    ] 
         status        = task.status
 
-        t.add_row(  [task.id, task.taskname, registered,  assigned, 
-                     testing, running, failed, kill, killed, broken, 
+        t.add_row(  [task.id, task.name, registered,  assigned, 
+                     testing, running, failed, completed, kill, killed, broken, 
                      status] )
       return t
 

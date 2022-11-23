@@ -25,3 +25,4 @@ ansi2html
 colorama
 psutil
 tqdm
+pytest-order

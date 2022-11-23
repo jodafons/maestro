@@ -9,5 +9,6 @@ all: build
 build: ## Build the container
 	docker build -t $(DOCKER_BASE)/orchestra-base .
 
-
+test:
+	python -m pytest -vv tests/
 

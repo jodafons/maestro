@@ -14,7 +14,7 @@ class Job:
 
   def __init__(self, job_db, slot, extra_envs={}):
 
-    self.job = job_db
+    self.job_db = job_db
     self.slot = slot
     self.workarea = job_db.workarea
     self.command = job_db.command
@@ -123,20 +123,20 @@ class Consumer:
     self.slots = [Slot(device.gpu) for _ in range(self.device_db.slots)]
     for slot_id in range(self.device_db.enabled):
         self.slots[slot_id].enable()
-        self.__total+=1
+        self.total+=1
     self.jobs = []
 
 
   #
   # Add a job into the slot
   #
-  def __add__( self, job_db ):
+  def push_back( self, job_db ):
     slot = self.pop()
     if slot:
       job = Job( job_db , slot )
       job_db.status = JobStatus.PENDING
       self.jobs.append(job)
-      job.ping()
+      job.db().ping()
       slot.lock()
       return True
     else:
@@ -152,7 +152,7 @@ class Consumer:
     deactivate_jobs = []
 
     # Loop over all available consumers
-    for _, job in enumerate(self.jobs):
+    for job in self.jobs:
 
       slot = job.slot
 
@@ -165,7 +165,8 @@ class Consumer:
         else:
           job.db().status = JobStatus.BROKEN
           slot.unlock()
-          deactivate_jobs.append(job)
+          #deactivate_jobs.append(job)
+          self.jobs.remove(job)
 
       elif job.status() is JobStatus.FAILED:
         job.db().status = JobStatus.FAILED
@@ -175,31 +176,35 @@ class Consumer:
       elif job.status() is JobStatus.KILLED:
         job.db().status = JobStatus.KILLED
         slot.unlock()
-        deactivate_jobs.append(job)
+        #deactivate_jobs.append(job)
+        self.jobs.remove(job)
 
       elif job.status() is JobStatus.RUNNING:
         job.db().ping()
 
-      elif job.status() is JobStatus.DONE:
-        job.db().status = JobStatus.DONE
+      elif job.status() is JobStatus.COMPLETED:
+        job.db().status = JobStatus.COMPLETED
         slot.unlock()
-        deactivate_jobs.append(job)
+        #deactivate_jobs.append(job)
+        self.jobs.remove(job)
 
       # pull job status into the database
       self.db.commit()
 
       # remove jobs from the queue
-      for job in deactivate_jobs:
-        self.jobs.remove(job)
+      #for job in deactivate_jobs:
+      #  self.jobs.remove(job)
 
     return True
 
 
   def available(self):
-    return True if len(self.slots) < self.size() else False
+    return True if self.allocated() < self.size() else False
+
 
   def allocated( self ):
-    return len(self.__slots)
+    return self.size() - sum([slot.available() for slot in self.slots])
+
 
   def size(self):
     return self.total
@@ -211,7 +216,6 @@ class Consumer:
     before = self.size()
     total = 0
     self.device_db.ping()
-
     for idx, slot in enumerate(self.slots):
       if idx < self.device_db.enabled:
         slot.enable()

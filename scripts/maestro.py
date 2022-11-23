@@ -17,8 +17,6 @@ from orchestra.api import DeviceParser, PilotParser, TaskParser
 
 parser = argparse.ArgumentParser()
 commands = parser.add_subparsers(dest='mode')
-
-# create the database manager
 db = postgres_client( os.environ['ORCHESTRA_DATABASE_HOST'] )
 
 parsers = [
