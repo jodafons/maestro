@@ -24,3 +24,4 @@ prometheus_client
 ansi2html
 colorama
 psutil
+tqdm

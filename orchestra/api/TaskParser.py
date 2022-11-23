@@ -2,28 +2,20 @@
 __all__ = ["TaskParser"]
 
 
-from curses import OK
 import glob, traceback, os, argparse
 
-from orchestra.db import Task,Job
-from orchestra.enums import State, Signal
-from orchestra.utils import *
-
+from orchestra.database.models import Task,Job
+from orchestra.status import JobStatus, TaskStatus, TaskAction
+from orchestra.api import test_locally, remove_extension
 from sqlalchemy import and_, or_
 from prettytable import PrettyTable
 from tqdm import tqdm
+from curses import OK
 
 
 
-from orchestra.utils import get_config
-config = get_config()
 
 
-def remove_extension(f, extensions="json|h5|pic|gz|tgz|csv"):
-      for ext in extensions.split("|"):
-        if f.endswith('.'+ext):
-          return f.replace('.'+ext, '')
-      return f
 
 #
 # Task parser
@@ -41,8 +33,6 @@ class TaskParser:
       create_parser = argparse.ArgumentParser(description = '', add_help = False)
 
 
-      create_parser.add_argument('-v','--volume', action='store', dest='volume', required=True,
-                          help = "The volume")
       create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
                           help = "The task name to be append into the db.")
       create_parser.add_argument('-i','--inputfile', action='store',
@@ -127,10 +117,10 @@ class TaskParser:
 
       # create task
       if args.option == 'create':
-        ok , answer = self.create(args.volume,
+        ok , answer = self.create(os.getcwd(),
                                   args.taskname,
                                   args.inputfile,
-                                  args.execCommand,
+                                  args.command,
                                   args.dry_run,
                                   args.skip_test)
 
@@ -183,62 +173,61 @@ class TaskParser:
   #
   # Create the new task
   #
-  def create( self, volume,
+  def create( self, basepath,
                     taskname,
                     inputfile,
-                    execCommand,
+                    command,
                     dry_run=False,
-                    skip_test=False,
+                    skip_local_test=False,
                     ):
 
     if self.__db.task(taskname) is not None:
       return (False, "The task exist into the database. Abort.")
 
-    if (not '%IN' in execCommand):
+    if (not '%IN' in command):
       return (False,"The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
 
-   
-    output = volume +'/'+taskname
+    # task volume
+    volume = basepath + '/' + taskname
 
-
-    
-    if os.path.exists(output):
-      MSG_WARNING("The task dir exist into the storage. Beware!")
-    else:
-      # create the task dir
-      MSG_INFO("Creating the task dir in %s"%output)
-      os.system( 'mkdir -p %s '%(output) )
-
+    # create task volume
+    if not dry_run:
+      os.makedir(volume, exist_ok=True)
 
     try:
+      task_db = Task()
+      task_db = Task( self.__db.generate_id(Task),
+                      name=taskname,
+                      volume=volume,
+                      status=TaskStatus.HOLD,
+                      action=TaskAction.WAITING)
 
-      task       = self.__db.create_task( taskname, output )
-      task.sig   = Signal.WAITING
-      task.state = "hold"
-  
-      offset = self.__db.generateId(Job)
-      inputfiles = glob.glob(inputfile+'/*', recursive=True)
-      
-      for idx, file in tqdm( enumerate(inputfiles) ,  desc= 'Creating... ', ncols=100):
-        command = execCommand
-        command = command.replace( '%IN'   , file)
+      files = glob.glob(inputdir+'/*', recursive=True)
+
+      offset = self.__db.generate_id(Job)
+      for idx, inputfile in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
         jobname = remove_extension( file.split('/')[-1] )
-    
-        job = self.__db.create_job( task, jobname, file, command, id=offset+idx )
-        job.state = 'registered'
+        job_db = Job(
+                    id=offset+idx,
+                    command=command.replace('%IN',file),
+                    name = jobname,
+                    inputfile=inputfile,
+                    status=JobStatus.REGISTERED)
+        task_db+=job_db
 
-      task.state = 'registered'
+      task_db.status = TaskStatus.REGISTERED
 
-
-      if skip_test:
+      if skip_local_test:
         self.__db.session().add(task)
-        self.__db.commit()
+        if not dry_run
+          self.__db.commit()
         return (True, "Succefully created.")
 
 
-      if test_job_locally( task.jobs[0] ):
+      if test_locally( task.jobs[0] ):
         self.__db.session().add(task)
-        self.__db.commit()
+        if not dry_run:
+          self.__db.commit()  
         return (True, "Succefully created.")
       else:
         return (False, "Local test failed.")
@@ -251,7 +240,7 @@ class TaskParser:
 
 
 
-  def delete( self, task_id_list, remove=False, force=False ):
+  def delete( self, task_id_list, force=False , remove=False):
 
 
     for id in task_id_list:
@@ -263,15 +252,18 @@ class TaskParser:
       
       # Check possible status before continue
       if not force:
-        if not task.state in [Signal.BROKEN, Signal.KILLED, Signal.FINALIZED, Signal.DONE]:
-          return (False, "The task with current status %s can not be deleted. The task must be in done, finalized, killed or broken Signal."% task.getStatus() )
+        if not task.status in [TaskStatus.BROKEN, TaskStatus.KILLED, TaskStatus.FINALIZED, TaskStatus.COMPLETED]:
+          return (False, "The task with current status %s can not be deleted. The task must be in COMPLETED, finalized, killed or broken TaskStatus."% task.getStatus() )
       
+      volume = task.volume
+
       # remove all jobs that allow to this task
       try:
         self.__db.session().query(Job).filter(Job.taskid==id).delete()
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
+
 
       # remove the task table
       try:
@@ -301,7 +293,7 @@ class TaskParser:
                         'Testing'   ,
                         'Running'   ,
                         'Failed'    ,
-                        'Done'      ,
+                        'Completed' ,
                         'kill'      ,
                         'killed'    ,
                         'broken'    ,
@@ -309,9 +301,10 @@ class TaskParser:
                         ])
 
       def count( jobs ):
-        states = [State.REGISTERED, State.ASSIGNED, State.TESTING, 
-                  State.RUNNING   , State.DONE    , State.FAILED, 
-                  State.KILL      , State.KILLED  , State.BROKEN]
+        states = [TaskStatus.REGISTERED, TaskStatus.ASSIGNED, TaskStatus.TESTING, 
+                  TaskStatus.RUNNING   , TaskStatus.COMPLETED, TaskStatus.FAILED, 
+                  TaskStatus.KILL      , TaskStatus.KILLED  , TaskStatus.BROKEN]
+
         total = { str(key):0 for key in states }
         for job in jobs:
           for s in states:
@@ -320,22 +313,22 @@ class TaskParser:
 
       for task in tasks:
         jobs = task.jobs
-        if not list_all and (task.state == State.DONE):
+        if not list_all and (task.state == TaskStatus.COMPLETED):
           continue
         total = count(jobs)
-        registered    = total[ State.REGISTERED]
-        assigned      = total[ State.ASSIGNED  ] 
-        testing       = total[ State.TESTING   ] 
-        running       = total[ State.RUNNING   ] 
-        done          = total[ State.DONE      ] 
-        failed        = total[ State.FAILED    ] 
-        kill          = total[ State.KILL      ] 
-        killed        = total[ State.KILLED    ] 
-        broken        = total[ State.BROKEN    ] 
+        registered    = total[ TaskStatus.REGISTERED]
+        assigned      = total[ TaskStatus.ASSIGNED  ] 
+        testing       = total[ TaskStatus.TESTING   ] 
+        running       = total[ TaskStatus.RUNNING   ] 
+        completed     = total[ TaskStatus.COMPLETED      ] 
+        failed        = total[ TaskStatus.FAILED    ] 
+        kill          = total[ TaskStatus.KILL      ] 
+        killed        = total[ TaskStatus.KILLED    ] 
+        broken        = total[ TaskStatus.BROKEN    ] 
         state         = task.state
 
         t.add_row(  [task.id, task.taskname, registered,  assigned, 
-                     testing, running, failed,  done, kill, killed, broken, 
+                     testing, running, failed,  COMPLETED, kill, killed, broken, 
                      state] )
       return t
 
@@ -370,8 +363,8 @@ class TaskParser:
         task = self.__db.session().query(Task).filter(Task.id==id).first()
         if not task:
             return (False, "The task with id (%d) does not exist into the data base"%id )
-        # Send kill signal to the task
-        task.signal = Signal.KILL
+        # Send kill TaskStatus to the task
+        task.TaskStatus = TaskStatus.KILL
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
@@ -390,10 +383,10 @@ class TaskParser:
         if not task:
             return (False, "The task with id (%d) does not exist into the data base"%id )
         
-        if task.state == State.DONE:
-            return (False, "The task with id (%d) is in DONE Signal. Can not retry."%id )
+        if task.state == TaskStatus.COMPLETED:
+            return (False, "The task with id (%d) is in COMPLETED TaskStatus. Can not retry."%id )
 
-        task.signal = Signal.RETRY
+        task.TaskStatus = TaskStatus.RETRY
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
