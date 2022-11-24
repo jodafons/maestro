@@ -7,6 +7,7 @@ import glob, traceback, os, argparse
 from orchestra.database.models import Task, Job
 from orchestra.status import JobStatus, TaskStatus, TaskAction
 from orchestra.api import test_locally, remove_extension
+from orchestra import ERROR, INFO
 from sqlalchemy import and_, or_
 from prettytable import PrettyTable
 from tqdm import tqdm
@@ -32,7 +33,7 @@ class TaskParser:
       create_parser.add_argument('-i','--inputfile', action='store',
                           dest='inputfile', required = True,
                           help = "The input config file that will be used to configure the job (sort and init).")
-      create_parser.add_argument('--exec', action='store', dest='execCommand', required=True,
+      create_parser.add_argument('--exec', action='store', dest='command', required=True,
                           help = "The exec command")
       create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
                           help = "Use this as debugger.")
@@ -111,53 +112,53 @@ class TaskParser:
 
       # create task
       if args.option == 'create':
-        ok , answer = self.create(os.getcwd(),
+        answer, message = self.create(os.getcwd(),
                                   args.taskname,
                                   args.inputfile,
                                   args.command,
                                   args.dry_run,
                                   args.skip_test)
 
-        if not ok:
-          MSG_FATAL(answer)
+        if not answer:
+          print(ERROR+message)
         else:
-          MSG_INFO(answer)
+          print(INFO+message)
 
 
       # retry option
       elif args.option == 'retry':
-        ok, answer = self.retry(get_task_ids(args))
-        if not ok:
-          MSG_FATAL(answer)
+        answer, message = self.retry(get_task_ids(args))
+        if not answer:
+          print(ERROR+message)
         else:
-          MSG_INFO(answer)
+          print(INFO+message)
 
       # delete option
       elif args.option == 'delete':
-        ok , answer = self.delete(get_task_ids(args), force=args.force)
-        if not ok:
-          MSG_FATAL(answer)
+        answer, message = self.delete(get_task_ids(args), force=args.force)
+        if not answer:
+          print(ERROR+message)
         else:
-          MSG_INFO(answer)
+          print(INFO+message)
 
       # list all tasks
       elif args.option == 'list':
-        ok, answer = self.list(args.all, args.interactive)
-        if not ok:
-          MSG_FATAL(answer)
+        answer, message = self.list(args.all, args.interactive)
+        if not answer:
+          print(ERROR+message)
         else:
-          print(answer)
+          print(message)
 
       # kill option
       elif args.option == 'kill':
-        ok, answer = self.kill(get_task_ids(args))
-        if not ok:
-          MSG_FATAL(answer)
+        answer, message = self.kill(get_task_ids(args))
+        if not answer:
+          print(ERROR+answer)
         else:
-          MSG_INFO(answer)
+          print(INFO+answer)
 
       else:
-        MSG_FATAL("option not available.")
+        print(ERROR+"option not available.")
 
 
 

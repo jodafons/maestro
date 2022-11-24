@@ -4,9 +4,7 @@ DOCKER_BASE=jodafons
 
 all: build_base build_server build_executor
 
-
-# Build the container
-build_base: ## Build the container
+build_base: 
 	docker build -t $(DOCKER_BASE)/orchestra:base .
 
 build_server:
@@ -19,6 +17,9 @@ test:
 	cd servers/database && docker-compose up -d
 	python -m pytest -vv tests/
 	cd servers/database && docker-compose down
+
+push:
+	docker push jodafons/orchestra:executor
 
 
 

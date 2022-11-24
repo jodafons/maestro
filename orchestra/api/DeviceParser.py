@@ -90,7 +90,3 @@ class DeviceParser:
     self.__db.commit()
     return (True, "Successfully created." )
 
-
-
-
-
