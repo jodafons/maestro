@@ -11,7 +11,6 @@ WORKDIR /app
 
 COPY orchestra /app/orchestra
 COPY scripts /app/scripts
-COPY entrypoint.sh .
 COPY setup.py .
 COPY requirements.txt .
 COPY README.md .

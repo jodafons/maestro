@@ -1,35 +1,13 @@
 version: '3'
 services:
-  database:
-    container_name: postgres_container
-    image: postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - $ORCHESTRA_DATABASE_VOLUME:/var/lib/postgresql/data
-  pgadmin:
-    container_name: pgadmin4_container
-    image: dpage/pgadmin4
-    restart: always
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
+
   orchestra:
-    container_name: orchestra_container
-    image: jodafons/orchestra-server:latest
+    container_name: orchestra_server
+    image: jodafons/orchestra:server
     restart: always
-    depends_on:
-      - "database"
     environment:
       ORCHESTRA_BASEPATH: /app
       ORCHESTRA_EMAIL_FROM: $ORCHESTRA_EMAIL_FROM
       ORCHESTRA_EMAIL_TO: $ORCHESTRA_EMAIL_TO
       ORCHESTRA_EMAIL_TOKEN: $ORCHESTRA_EMAIL_TOKEN
-      ORCHESTRA_DATABASE_HOST: $ORCHESTRA_DATABASE_HOST #"postgresql://postgres:postgres@127.0.0.1:5432/postgres"
+      ORCHESTRA_DATABASE_HOST: "postgresql://postgres:postgres@127.0.0.1:5432/postgres"

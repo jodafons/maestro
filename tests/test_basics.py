@@ -1,6 +1,6 @@
 
 
-from orchestra.database.models import Job, Task, Base
+from orchestra.database.models import Job, Task, Device, Base
 from orchestra.database import postgres_client
 from orchestra.server.main import Pilot
 from orchestra.server.consumer import Consumer
@@ -41,7 +41,7 @@ time.sleep(1)
 #print('Finish job...')
 """
 
-NUMBER_OF_JOBS = 10
+NUMBER_OF_JOBS = 5
 
 
 class test_basics(unittest.TestCase):
@@ -51,9 +51,7 @@ class test_basics(unittest.TestCase):
     host = os.environ['ORCHESTRA_DATABASE_HOST']
     basepath = os.getcwd() + '/test_basics'
 
-    def __del__(self):
-        os.system('rm -rf {}'.format(basepath))
-
+    
 
     @pytest.mark.order(1)
     def test_prepare_database(self):
@@ -161,12 +159,12 @@ class test_basics(unittest.TestCase):
         schedule = Schedule(db, postman)
         compile(schedule)
 
-        # create pilot
-        app = Pilot(db, schedule, master=True)
+        # create pilot (force to create the device)
+        app = Pilot(db, schedule, master=False)
 
         tic = time.time()
         now = tic
-        while (now - tic) < 60:
+        while (now - tic) < 30:
             app.schedule.run()
             for consumer in app.consumers:
                 n = consumer.size() - consumer.allocated()
@@ -184,11 +182,21 @@ class test_basics(unittest.TestCase):
         assert answer == True, message
         
 
+        for consumer in app.consumers:
+            db.session().query(Device).filter(Device.id==consumer.device_db.id).delete()
+        db.commit()
 
 
+    @pytest.mark.order(6)
+    def test_delete_workarea(self):
+        os.system('rm -rf {}'.format(self.basepath))
 
-
-
+    @pytest.mark.order(7)
+    def test_delete_database(self):
+        engine = create_engine(self.host)
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        Base.metadata.drop_all(engine)
 
 
 

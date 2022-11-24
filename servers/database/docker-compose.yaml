@@ -1,7 +1,7 @@
 version: '3'
 services:
   database:
-    container_name: postgres_container
+    container_name: postgres
     image: postgres
     restart: always
     environment:
@@ -13,7 +13,7 @@ services:
     volumes:
       - $ORCHESTRA_DATABASE_VOLUME:/var/lib/postgresql/data
   pgadmin:
-    container_name: pgadmin4_container
+    container_name: pgadmin4
     image: dpage/pgadmin4
     restart: always
     environment:
