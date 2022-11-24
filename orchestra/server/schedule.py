@@ -78,7 +78,8 @@ class Schedule:
   # Get all running jobs into the job list
   #
   def get_all_running_jobs(self):
-    return self.db.session().query(Job).filter( and_( Job.status==JobStatus.RUNNING) ).with_for_update().all()
+    #return self.db.session().query(Job).filter( and_( Job.status==JobStatus.RUNNING) ).with_for_update().all()
+    return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
 
 
 

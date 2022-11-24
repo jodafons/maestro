@@ -20,13 +20,17 @@ test:
 	python -m pytest -vv tests/
 	cd servers/database && docker-compose down
 
-run:
+
+
+deploy_server:
 	cd servers/schedule && docker-compose up
 
 deploy_db:
 	cd servers/database && docker-compose up -d
 	python scripts/create_database.py
 	
+down_db:
+	cd servers/database && docker-compose down
 
 
 

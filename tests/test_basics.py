@@ -46,9 +46,7 @@ NUMBER_OF_JOBS = 5
 
 class test_basics(unittest.TestCase):
 
-
-    
-    host = os.environ['ORCHESTRA_DATABASE_HOST']
+    host = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
     basepath = os.getcwd() + '/test_basics'
 
     

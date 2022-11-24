@@ -20,9 +20,10 @@ MoreFilesForYou-*
 .asetup.save
 build
 .python-version
-
+orchestra-env
 # vscode
 ./.vscode/*
+.pytest_cache
 
 # configs cells
 ./lorenzet/share/json_files/
