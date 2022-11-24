@@ -21,8 +21,13 @@ class Pilot:
 
     # create consumers
     hostname = socket.gethostname()
-    devices = db.session().query(Device).filter(Device.host==hostname).all()
-    self.consumers = [Consumer(device, db) for device in devices]
+    if not master:
+      print(INFO+"Pilot is running in slave mode...")
+      print(INFO+"Loading device from database...")
+      devices = db.session().query(Device).filter(Device.host==hostname).all()
+      self.consumers = [Consumer(device, db) for device in devices]
+    else:
+      print(INFO+"Pilot is running in master mode...")
     self.schedule = schedule
     self.master = master
     self.tictac = Clock( 10*SECONDS )
@@ -36,13 +41,13 @@ class Pilot:
         print(INFO+'Run pilot...')
         if self.master:
           self.schedule.run()
-        
-        for consumer in self.consumers:
-          n = consumer.size() - consumer.allocated()
-          jobs_db = self.schedule.jobs(n)
-          while consumer.available() and len(jobs_db) > 0:
-            consumer.push_back(jobs_db.pop())
-          consumer.run()
+        else:
+          for consumer in self.consumers:
+            n = consumer.size() - consumer.allocated()
+            jobs_db = self.schedule.jobs(n)
+            while consumer.available() and len(jobs_db) > 0:
+              consumer.push_back(jobs_db.pop())
+            consumer.run()
         
         self.tictac.reset()
 

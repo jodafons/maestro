@@ -4,6 +4,7 @@ USER root
 SHELL [ "/bin/bash", "-c" ]
 
 RUN pip install --upgrade pip
+RUN pip install virtualenv
 
 RUN mkdir /app
 WORKDIR /app
@@ -16,5 +17,4 @@ COPY requirements.txt .
 COPY README.md .
 RUN pip install .
 
-ENTRYPOINT ["/app/entrypoint.sh"]
 
