@@ -1,5 +1,4 @@
-cmt/boost_test.h.gch
-cmt/new_env_file.sh
+
 *.pyc
 .ipynb_checkpoints/*
 doc/.ipynb_checkpoints/*
@@ -15,6 +14,7 @@ doc/.ipynb_checkpoints/*
 *.tex
 *.C
 *.bak
+*.out
 cmt/boost_test.cxx.o
 MoreFilesForYou-*
 .asetup.save
@@ -25,5 +25,3 @@ orchestra-env
 ./.vscode/*
 .pytest_cache
 
-# configs cells
-./lorenzet/share/json_files/
