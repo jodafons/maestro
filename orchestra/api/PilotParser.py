@@ -60,7 +60,9 @@ class PilotParser:
     for gpu in range(gpus):
       print (INFO+f"Creating GPU device with ID number {gpu}")
       device_api.create(socket.gethostname(), device=gpu, slots=max_slots, enabled=1)
-    device_api.create(socket.gethostname(), device=-1, slots=max_slots, enabled=cpus)
+    if cpus > 0:
+      print (INFO+f"Creating CPU device with {cpus} slots")
+      device_api.create(socket.gethostname(), device=-1, slots=max_slots, enabled=cpus)
     
 
 

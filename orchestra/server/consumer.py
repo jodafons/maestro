@@ -155,6 +155,7 @@ class Consumer:
 
   def run(self):
 
+    print(INFO+f"Run consumer {self.device_db.host}")
     self.pull()
 
     deactivate_jobs = []
@@ -233,6 +234,7 @@ class Consumer:
       total = self.device_db.slots
       print(INFO+f"Updating slots with {enabled}/{total}")
   
+    self.db.commit()
 
   def pop(self):
     for slot in self.slots:

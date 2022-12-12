@@ -26,15 +26,17 @@ class DeviceParser:
   
 
       # Delete dataset using the dataset CLI
-      list_parser = argparse.ArgumentParser(description = 'List all users command lines.', add_help = False)
+      list_parser = argparse.ArgumentParser(description = 'List all devices.', add_help = False)
 
+      clear_parser = argparse.ArgumentParser(description = 'Clear all devices.', add_help = False)
 
       parent = argparse.ArgumentParser(description = '',add_help = False)
       subparser = parent.add_subparsers(dest='option')
 
       # Datasets
-      subparser.add_parser('create', parents=[create_parser])
       subparser.add_parser('list', parents=[list_parser])
+      subparser.add_parser('clear', parents=[clear_parser])
+
       args.add_parser( 'device', parents=[parent] )
 
 
@@ -42,11 +44,13 @@ class DeviceParser:
   def compile( self, args ):
     if args.mode == 'device':
       if args.option == 'list':
-        _, answer = self.list()
-        print(answer)
+        _, message  = self.list()
+        print(message)
+      elif args.option == 'clear':
+        _, message = self.clear()
+        print(message)
       else:
         print( "Not valid option.")
-
 
 
 
@@ -87,3 +91,13 @@ class DeviceParser:
     self.__db.commit()
     return (True, "Successfully created." )
 
+
+  #
+  # Clear all devices
+  #
+  def clear( self ):
+
+    # remove all device for this host
+    self.__db.session().query(Device).delete()
+    self.__db.commit()
+    return (True, "Successfully created." )
