@@ -33,6 +33,8 @@ class TaskParser:
       create_parser.add_argument('-i','--inputfile', action='store',
                           dest='inputfile', required = True,
                           help = "The input config file that will be used to configure the job (sort and init).")
+      create_parser.add_argument('--image', action='store', dest='image', required=True, default=False,
+                          help = "The singularity sif image path.")
       create_parser.add_argument('--exec', action='store', dest='command', required=True,
                           help = "The exec command")
       create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
@@ -115,6 +117,7 @@ class TaskParser:
         answer, message = self.create(os.getcwd(),
                                   args.taskname,
                                   args.inputfile,
+                                  args.image,
                                   args.command,
                                   args.dry_run,
                                   args.skip_test)
@@ -171,6 +174,7 @@ class TaskParser:
   def create( self, basepath,
                     taskname,
                     inputfile,
+                    image,
                     command,
                     dry_run=False,
                     skip_local_test=False,
@@ -203,6 +207,7 @@ class TaskParser:
         workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
         job_db = Job(
                     id=offset+idx,
+                    image=image,
                     command=command.replace('%IN',fpath),
                     workarea=workarea,
                     inputfile=fpath,

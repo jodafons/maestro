@@ -6,7 +6,9 @@ import traceback, time, os, argparse, socket
 from orchestra.server.main import Pilot
 from orchestra.server.mailing import Postman
 from orchestra.server.schedule import Schedule, compile
-from orchestra import ERROR
+from orchestra.database import Device
+from orchestra.api import DeviceParser
+from orchestra import ERROR, INFO
 
 class PilotParser:
 
@@ -19,7 +21,12 @@ class PilotParser:
       run_parser.add_argument('-m','--master', action='store_true',
                dest='master', required = False ,
                help = "This is a master branch. One hostname must be a master.")
-
+      run_parser.add_argument('--gpus', action='store',
+                     dest='gpus', required = False , default=0, type=int,
+                     help = "The number of GPUs available for this host.")
+      run_parser.add_argument('--cpus', action='store',
+                     dest='cpus', required = False , default=1, type=int,
+                     help = "The number of CPU slots available for this host.")
       parent = argparse.ArgumentParser(description = '',add_help = False)
       subparser = parent.add_subparsers(dest='option')
       subparser.add_parser('run', parents=[run_parser])
@@ -30,19 +37,31 @@ class PilotParser:
   def compile( self, args ):
     if args.mode == 'pilot':
       if args.option == 'run':
-        self.run( args.master )
+        self.run( args.master, args.gpus, args.cpus)
       else:
         print("Not valid option.")
 
 
 
-  def run( self, master):
+  def run( self, master, gpus, cpus, max_slots=10):
     
     from_email = os.environ["ORCHESTRA_EMAIL_FROM"]
     to_email   = os.environ["ORCHESTRA_EMAIL_TO"]
     password   = os.environ["ORCHESTRA_EMAIL_TOKEN"]
     basepath   = os.environ["ORCHESTRA_BASEPATH"]
     postman    = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
+
+
+    # remove all device for this host
+    self.__db.session().query(Device).filter(Device.host==socket.gethostname()).delete()
+
+    # device auto-creation
+    device_api = DeviceParser(self.__db)
+    for gpu in range(gpus):
+      print (INFO+f"Creating GPU device with ID number {gpu}")
+      device_api.create(socket.gethostname(), device=gpu, slots=max_slots, enabled=1)
+    device_api.create(socket.gethostname(), device=-1, slots=max_slots, enabled=cpus)
+    
 
 
     while True:

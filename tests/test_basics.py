@@ -48,6 +48,7 @@ class test_basics(unittest.TestCase):
 
     host = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
     basepath = os.getcwd() + '/test_basics'
+    image = '/home/joao.pinto/public/images/tensorflow_2.10.0-gpu.sif'
 
     
 
@@ -91,7 +92,7 @@ class test_basics(unittest.TestCase):
         api = TaskParser(db)
         taskname = 'basics'
         command = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
-        answer, message = api.create(self.basepath, taskname, self.basepath+'/jobs', command)        
+        answer, message = api.create(self.basepath, taskname, self.basepath+'/jobs', self.image, command)        
         assert answer == True, message
         
         task = db.task(taskname)
@@ -115,7 +116,7 @@ class test_basics(unittest.TestCase):
         api = TaskParser(db)
         taskname = 'basics'
         command = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
-        answer, message = api.create(self.basepath, taskname, self.basepath+'/jobs', command)        
+        answer, message = api.create(self.basepath, taskname, self.basepath+'/jobs', self.image, command)        
         assert answer == True, message
         
         # delete task using the api
@@ -138,7 +139,7 @@ class test_basics(unittest.TestCase):
         task_api = TaskParser(db)
         taskname = 'basics'
         command = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
-        answer, message = task_api.create(self.basepath, taskname, self.basepath+'/jobs', command)        
+        answer, message = task_api.create(self.basepath, taskname, self.basepath+'/jobs', self.image, command)        
         assert answer == True, message
         
 

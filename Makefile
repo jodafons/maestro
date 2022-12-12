@@ -15,10 +15,11 @@ build_executor:
 
 test:
 	cd servers/database && docker-compose up -d
-	python -m pytest -vv tests/
+	python -m pytest -vv -s tests/
 	cd servers/database && docker-compose down
 
 push:
+	docker push jodafons/orchestra:base
 	docker push jodafons/orchestra:executor
 
 

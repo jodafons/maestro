@@ -41,10 +41,7 @@ class DeviceParser:
 
   def compile( self, args ):
     if args.mode == 'device':
-      if args.option == 'create':
-        _, answer = self.create(args.hostname, args.device, args.slots, args.enabled)
-        print(answer)
-      elif args.option == 'list':
+      if args.option == 'list':
         _, answer = self.list()
         print(answer)
       else:

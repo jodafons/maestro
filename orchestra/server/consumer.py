@@ -6,7 +6,7 @@ import os, time, subprocess, traceback, psutil
 from orchestra.database.models import Device
 from orchestra.status import JobStatus
 from orchestra.server import Slot
-from orchestra import ERROR
+from orchestra import ERROR, INFO
 
 
 
@@ -16,20 +16,23 @@ class Job:
 
     self.job_db = job_db
     self.slot = slot
+    self.image = job_db.image
     self.workarea = job_db.workarea
     self.command = job_db.command
     self.pending=True
     self.broken=False
     self.killed=False
     self.env = os.environ.copy()
-    self.env["JOB_WORKAREA"] = self.workarea
-    self.env["CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
-    self.env["CUDA_VISIBLE_DEVICES"]=str(slot.device)
-    self.env["TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
+    # Transfer all environ to singularity container
+    self.env["SINGULARITYENV_JOB_WORKAREA"] = self.workarea
+    self.env["SINGULARITYENV_JOB_IMAGE"] = self.image
+    self.env["SINGULARITYENV_CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
+    self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]=str(slot.device)
+    self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
    
     # Update the job enviroment from external envs
     for key, value in extra_envs.items():
-      self.env[key]=value
+      self.env[key]="SINGULARITYENV_"+value
 
     # process
     self.__proc = None
@@ -50,8 +53,13 @@ class Job:
       self.pending=False
       self.killed=False
       self.broken=False
-      command = 'cd %s' % self.workarea + ' && '
+
+      # singularity
+      command = 'singularity exec --nv {image} '.format(image=self.image)
+      command+= 'pwd && cd %s' % self.workarea + ' && '
       command+= self.command
+      print (INFO+command)
+
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
       time.sleep(2)
       self.__proc_stat = psutil.Process(self.__proc.pid)
@@ -190,10 +198,6 @@ class Consumer:
 
       # pull job status into the database
       self.db.commit()
-
-      # remove jobs from the queue
-      #for job in deactivate_jobs:
-      #  self.jobs.remove(job)
 
     return True
 
