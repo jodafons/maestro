@@ -34,7 +34,8 @@ deploy_db:
 down_db:
 	cd servers/database && docker-compose down
 
-
-
 #run:
 #	$(DOCKER_CMD) run -v $(CUTQC_VOLUME_PATH):/volume -it $(DOCKER_BASE)/cutqc-base
+clean:
+	docker system prune -a
+	

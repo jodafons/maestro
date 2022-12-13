@@ -51,18 +51,18 @@ class PilotParser:
     basepath   = os.environ["ORCHESTRA_BASEPATH"]
     postman    = Postman( from_email, password , to_email, basepath+'/orchestra/server/mailing/templates')
 
-
+    hostname = socket.gethostname()
     # remove all device for this host
-    self.__db.session().query(Device).filter(Device.host==socket.gethostname()).delete()
+    self.__db.session().query(Device).filter(Device.host==hostname).delete()
 
     # device auto-creation
     device_api = DeviceParser(self.__db)
     for gpu in range(gpus):
       print (INFO+f"Creating GPU device with ID number {gpu}")
-      device_api.create(socket.gethostname(), device=gpu, slots=max_slots, enabled=1)
+      device_api.create(hostname, device=gpu, slots=max_slots, enabled=1)
     if cpus > 0:
       print (INFO+f"Creating CPU device with {cpus} slots")
-      device_api.create(socket.gethostname(), device=-1, slots=max_slots, enabled=cpus)
+      device_api.create(hostname, device=-1, slots=max_slots, enabled=cpus)
     
 
 
@@ -79,7 +79,7 @@ class PilotParser:
       except Exception as e:
         traceback.print_exc()
         message=traceback.format_exc()
-        postman.send("[Cluster LPS] (ALARM) Orchestra stop",message)
+        postman.send(f"[Cluster LPS] (ALARM) Orchestra ({hostname}) stop",message)
         print(ERROR+message)
         time.sleep(10)
 

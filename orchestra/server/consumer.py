@@ -29,6 +29,10 @@ class Job:
     self.env["SINGULARITYENV_CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
     self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]=str(slot.device)
     self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
+    self.env["SINGULARITYENV_JOB_TASKNAME"] = job_db.task.name
+
+    print('JOAO AKI')
+    print (job_db.task.name)
    
     # Update the job enviroment from external envs
     for key, value in extra_envs.items():
@@ -37,7 +41,10 @@ class Job:
     # process
     self.__proc = None
     self.__proc_stat = None
-   
+
+
+    self.entrypoint=self.workarea+'/entrypoint.sh'
+
 
   def db(self):
     return self.job_db
@@ -49,17 +56,25 @@ class Job:
   def run(self):
 
     os.makedirs(self.workarea, exist_ok=True)
+    # build script command
+    with open(self.entrypoint,'w') as f:
+      f.write(f"cd {self.workarea}\n")
+      f.write(f"{self.command.replace('%','$')}\n")
+
     try:
       self.pending=False
       self.killed=False
       self.broken=False
 
-      # singularity
-      command = 'singularity exec --nv {image} '.format(image=self.image)
-      command+= 'pwd && cd %s' % self.workarea + ' && '
-      command+= self.command
-      print (INFO+command)
+      # entrypoint 
+      with open(self.entrypoint,'r') as f:
+        for line in f.readlines():
+          print(INFO+line)
 
+      # singularity
+      command = "singularity exec --nv --writable-tmpfs {image} bash {entrypoint}".format(image=self.image,
+                                                                                                             entrypoint=self.entrypoint)
+      print(INFO+command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
       time.sleep(2)
       self.__proc_stat = psutil.Process(self.__proc.pid)
