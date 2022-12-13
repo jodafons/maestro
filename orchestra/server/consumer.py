@@ -72,7 +72,7 @@ class Job:
           print(INFO+line)
 
       # singularity
-      command = "singularity exec --nv --writable-tmpfs {image} bash {entrypoint}".format(image=self.image,
+      command = "singularity exec --nv --writable-tmpfs --bind /home:/home {image} bash {entrypoint}".format(image=self.image,
                                                                                                              entrypoint=self.entrypoint)
       print(INFO+command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
