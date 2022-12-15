@@ -10,3 +10,5 @@ sbatch --partition gpu srun_slave.sh
 sbatch --partition gpu srun_slave.sh
 sbatch --partition gpu srun_slave.sh
 sbatch --partition gpu srun_slave.sh
+sbatch --partition gpu srun_slave.sh
+sbatch --partition gpu srun_slave.sh

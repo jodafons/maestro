@@ -6,8 +6,8 @@
 #SBATCH --account=joao.pinto
 #SBATCH --ntasks=1
 
-echo $SLURM_JOB_NODELIST
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+#echo $SLURM_JOB_NODELIST
+#export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 srun ./run_master.sh 1 0
 wait

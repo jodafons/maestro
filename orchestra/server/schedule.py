@@ -142,7 +142,7 @@ class Schedule:
 
     for job in task.jobs:
       if job.status == JobStatus.FAILED:
-        if job.retry < 3:
+        if job.retry < 10:
           job.retry+=1
           job.status =  JobStatus.ASSIGNED
     task.action = TaskAction.WAITING

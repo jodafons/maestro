@@ -362,7 +362,7 @@ class TaskParser:
             return (False, f"The task with id ({task_id}) does not exist into the data base" )
         if task.status == TaskStatus.COMPLETED:
             return (False, f"The task with id ({task.status}) is in COMPLETED TaskStatus. Can not retry." )
-        task.status = TaskAction.RETRY
+        task.action = TaskAction.RETRY
         self.__db.commit()
       except Exception as e:
         traceback.print_exc()
