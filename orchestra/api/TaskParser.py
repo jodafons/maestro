@@ -205,13 +205,28 @@ class TaskParser:
       offset = self.__db.generate_id(Job)
       for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
         workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
+
+
+        #
+        # Get the environ
+        #
+
+        envs = str({ 
+                  'PATH' : os.environ['PATH'],
+                  'PYTHONPATH' : os.environ['PYTHONPATH']
+               })
+
+        print(envs)
+
         job_db = Job(
                     id=offset+idx,
                     image=image,
                     command=command.replace('%IN',fpath),
                     workarea=workarea,
                     inputfile=fpath,
+                    envs=envs,
                     status=JobStatus.REGISTERED)
+
         task_db.jobs.append(job_db)
 
       task_db.status = TaskStatus.REGISTERED

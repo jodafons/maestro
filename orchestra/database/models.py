@@ -57,11 +57,15 @@ class Job (Base):
     workarea  = Column(String)
     inputfile = Column(String)
     timer     = Column(DateTime)
+    envs      = Column(String)
 
     # Foreign
     task    = relationship("Task", back_populates="jobs")
     taskid  = Column(Integer, ForeignKey('task.id'))
 
+    
+    def get_env(self, key):
+      return eval(self.envs).get(key,'')
 
     def ping(self):
       self.timer = datetime.datetime.now()

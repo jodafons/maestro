@@ -30,10 +30,8 @@ class Job:
     self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]=str(slot.device)
     self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
     self.env["SINGULARITYENV_JOB_TASKNAME"] = job_db.task.name
+    self.env["SINGULARITYENV_PYTHONPATH"] = job_db.get_env("PYTHONPATH")
 
-    print('JOAO AKI')
-    print (job_db.task.name)
-   
     # Update the job enviroment from external envs
     for key, value in extra_envs.items():
       self.env[key]="SINGULARITYENV_"+value
@@ -59,7 +57,9 @@ class Job:
     # build script command
     with open(self.entrypoint,'w') as f:
       f.write(f"cd {self.workarea}\n")
+      f.write(f"export PATH=$PATH:{self.job_db.get_env('PATH')}\n")
       f.write(f"{self.command.replace('%','$')}\n")
+
 
     try:
       self.pending=False
