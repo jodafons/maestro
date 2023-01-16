@@ -1,7 +1,4 @@
-__all__ = ["remove_extension","test_locally"]
-
-
-
+__all__ = []
 
 from . import DeviceParser
 __all__.extend( DeviceParser.__all__ )
