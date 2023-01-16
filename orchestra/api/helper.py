@@ -17,6 +17,12 @@ import numpy as np
 from tqdm import tqdm
 from time import sleep, time
 
+try:
+  basestring
+except NameError:
+  basestring = str
+
+
 def remove_extension(f, extensions="json|h5|pic|gz|tgz|csv|root"):
   for ext in extensions.split("|"):
     if f.endswith('.'+ext):
