@@ -9,5 +9,9 @@
 #echo $SLURM_JOB_NODELIST
 #export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-srun ./run_master.sh 1 0
+MASTER=$1
+CPU=$2
+GPU=$3
+
+srun ./run_maestro.sh $MASTER $CPU $GPU
 wait
