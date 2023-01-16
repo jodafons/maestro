@@ -59,10 +59,10 @@ class PilotParser:
     device_api = DeviceParser(self.__db)
     for gpu in range(gpus):
       print (INFO+f"Creating GPU device with ID number {gpu}")
-      device_api.create(hostname, device=gpu, slots=max_slots, enabled=1)
+      device_api.create(hostname, device=gpu, slots=cpus, enabled=1)
     if cpus > 0:
       print (INFO+f"Creating CPU device with {cpus} slots")
-      device_api.create(hostname, device=-1, slots=max_slots, enabled=cpus)
+      device_api.create(hostname, device=-1, slots=cpus, enabled=cpus)
     
 
 

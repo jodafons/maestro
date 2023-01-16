@@ -6,11 +6,35 @@ import glob, traceback, os, argparse
 
 from orchestra.database.models import Task, Job
 from orchestra.status import JobStatus, TaskStatus, TaskAction
-from orchestra.api import test_locally, remove_extension
+from orchestra.api.helper import remove_extension, expand_folders
 from orchestra import ERROR, INFO
 from sqlalchemy import and_, or_
 from prettytable import PrettyTable
 from tqdm import tqdm
+
+
+def test_locally( job_db ):
+
+  from orchestra.server.consumer import Job
+  from orchestra.server import Slot
+  from orchestra.status import JobStatus
+  job = Job( job_db, Slot(), extra_envs={'ORCHESTRA_LOCAL_TEST':'1'})
+  job.slot.enable()
+  job.db().status = JobStatus.PENDING
+  while True:
+      if job.status() == JobStatus.PENDING:
+          if not job.run():
+            return False
+      elif job.status() == JobStatus.FAILED:
+          return False
+      elif job.status() == JobStatus.RUNNING:
+          continue
+      elif job.status() == JobStatus.COMPLETED:
+          job_db.status=JobStatus.REGISTERED
+          return True
+      else:
+          continue
+
 
 
 #
@@ -200,10 +224,11 @@ class TaskParser:
                       status=TaskStatus.HOLD,
                       action=TaskAction.WAITING)
 
-      files = glob.glob(inputfile+'/*', recursive=True)
 
+      files = expand_folders(inputfile)
       offset = self.__db.generate_id(Job)
       for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
+        
         workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
 
 
@@ -211,13 +236,13 @@ class TaskParser:
         # Get the environ
         #
 
-        envs = str({ 
-                  'PATH' : os.environ['PATH'],
-                  'PYTHONPATH' : os.environ['PYTHONPATH']
-               })
+        # FIXME: Use for future, we need to recover all envs and pass it to the job worker
+        #envs = str({ 
+        #          'PATH' : os.environ['PATH'],
+        #          'PYTHONPATH' : os.environ['PYTHONPATH']
+        #       })
 
-        print(envs)
-
+        envs = str({})
         job_db = Job(
                     id=offset+idx,
                     image=image,
@@ -237,7 +262,7 @@ class TaskParser:
           self.__db.commit()
         return (True, "Succefully created.")
 
-
+     
       if test_locally( task_db.jobs[0] ):
         self.__db.session().add(task_db)
         if not dry_run:
