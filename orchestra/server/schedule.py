@@ -28,6 +28,8 @@ class Schedule:
   def run(self):
 
     self.treat_running_jobs_not_alive()
+    self.db.commit()
+
     for task in self.db.tasks():
       self.eval(task)
 
