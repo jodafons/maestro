@@ -30,7 +30,7 @@ class Pilot:
     self.consumers = [Consumer(device, db) for device in devices]
     self.schedule = schedule
     self.master = master
-    self.tictac = Clock( 10*SECONDS )
+    self.tictac = Clock( 1*SECONDS )
     self.db = db
 
 
@@ -38,9 +38,9 @@ class Pilot:
 
     while True:
       if self.tictac():
-        print(INFO+'Run pilot...')
+        #print(INFO+'Run pilot...')
         if self.master:
-          print(INFO+'Scheduluing all jobs...')
+          #print(INFO+'Scheduluing all jobs...')
           self.schedule.run()
         for consumer in self.consumers:
           n = consumer.size() - consumer.allocated()
