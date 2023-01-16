@@ -89,6 +89,7 @@ class Schedule:
     jobs = self.get_all_running_jobs()
     for job in jobs:
       if not job.is_alive():
+        print('job not alive')
         job.status = JobStatus.ASSIGNED
 
 
