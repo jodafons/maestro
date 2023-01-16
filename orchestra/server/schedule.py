@@ -28,7 +28,6 @@ class Schedule:
   def run(self):
 
     self.treat_running_jobs_not_alive()
-    self.db.commit()
 
     for task in self.db.tasks():
       self.eval(task)
@@ -86,7 +85,9 @@ class Schedule:
 
 
   def treat_running_jobs_not_alive(self):
+    print('treat_running_jobs')
     jobs = self.get_all_running_jobs()
+    print(len(jobs))
     for job in jobs:
       if not job.is_alive():
         print('job not alive')
