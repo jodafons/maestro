@@ -2,6 +2,20 @@
 
 __all__ = ['remove_extension', 'expand_folders',]
 
+import numpy as np
+import pickle as cPickle
+import gzip
+import tarfile
+import tempfile
+import os
+import sys
+import shutil
+import signal
+import inspect
+import numpy as np
+
+from tqdm import tqdm
+from time import sleep, time
 
 def remove_extension(f, extensions="json|h5|pic|gz|tgz|csv|root"):
   for ext in extensions.split("|"):
