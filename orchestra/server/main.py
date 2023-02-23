@@ -30,7 +30,7 @@ class Pilot:
     self.consumers = [Consumer(device, db) for device in devices]
     self.schedule = schedule
     self.master = master
-    self.tictac = Clock( 1*SECONDS )
+    self.tictac = Clock( 10*SECONDS )
     self.db = db
 
 

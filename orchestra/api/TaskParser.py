@@ -54,9 +54,11 @@ class TaskParser:
 
       create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
                           help = "The task name to be append into the db.")
+
       create_parser.add_argument('-i','--inputfile', action='store',
                           dest='inputfile', required = True,
                           help = "The input config file that will be used to configure the job (sort and init).")
+
       create_parser.add_argument('--image', action='store', dest='image', required=True, default=False,
                           help = "The singularity sif image path.")
       create_parser.add_argument('--exec', action='store', dest='command', required=True,
@@ -225,6 +227,10 @@ class TaskParser:
                       action=TaskAction.WAITING)
 
 
+      # check if input file is json
+      
+
+
       files = expand_folders(inputfile)
       offset = self.__db.generate_id(Job)
       for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
@@ -244,13 +250,14 @@ class TaskParser:
 
         envs = str({})
         job_db = Job(
-                    id=offset+idx,
-                    image=image,
-                    command=command.replace('%IN',fpath),
-                    workarea=workarea,
-                    inputfile=fpath,
-                    envs=envs,
-                    status=JobStatus.REGISTERED)
+                      id=offset+idx,
+                      image=image,
+                      command=command.replace('%IN',fpath),
+                      workarea=workarea,
+                      inputfile=fpath,
+                      envs=envs,
+                      status=JobStatus.REGISTERED
+                    )
 
         task_db.jobs.append(job_db)
 

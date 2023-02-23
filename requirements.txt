@@ -26,3 +26,4 @@ colorama
 psutil
 tqdm
 pytest-order
+torch

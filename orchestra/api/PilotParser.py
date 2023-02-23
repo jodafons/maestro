@@ -2,6 +2,8 @@
 __all__ = ["PilotParser"]
 
 import traceback, time, os, argparse, socket
+import multiprocessing
+import torch
 
 from orchestra.server.main import Pilot
 from orchestra.server.mailing import Postman
@@ -21,13 +23,8 @@ class PilotParser:
       run_parser.add_argument('-m','--master', action='store_true',
                dest='master', required = False ,
                help = "This is a master branch. One hostname must be a master.")
-      run_parser.add_argument('--gpus', action='store',
-                     dest='gpus', required = False , default=0, type=int,
-                     help = "The number of GPUs available for this host.")
-      run_parser.add_argument('--cpus', action='store',
-                     dest='cpus', required = False , default=1, type=int,
-                     help = "The number of CPU slots available for this host.")
       parent = argparse.ArgumentParser(description = '',add_help = False)
+
       subparser = parent.add_subparsers(dest='option')
       subparser.add_parser('run', parents=[run_parser])
       args.add_parser( 'pilot', parents=[parent] )
@@ -37,13 +34,13 @@ class PilotParser:
   def compile( self, args ):
     if args.mode == 'pilot':
       if args.option == 'run':
-        self.run( args.master, args.gpus, args.cpus)
+        self.run( args.master )
       else:
         print("Not valid option.")
 
 
 
-  def run( self, master, gpus, cpus, max_slots=10):
+  def run( self, master ):
     
     from_email = os.environ["ORCHESTRA_EMAIL_FROM"]
     to_email   = os.environ["ORCHESTRA_EMAIL_TO"]
@@ -57,12 +54,20 @@ class PilotParser:
 
     # device auto-creation
     device_api = DeviceParser(self.__db)
-    for gpu in range(gpus):
-      print (INFO+f"Creating GPU device with ID number {gpu}")
-      device_api.create(hostname, device=gpu, slots=cpus, enabled=1)
-    if cpus > 0:
-      print (INFO+f"Creating CPU device with {cpus} slots")
-      device_api.create(hostname, device=-1, slots=cpus, enabled=cpus)
+
+
+
+    if torch.cuda.is_available():
+      print(INFO+"Cuda is available")
+      print(torch.cuda.device_count())
+      for gpu in range(torch.cuda.device_count()):
+        print (INFO+f"Creating GPU device with ID number {gpu}")
+        device_api.create(hostname, device=gpu, slots=10, enabled=1)
+    else:
+
+      ncores = multiprocessing.cpu_count()
+      print (INFO+f"Creating CPU device with {ncores} slots")
+      device_api.create(hostname, device=-1, slots=ncores, enabled=int(0.7 * ncores))
     
 
 

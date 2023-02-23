@@ -9,6 +9,8 @@ RUN pip install virtualenv
 RUN mkdir /app
 WORKDIR /app
 
+
+
 COPY orchestra /app/orchestra
 COPY scripts /app/scripts
 COPY setup.py .
