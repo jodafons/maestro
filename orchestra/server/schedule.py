@@ -8,6 +8,7 @@ from orchestra.status import JobStatus, TaskStatus, TaskAction
 from orchestra import INFO, ERROR
 from sqlalchemy import and_
 import traceback
+import time
 
 
 
@@ -49,9 +50,12 @@ class Schedule:
         # Execute all triggers into this JobStatus
         for question in relationship:
           try:
+
+            start = time.time()
             answer = getattr(self, question)(task) 
+            end = time.time()
+            print(INFO + f'{question} toke %1.4f seconds'%(end-start))
           except Exception as e:
-            print(e)
             traceback.print_exc()
             print(ERROR + f"Exception raise in state {current} for this task {task.name}")
           if not answer:
@@ -343,7 +347,7 @@ def compile(schedule):
   schedule.transition( source=TaskStatus.TESTING   , dest=TaskStatus.RUNNING    , relationship=['assigned_all_jobs']                                           )
   schedule.transition( source=TaskStatus.BROKEN    , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
   schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.COMPLETED  , relationship=['all_jobs_are_completed', 'send_email_task_completed']         )
-  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.FINALIZED  , relationship=['all_jobs_ran','send_email_task_finalized']                    )
+  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.FINALIZED  , relationship=['all_jobs_ran']                                                )
   schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.KILL       , relationship='kill_all_jobs'                                                 )
   schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.RUNNING    , relationship='check_not_allow_job_status_in_running_state'                   )
   schedule.transition( source=TaskStatus.FINALIZED , dest=TaskStatus.RUNNING    , relationship='retry_all_failed_jobs'                                         )

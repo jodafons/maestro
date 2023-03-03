@@ -7,6 +7,7 @@ from orchestra.server.consumer import Consumer
 from orchestra.server import Clock
 from orchestra import INFO
 import socket
+import time
 
 SECONDS = 1
 
@@ -37,18 +38,26 @@ class Pilot:
   def run(self):
 
     while True:
-      if self.tictac():
-        #print(INFO+'Run pilot...')
-        if self.master:
-          #print(INFO+'Scheduluing all jobs...')
-          self.schedule.run()
-        for consumer in self.consumers:
-          n = consumer.size() - consumer.allocated()
-          jobs_db = self.schedule.jobs(n)
-          while consumer.available() and len(jobs_db) > 0:
-            consumer.push_back(jobs_db.pop())
-          consumer.run()
-        
+      #if self.tictac():
+      #print(INFO+'Run pilot...')
+      if self.master:
+        print(INFO+'Scheduluing all jobs...')
+        self.schedule.run()
+      for consumer in self.consumers:
+        n = consumer.size() - consumer.allocated()
+        print (INFO+f'Get {n} jobs from DB')
+        jobs_db = self.schedule.jobs(n)
+        start = time.time()
+        while consumer.available() and len(jobs_db) > 0:
+          consumer.push_back(jobs_db.pop())
+        end = time.time()
+        print('Lauching toke %1.4f seconds'%(end-start))
+        start = time.time()
+        consumer.run()
+        end = time.time()
+        print('Run consumer toke %1.4f seconds'%(end-start))
+
+
         self.tictac.reset()
 
 

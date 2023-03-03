@@ -2,7 +2,7 @@
 __all__ = ["Consumer"]
 
 
-import os, time, subprocess, traceback, psutil
+import os, time, subprocess, traceback, psutil, time
 from orchestra.database.models import Device
 from orchestra.status import JobStatus
 from orchestra.server import Slot
@@ -76,7 +76,7 @@ class Job:
                                                                                                              entrypoint=self.entrypoint)
       print(INFO+command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
-      time.sleep(2)
+      #time.sleep(0.5)
       self.__proc_stat = psutil.Process(self.__proc.pid)
       return True
 
@@ -171,6 +171,7 @@ class Consumer:
   def run(self):
 
     print(INFO+f"Run consumer {self.device_db.host}")
+    start = time.time()
     self.pull()
 
     deactivate_jobs = []
@@ -214,6 +215,10 @@ class Consumer:
 
       # pull job status into the database
       self.db.commit()
+
+    end = time.time()
+
+    print(f'Consumer.run() toke %1.4f seconfs'%(end-start))
 
     return True
 
