@@ -12,9 +12,8 @@ import traceback
 
 class Postman:
 
-  def __init__ (self, email, password, toEmail, templates ):
-    self.__myEmail = email
-    self.__toEmail = toEmail
+  def __init__ (self, myEmail, password, templates ):
+    self.__myEmail = myEmail
     self.__myPassword = password
     self.__smtpServer = 'smtp.gmail.com'
     self.__smtpPort = 587

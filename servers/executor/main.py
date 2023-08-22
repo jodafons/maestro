@@ -1,30 +1,37 @@
 
-import sys,os
+import sys,os, tempfile
+
 from time import time, sleep
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
 from consumer import Consumer
 
-class Job(BaseModel):
+class JobRequest(BaseModel):
     id : int
+    command : str
+    taskname : str
+    image : str
+    workarea : str
     
+class JobAnswer(BaseModel):
+    id : int
+    time : float
+    status : str
+
 
 
 app = FastAPI()
 
 device = 0
 binds = {
-        #'/home':'/home', 
-        #'/mnt/cern_data':'/mnt/cern_data'
+        '/home':'/home', 
+        '/mnt/cern_data':'/mnt/cern_data'
         }
 
 
-executor = Consumer(device, binds, docker_engine=True)
+executor = Consumer(device, binds)
 
-@app.on_event("startup")
-async def startup():
-    pass
 
 @app.get("/executor/status")
 async def status() -> str:
@@ -35,28 +42,37 @@ async def pulse() -> int:
     return consume.run()
 
 
+
+
+
 @app.get("/executor/test") 
 async def test() -> str:
 
     command = """python -c 'import time; time.sleep(10)'"""
-    workarea = os.getcwd()
+    workarea = tempfile.mkdtemp()
+
     status = executor.start(job_id=0, 
                             taskname="test", 
                             command=command, 
-                            image="python:3.10", 
+                            image="/mnt/cern_data/images/python_3.10.sif", 
                             workarea=workarea)
     
-    #logger.info("Job test is intothe consumer")
+    logger.info("Job test is intothe consumer")
     while executor.job(0) is not None:
         logger.info("Pulse the consumer...")
         executor.run()
         sleep(2)
-    #logger.info("Job test is not into the consumer anymore")
-
-    
+    logger.info("Job test is not into the consumer anymore")
 
     return 'test'
 
+
+
+@app.post("/executor/start") 
+async def start(job: JobRequest) -> str:
+    return "ok"
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=80)
+    uvicorn.run("main:app", host="0.0.0.0", port=9001, reload=True)

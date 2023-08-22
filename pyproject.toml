@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "orchestra_server"}]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.8"
 fastapi = "^0.101.1"
 loguru = "^0.7.0"
 flask-security = "^3.0.0"
