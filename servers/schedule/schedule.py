@@ -1,27 +1,34 @@
 
+import traceback, time
 
-from database.models import Job
+from database.models import Job, Task
 from sqlalchemy import and_
 from loguru import logger
-import traceback, time
+from enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
 
 class Transition:
-  def __init__(self, source , target , relationship ):
+
+  def __init__(self, source: JobStatus , target: JobStatus , relationship: list ):
     self.source = source
     self.target = target
     self.relationship = relationship
 
-  def __call__(self, task, **kwargs):   
+  def __call__(self, task: Task, **kwargs) -> bool:   
+    """
+      Apply the transition for each function
+    """
     for func in self.relationship:
       if not func(task, **kwargs):
         return False
     return True
 
+#
+# Transitions functions
+#
 
-
-def send_email( task , **kwargs):
+def send_email( task: Task , **kwargs) -> bool:
   """
   Send an email with the task status
   """
@@ -36,8 +43,11 @@ def send_email( task , **kwargs):
     api.mailing().send(email, subject, message)
   return True
 
+#
+# Job test
+#
 
-def test_job_fail( task , **kwargs):
+def test_job_fail( task: Task, **kwargs) -> bool:
   """
     Check if the first job returns fail
   """
@@ -45,7 +55,7 @@ def test_job_fail( task , **kwargs):
   return (job.status == JobStatus.FAILED) or (job.status == JobStatus.BROKEN)
     
  
-def test_job_assigned( task , **kwargs):
+def test_job_assigned( task: Task , **kwargs) -> bool:
   """
     Assigned the fist job to test
   """
@@ -53,31 +63,33 @@ def test_job_assigned( task , **kwargs):
   return True
 
 
-def test_job_running( task , **kwargs):
+def test_job_running( task: Task , **kwargs) -> bool:
   """
     Check if the test job still running
   """
   return task.jobs[0].status == JobStatus.RUNNING
 
 
-def test_job_completed( task , **kwargs):
+def test_job_completed( task: Task , **kwargs) -> bool:
   """
     Check if the test job is completed
   """
   return task.jobs[0].status == JobStatus.COMPLETED
 
 
+#
+# Task
+#
 
 
-
-def task_registered( task , **kwargs):
+def task_registered( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are registered
   """
   return all([job.status==JobStatus.REGISTERED for job in task.jobs])
   
 
-def task_assigned( task , **kwargs):
+def task_assigned( task: Task , **kwargs) -> bool:
   """
   Force all jobs with ASSIGNED status
   """
@@ -88,21 +100,21 @@ def task_assigned( task , **kwargs):
   return True
 
 
-def task_completed( task , **kwargs):
+def task_completed( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are completed
   """
   return all([job.status==JobStatus.COMPLETED for job in task.jobs])
   
 
-def task_running( task , **kwargs):
+def task_running( task: Task , **kwargs) -> bool:
   """
     Check if any jobs into the task is in running state
   """
   return any([job.status==JobStatus.RUNNING] for job in task.jobs)
 
 
-def task_finalized( task , **kwargs):
+def task_finalized( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are completed or failed
   """
@@ -111,14 +123,14 @@ def task_finalized( task , **kwargs):
   return (len(self.jobs) == (completed+failed))
 
 
-def task_killed( task , **kwargs):
+def task_killed( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are killed
   """
   return all([job.status==JobStatus.KILLED for job in task.jobs])
   
 
-def task_broken( task , **kwargs):
+def task_broken( task: Task , **kwargs) -> bool:
   """
     Broken all jobs inside of the task
   """
@@ -127,8 +139,12 @@ def task_broken( task , **kwargs):
   return True
 
 
+#
+# Triggers
+#
 
-def trigger_task_kill( task , **kwargs):
+
+def trigger_task_kill( task: Task , **kwargs) -> bool:
   """
     Put all jobs to kill status when trigger
   """
@@ -144,7 +160,7 @@ def trigger_task_kill( task , **kwargs):
     return False
 
 
-def trigger_task_retry( task , **kwargs):
+def trigger_task_retry( task: Task , **kwargs) -> bool:
   """
     Move all jobs to registered when trigger is retry given by external order
   """
@@ -157,7 +173,7 @@ def trigger_task_retry( task , **kwargs):
     return False
 
  
-def job_retry( task ):
+def job_retry( task: Task ):
   """
     Check if all jobs into the task are killed
   """
@@ -276,3 +292,7 @@ class Schedule:
     logger.info(f"Schedule with a total of {len(self.states)} nodes into the graph.")
 
  
+
+
+if __name__ == "__main__":
+  pass
