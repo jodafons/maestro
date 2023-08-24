@@ -3,197 +3,25 @@
 from database.models import Job
 from sqlalchemy import and_
 from loguru import logger
-
 import traceback, time
 
 
 
-
-
-class Schedule:
-
-  def __init__(self, db, postman):
-    self.db = db
-    self.postman = postman 
-    self.states = []
-
-
-  def transition( self, source, dest, relationship ):
-    if type(relationship) is not list:
-      relationship=[relationship]
-    self.states.append( (source, relationship, dest) )
-
-
-  def run(self):
-
-    self.treat_running_jobs_not_alive()
-
-    for task in self.db.tasks():
-      self.eval(task)
-
-    self.db.commit()
-    return True
-
-
-
-  def eval(self, task):
-
-    # Get the current JobStatus information
-    current = task.status
-    # Run all JobStatus triggers to find the correct transiction
-    for source, relationship, dest in self.states:
-      # Check if the current JobStatus is equal than this JobStatus
-      if source == current:
-        answer = True
-        # Execute all triggers into this JobStatus
-        for question in relationship:
-          try:
-
-            start = time.time()
-            answer = getattr(self, question)(task) 
-            end = time.time()
-            print(INFO + f'{question} toke %1.4f seconds'%(end-start))
-          except Exception as e:
-            traceback.print_exc()
-            print(ERROR + f"Exception raise in state {current} for this task {task.name}")
-          if not answer:
-            break
-        if answer:
-          task.status = dest
-          break
-
-
-
-
-  def jobs(self, njobs):
-    try:
-      jobs = self.db.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
-      jobs.reverse()
-      return jobs
-    except Exception as e:
-      traceback.print_exc()
-      print(e)
-      return []
-
-
-
-  #
-  # Get all running jobs into the job list
-  #
-  def get_all_running_jobs(self):
-    #return self.db.session().query(Job).filter( and_( Job.status==JobStatus.RUNNING) ).with_for_update().all()
-    return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
-
-
-  def get_jobs( api, task )
-
-
-
-  def treat_running_jobs_not_alive(self):
-    jobs = self.get_all_running_jobs()
-    for job in jobs:
-      if not job.is_alive():
-        job.status = JobStatus.ASSIGNED
-
-
-
-
-
-  #
-  # Retry all jobs after the user sent the retry action to the task db
-  #
-  def broken_all_jobs( self, task ):
-
-    # Broken all jobs inside od the task
-    for job in task.jobs:
-      job.status = JobStatus.BROKEN
-    task.action = TaskAction.WAITING
-    return True
-  
-
-  #
-  # Retry all jobs after the user sent the retry action to the task db
-  #
-  def retry_all_jobs( self, task ):
-
-    if task.action == TaskAction.RETRY:
-      for job in task.jobs:
-        job.status = JobStatus.REGISTERED
-      task.action = TaskAction.WAITING
-      return True
-    else:
-      return False
-
-
-
-
-
-
-
-
- 
-  #
-  # Check if all jobs into this taks is in registered JobStatus
-  #
-  def all_jobs_are_registered( self, task ):
-
-    total = len(self.db.session().query(Job).filter( Job.taskid==task.id ).all())
-    if len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.REGISTERED ) ).all()) == total:
-      return True
-    else:
-      return False
-
-
- 
-
-  
-
-  #
-  # Check if all jobs into this task ran
-  #
-  def all_jobs_ran( self, task ):
-                                                                                                                    
-    total = len(self.db.session().query(Job).filter( Job.taskid==task.id ).all())
-    total_completed = len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.COMPLETED ) ).all())
-    total_failed = len(self.db.session().query(Job).filter( and_ ( Job.taskid==task.id, Job.status==JobStatus.FAILED ) ).all())
-    if (total_completed + total_failed) == total:
-      return True
-    else:
-      return False
-
-
-  #
-  # Check if all jobs into this task ran
-  #
-  def check_not_allow_job_status_in_running_state( self, task ):
-    
-    exist_registered_jobs = False
-    for job in task.jobs:
-      if job.status==JobStatus.REGISTERED or job.status==JobStatus.PENDING: 
-        job.status = JobStatus.ASSIGNED
-        exist_registered_jobs=True
-    return exist_registered_jobs
-
-
-
-
-
-
-
-  
-
-
-
-
 class Transition:
-  def __init__(self, source=  , target=  , function=  ):
+  def __init__(self, source , target , relationship ):
+    self.source = source
+    self.target = target
+    self.relationship = relationship
+
+  def __call__(self, task, **kwargs):   
+    for func in self.relationship:
+      if not func(task, **kwargs):
+        return False
+    return True
 
 
-  def __call__(self , ):
 
-
-
-def send_email( task ):
+def send_email( task , **kwargs):
   """
   Send an email with the task status
   """
@@ -202,12 +30,54 @@ def send_email( task ):
   email = task.email
   subject = f"[LPS Cluster] Notification for task id {status}"
   message = (f"The task with name {taskname} was assigned with {status} status.")
-  logger.info(f"Sending email to {email}") 
-  api.mailing().send(email, subject, message)
+  if kwargs.get('mailing'):
+    api = kwargs.get('mailing')
+    logger.info(f"Sending email to {email}") 
+    api.mailing().send(email, subject, message)
   return True
 
 
-def assigned_all_jobs( task ):
+def test_job_fail( task , **kwargs):
+  """
+    Check if the first job returns fail
+  """
+  job = task.jobs[0]
+  return (job.status == JobStatus.FAILED) or (job.status == JobStatus.BROKEN)
+    
+ 
+def test_job_assigned( task , **kwargs):
+  """
+    Assigned the fist job to test
+  """
+  task.jobs[0].JobStatus =  JobStatus.ASSIGNED
+  return True
+
+
+def test_job_running( task , **kwargs):
+  """
+    Check if the test job still running
+  """
+  return task.jobs[0].status == JobStatus.RUNNING
+
+
+def test_job_completed( task , **kwargs):
+  """
+    Check if the test job is completed
+  """
+  return task.jobs[0].status == JobStatus.COMPLETED
+
+
+
+
+
+def task_registered( task , **kwargs):
+  """
+    Check if all jobs into the task are registered
+  """
+  return all([job.status==JobStatus.REGISTERED for job in task.jobs])
+  
+
+def task_assigned( task , **kwargs):
   """
   Force all jobs with ASSIGNED status
   """
@@ -218,51 +88,76 @@ def assigned_all_jobs( task ):
   return True
 
 
-def test_job_fail( task ):
-  """
-    Check if the first job returns fail
-  """
-  job = task.jobs[0]
-  return (job.status == JobStatus.FAILED) or (job.status == JobStatus.BROKEN)
-    
- 
-def test_job_assigned( task ):
-  """
-    Assigned the fist job to test
-  """
-  task.jobs[0].JobStatus =  JobStatus.ASSIGNED
-  return True
-
-
-def test_job_completed( task ):
-  """
-    Check if the test job is completed
-  """
-  return task.jobs[0].status == JobStatus.COMPLETED
-
-
-def test_job_running( task ):
-  """
-    Check if the test job still running
-  """
-  return task.jobs[0].status == JobStatus.RUNNING
-
-
-def task_completed( task ):
+def task_completed( task , **kwargs):
   """
     Check if all jobs into the task are completed
   """
   return all([job.status==JobStatus.COMPLETED for job in task.jobs])
   
 
-def task_killed( task ):
+def task_running( task , **kwargs):
+  """
+    Check if any jobs into the task is in running state
+  """
+  return any([job.status==JobStatus.RUNNING] for job in task.jobs)
+
+
+def task_finalized( task , **kwargs):
+  """
+    Check if all jobs into the task are completed or failed
+  """
+  completed = all([job.status==JobStatus.COMPLETED for job in task.jobs])
+  failed    = all([job.status==JobStatus.FAILED for job in task.jobs])
+  return (len(self.jobs) == (completed+failed))
+
+
+def task_killed( task , **kwargs):
   """
     Check if all jobs into the task are killed
   """
   return all([job.status==JobStatus.KILLED for job in task.jobs])
   
 
-def task_retry( task ):
+def task_broken( task , **kwargs):
+  """
+    Broken all jobs inside of the task
+  """
+  for job in task.jobs:
+    job.status = JobStatus.BROKEN
+  return True
+
+
+
+def trigger_task_kill( task , **kwargs):
+  """
+    Put all jobs to kill status when trigger
+  """
+  if task.trigger == TaskTrigger.KILL:
+    for job in task.jobs:
+      if job.status == JobStatus.RUNNING:
+        job.status = JobStatus.KILL
+      else:
+        job.status = JobStatus.KILLED
+    task.trigger = TaskTrigger.WAITING
+    return True
+  else:
+    return False
+
+
+def trigger_task_retry( task , **kwargs):
+  """
+    Move all jobs to registered when trigger is retry given by external order
+  """
+  if task.trigger == TaskTrigger.RETRY:
+    for job in task.jobs:
+      job.status = JobStatus.REGISTERED
+    task.trigger = TaskTrigger.WAITING
+    return True
+  else:
+    return False
+
+ 
+def job_retry( task ):
   """
     Check if all jobs into the task are killed
   """
@@ -273,43 +168,111 @@ def task_retry( task ):
         job.status = JobStatus.ASSIGNED
   task.action = TaskAction.WAITING
   return True
- 
 
 
-def kill_all_jobs( task ):
-  """
-    Check if all jobs into the task are killed
-  """
-  if task.action == TaskAction.KILL:
-    for job in task.jobs:
-      if job.status != JobStatus.RUNNING:
-        job.status =  JobStatus.KILLED
-      else:
-        job.status = JobStatus.KILL
-    task.action = TaskAction.WAITING
+
+
+#
+# Schedule implementation
+# 
+
+
+class Schedule:
+
+  def __init__(self, db, mailing):
+    logger.info("Creating schedule...")
+    self.database = database
+    self.mailing = mailing
+    self.compile()
+
+
+  
+  def run(self):
+
+    logger.info("Treat jobs with status running but not alive into the executor.")
+    self.treat_jobs_not_alive()
+
+    for task in tqdm( self.database.tasks(), dect='Loop over tasks...'):
+      self.pulse(task)
+
+    logger.info("Commit all database changes.")
+    self.database.commit()
     return True
-  else:
-    return False
+
+
+
+  def pulse(self, task):
+
+    # Run all JobStatus triggers to find the correct transiction
+    for source, transition, target in self.states:
+      # Check if the current JobStatus is equal than this JobStatus
+      if source == task.status:
+        answer = 
+        try:
+          answer = transition(task)
+          if answer:
+            logger.info(f"Moving task from {source} to {target} state.")
+            task.status = target
+            break
+        except Exception as e:
+          logger.error(f"Found a problem to execute the transition from {source} to {target} state.")
+          traceback.print_exc()
+
+       
+  def get_n_assigned_jobs(self, njobs):
+    try:
+      jobs = db_api.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
+      jobs.reverse()
+      return jobs
+    except Exception as e:
+      logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
+      traceback.print_exc()
+      return []
+
+
+  def get_running_jobs(self):
+    try:
+      return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+    except Exception as e:
+      logger.error(f"Not be able to get running from database. Return an empty list to the user.")
+      traceback.print_exc()
+      return []
+
+  
+  def treat_jobs_not_alive(self):
+    """
+      Check if we have any dead job when start the schedule
+    """
+    jobs = self.get_running_jobs()
+    for job in jobs:
+      if not job.is_alive():
+        job.status = JobStatus.ASSIGNED
+
+
+
+  #
+  # Compile the JobStatus machine
+  #
+  def compile(schedule):
+    logger.info("Compiling all transitions...")
+    self.states = [
+
+      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]        ) # ok
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ) # ok                        )
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]    ) # ok
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]         ) # ok
+      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                        ) # ok
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]                ) # ok
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_completed, send_email]                ) # ok
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                         )
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                              ) # ok
+      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship='retry_all_failed_jobs'                                         )
+      Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                   ) # ok
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[task_retry]                                                )
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[task_retry]                                                )
+
+    ]
+
+    logger.info(f"Schedule with a total of {len(self.states)} nodes into the graph.")
 
  
-#
-# Compile the JobStatus machine
-#
-def compile(schedule):
-
-  #schedule.transition(source=TaskStatus.REGISTERED, dest=TaskStatus.TESTING    , relationship=['all_jobs_are_registered', 'assigned_one_job_to_test']         )
-  schedule.transition( source=TaskStatus.REGISTERED, dest=TaskStatus.TESTING    , relationship=['all_jobs_are_registered']         )
-  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.TESTING    , relationship='test_job_still_running'                                        )
-  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.BROKEN     , relationship=['test_job_fail','broken_all_jobs','send_email_task_broken']    )
-  #schedule.transition(source=TaskStatus.TESTING   , dest=TaskStatus.RUNNING    , relationship=['test_job_pass','assigned_all_jobs']                           )
-  schedule.transition( source=TaskStatus.TESTING   , dest=TaskStatus.RUNNING    , relationship=['assigned_all_jobs']                                           )
-  schedule.transition( source=TaskStatus.BROKEN    , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
-  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.COMPLETED  , relationship=['all_jobs_are_completed', 'send_email_task_completed']         )
-  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.FINALIZED  , relationship=['all_jobs_ran']                                                )
-  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.KILL       , relationship='kill_all_jobs'                                                 )
-  schedule.transition( source=TaskStatus.RUNNING   , dest=TaskStatus.RUNNING    , relationship='check_not_allow_job_status_in_running_state'                   )
-  schedule.transition( source=TaskStatus.FINALIZED , dest=TaskStatus.RUNNING    , relationship='retry_all_failed_jobs'                                         )
-  schedule.transition( source=TaskStatus.KILL      , dest=TaskStatus.KILLED     , relationship=['all_jobs_were_killed','send_email_task_killed']               )
-  schedule.transition( source=TaskStatus.KILLED    , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
-  schedule.transition( source=TaskStatus.COMPLETED , dest=TaskStatus.REGISTERED , relationship='retry_all_jobs'                                                )
-
