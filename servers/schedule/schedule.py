@@ -195,10 +195,11 @@ def job_retry( task: Task ):
 
 class Schedule:
 
-  def __init__(self, db, mailing):
+  def __init__(self, db, mailing, enable_test_states : bool=True):
     logger.info("Creating schedule...")
     self.database = database
     self.mailing = mailing
+    self.enable_test_states = enable_test_states
     self.compile()
 
 
@@ -270,24 +271,46 @@ class Schedule:
   # Compile the JobStatus machine
   #
   def compile(schedule):
+
     logger.info("Compiling all transitions...")
     self.states = [
 
-      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]        ) # ok
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ) # ok                        )
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]    ) # ok
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]         ) # ok
-      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                        ) # ok
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]                ) # ok
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_completed, send_email]                ) # ok
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                         )
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                              ) # ok
-      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship='retry_all_failed_jobs'                                         )
-      Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                   ) # ok
-      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[task_retry]                                                )
-      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[task_retry]                                                )
-
+      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]           ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]   ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_completed, send_email]   ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]            ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                 ),
+      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]           ),
+      Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]      ),
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[task_retry]                   ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[task_retry]                   ),
+    
     ]
+
+  
+
+    if self.enable_test_states:
+      logger.info("Adding test states into the graph.")
+
+      testing_states = [
+          Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]        ),
+          Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ),                         )
+          Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]    ), 
+          Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]         ), 
+        ]
+      
+      self.states.extend(testing_states)
+
+    else:
+      logger.info("Bypassing the testing state in the graph")
+
+      self.states.extend( 
+        [
+          Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered]        ) ,
+          Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[task_assigned]          ) ,
+        ]
+      )
+
 
     logger.info(f"Schedule with a total of {len(self.states)} nodes into the graph.")
 
