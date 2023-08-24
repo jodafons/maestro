@@ -1,5 +1,6 @@
 
-import os
+import os, traceback
+import uvicorn
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -18,18 +19,32 @@ app = FastAPI()
 
 from_email = os.environ['MAILING_SERVER_EMAIL_FROM']
 password   = os.environ['MAILING_SERVER_EMAIL_PASSWORD']
-postman    = Postman(from_email, password, '/app/mailing/templates')
+
+
+
+templates = os.getcwd()+'/mailing/templates'
+postman    = Postman(from_email, password, templates)
+
+
 
 
 @app.get("/mailing/status")
 async def status() -> str:
     return "online"
 
-@app.get("/mailing/send")
-async def send(email : EmailRequest) -> int:
-    postman.send( email.to , email.subject, email.body )
+@app.post("/mailing/send")
+async def send(email : EmailRequest) -> bool:
+    try:
+        logger.info(f'Sending email to {email.to}')
+        postman.send( email.to , email.subject, email.body )
+        return True
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      self.broken=True
+      return False
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=9002, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)
+    

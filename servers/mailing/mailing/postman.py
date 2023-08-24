@@ -18,6 +18,7 @@ class Postman:
     self.__smtpServer = 'smtp.gmail.com'
     self.__smtpPort = 587
     self.__env = Environment(loader=FileSystemLoader(templates))
+    self.__templates = templates
 
 
   def __send (self, to_email, subject, bodyContent, logs=[]):
@@ -51,11 +52,11 @@ class Postman:
       
 
 
-  def send (self, subject, message):
+  def send (self, to_email, subject, message):
     template = self.__env.get_template('templates/task_notification.html')
     data = {}
     data['message'] = message
     output = template.render(data=data)
-    self.__send(self.__toEmail, subject, output)
+    self.__send(to_email, subject, output)
 
 

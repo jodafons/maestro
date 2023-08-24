@@ -1,0 +1,40 @@
+version: '3.5'
+
+services:
+
+  mailing_server:
+    container_name: mailing-server
+    image: ${DOCKER_NAMESPACE}/mailing-server
+    ports:
+      - "5000:80"
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      MAILING_SERVER_EMAIL_FROM: ${MAILING_SERVER_EMAIL_FROM}
+      MAILING_SERVER_EMAIL_PASSWORD: ${MAILING_SERVER_EMAIL_PASSWORD}
+
+  database_server:
+    container_name: database-server
+    image: postgres:13.0
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${DATABASE_PATH}:/var/lib/postgresql/data
+      
+  pgadmin_server:
+    container_name: pgadmin-server
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${MAILING_SERVER_EMAIL_PASSWORD}
+    ports:
+      - "5001:80"
+
+
+
+  

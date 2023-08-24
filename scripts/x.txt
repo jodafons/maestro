@@ -1,0 +1,1 @@
+poetry add fastapi loguru flask-security passlib ptable cython flask-mail numpy requests werkzeug jinja2 flask flask-login flask-sqlalchemy benedict flask-admin flask-bootstrap flask-cors prettytable psycopg2-binary sqlalchemy-utils ansi2html colorama psutil tqdm pytest-order uvicorn pydantic orjson python-socketio
