@@ -6,22 +6,20 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
 from consumer import Consumer
+from api.database import postgres_client, Base, Task, Job
 
-class JobRequest(BaseModel):
-    id : int
-    command : str
-    taskname : str
-    image : str
-    workarea : str
-    
-class JobAnswer(BaseModel):
-    id : int
-    time : float
-    status : str
+
+host = os.environ['DATABASE_SERVER_HOST']
 
 
 
 app = FastAPI()
+
+
+db = postgres_client(host)
+
+schedule = Schedule(db)
+
 
 device = 0
 binds = {

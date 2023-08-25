@@ -3,25 +3,13 @@ __all__ = ["Consumer"]
 
 
 import os, subprocess, traceback, psutil, time, sys
+from enumerations import JobStatus
 from time import time, sleep
 from enum import Enum
 from loguru import logger
 
 
 
-class JobStatus(Enum):
-
-    UNKNOWN    = 'Unknown'
-    REGISTERED = "Registered"
-    ASSIGNED   = "Assigned"
-    TESTING    = "Testing"
-    BROKEN     = "Broken"
-    FAILED     = "Failed"
-    KILL       = "Kill"
-    KILLED     = "Killed"
-    COMPLETED  = "Completed"
-    PENDING    = "Pending"
-    RUNNING    = "Running"
 
 
 class Job:
@@ -34,7 +22,7 @@ class Job:
                workarea: str,
                device: int,
                extra_envs: dict={},
-               docker_engine: bool=False,
+               engine: Engine=Engine.SINGULARITY,
                binds = {'/home':'/home','/mnt/cern_data':'/mnt/cern_data'}):
 
     self.id       = job_id
@@ -180,12 +168,14 @@ class Job:
 #
 class Consumer:
 
-  def __init__(self, device, binds, docker_engine=False):
+  def __init__(self, device, binds, docker_engine=False, database=None):
     self.jobs = {}
     self.docker_engine=docker_engine
     self.binds = binds
     self.device = device
-
+    self.database = database
+    self.dry_run = False if self.database else True
+    
 
   #
   # Add a job into the slot
@@ -241,6 +231,9 @@ class Consumer:
 
     # Loop over all available consumers
     for key, job in self.jobs.items():
+
+      
+
 
       if job.status() == JobStatus.KILL:
         job.kill()

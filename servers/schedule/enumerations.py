@@ -2,31 +2,37 @@
 from enum import Enum
 
 
-class TaskStatus:
+class JobStatus(Enum):
 
-    UNKNOWN    = 'Unknown'
-    HOLD       = "Hold"
-    HOLDED     = "Holded"
+    REGISTERED = "Registered"
+    TESTING    = "Testing"
+    ASSIGNED   = "Assigned"
+    RUNNING    = "Running"
+    COMPLETED  = "Completed"
     BROKEN     = "Broken"
     FAILED     = "Failed"
     KILL       = "Kill"
     KILLED     = "Killed"
-    COMPLETED  = "Completed"
+    UNKNOWN    = 'Unknown'
+
+
+
+class TaskStatus(Enum):
+
     REGISTERED = "Registered"
     TESTING    = "Testing"
-    ASSIGNED   = "Assigned"
-    ACTIVATED  = "Activated"
-    PENDING    = "Pending"
-    STARTING   = "Starting"
     RUNNING    = "Running"
     FINALIZED  = "Finalized"
-    REMOVED    = "Removed"
-
+    COMPLETED  = "Completed"
+    KILL       = "Kill"
+    KILLED     = "Killed"
+    BROKEN     = "Broken"
+    UNKNOWN    = 'Unknown'
 
 #
 # Task order
 #
-class TaskAction:
+class TaskTrigger(Enum):
     RETRY      = "Retry"
     KILL       = "Kill"
     WAITING    = "Waiting"

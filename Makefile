@@ -16,8 +16,8 @@ make server:
 # Build
 #
 build_local:
-	virtualenv -p python ${ORCHESTRA_ENV}
-	source ${ORCHESTRA_ENV}/bin/activate && pip install poetry && poetry install && which python
+	virtualenv -p python ${LOCAL_ENV}
+	source ${LOCAL_ENV}/bin/activate && pip install poetry && poetry install && which python
 build_base: 
 	docker build --progress=plain -t ${DOCKER_NAMESPACE}/base-server --compress .
 build_mailing:
@@ -31,7 +31,7 @@ build_executor:
 # executor
 #
 start_executor:
-	source ${ORCHESTRA_ENV}/bin/activate && cd servers/executor && python main.py
+	source ${LOCAL_ENV}/bin/activate && cd servers/executor && python main.py
 
 
 #

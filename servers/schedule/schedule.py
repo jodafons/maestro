@@ -1,7 +1,7 @@
 
-import traceback, time
+import traceback, time, os
 
-from database.models import Job, Task
+from api.database import Task, Job
 from sqlalchemy import and_
 from loguru import logger
 from enumerations import JobStatus, TaskStatus, TaskTrigger
@@ -93,10 +93,8 @@ def task_assigned( task: Task , **kwargs) -> bool:
   """
   Force all jobs with ASSIGNED status
   """
-  logger.info("Assigne all jobs...")
   for job in task.jobs:
-      if job.status != JobStatus.COMPLETED:
-        job.status =  JobStatus.ASSIGNED
+      job.status =  JobStatus.ASSIGNED
   return True
 
 
@@ -109,18 +107,18 @@ def task_completed( task: Task , **kwargs) -> bool:
 
 def task_running( task: Task , **kwargs) -> bool:
   """
-    Check if any jobs into the task is in running state
+    Check if any jobs into the task is in assigned state
   """
-  return any([job.status==JobStatus.RUNNING] for job in task.jobs)
+  return any([job.status==JobStatus.ASSIGNED] for job in task.jobs)
 
 
 def task_finalized( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are completed or failed
   """
-  completed = all([job.status==JobStatus.COMPLETED for job in task.jobs])
-  failed    = all([job.status==JobStatus.FAILED for job in task.jobs])
-  return (len(self.jobs) == (completed+failed))
+  # NOTE: We have jobs waiting to be executed here. Task should be in running state  
+  return (not task_running(task)) and (not all([job.status==JobStatus.COMPLETED for job in task.jobs]) )
+
 
 
 def task_killed( task: Task , **kwargs) -> bool:
@@ -138,6 +136,20 @@ def task_broken( task: Task , **kwargs) -> bool:
     job.status = JobStatus.BROKEN
   return True
 
+
+def task_retry( task: Task , **kwargs) -> bool:
+  """
+    Retry all jobs inside of the task with failed status
+  """
+  retry_jobs = 0
+  for job in task.jobs:
+    if job.status != JobStatus.COMPLETED:
+      if job.retry < 5:
+        job.status = JobStatus.ASSIGNED
+        job.retry +=1
+        retry_jobs +=1
+  # NOTE: If we have jobs to retry we must keep the current state and dont finalized the task
+  return not retry_jobs>0
 
 #
 # Triggers
@@ -165,8 +177,19 @@ def trigger_task_retry( task: Task , **kwargs) -> bool:
     Move all jobs to registered when trigger is retry given by external order
   """
   if task.trigger == TaskTrigger.RETRY:
-    for job in task.jobs:
-      job.status = JobStatus.REGISTERED
+
+    if task.status == TaskStatus.FINALIZED:
+      for job in task.jobs:
+        if (job.status != JobStatus.COMPLETED):
+          job.status = JobStatus.ASSIGNED
+          job.retry  = 0 
+    elif (task.status == TaskStatus.KILLED) or (task.status == TaskStatus.BROKEN):
+      for job in task.jobs:
+        job.status = JobStatus.REGISTERED
+    else:
+      logger.error(f"Not expected task status ({task.status})into the task retry. Please check this!")
+      return False
+    
     task.trigger = TaskTrigger.WAITING
     return True
   else:
@@ -195,11 +218,27 @@ def job_retry( task: Task ):
 
 class Schedule:
 
-  def __init__(self, db, mailing, enable_test_states : bool=True):
+  def __init__(self, postgres_host, mailing = None, enable_test_states : bool=True):
     logger.info("Creating schedule...")
-    self.database = database
     self.mailing = mailing
     self.enable_test_states = enable_test_states
+
+    try:
+      logger.info(f"Connecting into {postgres_host}")
+      self.__engine = create_engine(postgres_host)
+      Session= sessionmaker(bind=self.__engine)
+      self.session = Session()
+    except Exception as e:
+      traceback.print_exc()
+      logger.fatal(e)
+
+    if mailing:
+      if mailing.status():
+        logger.info("Mailing service is available.")
+      else:
+        logger.fatal("Mailing service is offline.")
+
+
     self.compile()
 
 
@@ -213,7 +252,7 @@ class Schedule:
       self.pulse(task)
 
     logger.info("Commit all database changes.")
-    self.database.commit()
+    self.session.commit()
     return True
 
 
@@ -224,7 +263,6 @@ class Schedule:
     for source, transition, target in self.states:
       # Check if the current JobStatus is equal than this JobStatus
       if source == task.status:
-        answer = 
         try:
           answer = transition(task)
           if answer:
@@ -238,7 +276,7 @@ class Schedule:
        
   def get_n_assigned_jobs(self, njobs):
     try:
-      jobs = db_api.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
+      jobs = self.session.query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
       jobs.reverse()
       return jobs
     except Exception as e:
@@ -249,7 +287,7 @@ class Schedule:
 
   def get_running_jobs(self):
     try:
-      return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+      return self.session.query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
     except Exception as e:
       logger.error(f"Not be able to get running from database. Return an empty list to the user.")
       traceback.print_exc()
@@ -270,20 +308,20 @@ class Schedule:
   #
   # Compile the JobStatus machine
   #
-  def compile(schedule):
+  def compile(self):
 
     logger.info("Compiling all transitions...")
     self.states = [
 
-      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]           ),
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]   ),
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_completed, send_email]   ),
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]            ),
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                 ),
-      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]           ),
-      Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]      ),
-      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[task_retry]                   ),
-      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[task_retry]                   ),
+      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]               ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_finalized, task_retry, send_email]   ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                        ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                             ),
+      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]                       ),
+      Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
     
     ]
 
@@ -292,15 +330,13 @@ class Schedule:
     if self.enable_test_states:
       logger.info("Adding test states into the graph.")
 
-      testing_states = [
+      self.states.extend( [
           Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]        ),
-          Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ),                         )
+          Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ),
           Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]    ), 
           Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]         ), 
-        ]
+        ] )
       
-      self.states.extend(testing_states)
-
     else:
       logger.info("Bypassing the testing state in the graph")
 
@@ -318,4 +354,21 @@ class Schedule:
 
 
 if __name__ == "__main__":
-  pass
+  
+
+  host = os.environ['DATABASE_SERVER_HOST']
+  from sqlalchemy import create_engine 
+  from sqlalchemy.orm import sessionmaker
+  from api.database import postgres_client, Base, Task, Job
+
+
+  # prepare database
+  engine = create_engine(host)
+  Session = sessionmaker(bind=engine)
+  session = Session()
+  Base.metadata.drop_all(engine)
+  Base.metadata.create_all(engine)
+  session.commit()
+  session.close()
+
+  app = Schedule(host)
