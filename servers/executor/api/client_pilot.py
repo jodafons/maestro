@@ -1,6 +1,6 @@
 
 
-import requests
+import requests, socket
 import json, orjson
 from loguru import logger
 from typing import Dict, Any, List
@@ -8,9 +8,8 @@ from pydantic import BaseModel
 
 
 class Host(BaseModel):
-    hostname : str
-    dnsname  : str
-    devices  : List
+    me       : str
+    device   : int
 
 
 class client_pilot:
@@ -28,7 +27,6 @@ class client_pilot:
                      params: Dict = {},
                      body: str = "",
                      stream: bool = False,
-                     timeout: int = 5,
                     ) -> Any:
 
         function = {
@@ -36,10 +34,15 @@ class client_pilot:
             "post": requests.post,
         }[method]
 
-        request = function(f"{service}{endpoint}", params=params, data=body, timeout=timeout)
+        try:
+            request = function(f"{service}{endpoint}", params=params, data=body)
+        except:
+            logger.error("Failed to establish a new connection.")
+            return None
 
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code} {request.response}")
+            logger.critical(f"Request failed. Got {request.status_code}")
+            return None
 
         return request.json()
       
@@ -51,28 +54,24 @@ class client_pilot:
         )
 
         if answer is None:
-            logger.error("Server offline")
+            logger.error("The pilot server is offline.")
             return False
         else:
-            logger.info("Server online...")
+            logger.info("The pilot server is online.")
             return True
 
 
 
-    def register(self):
+    def register(self, me, device = -1):
 
-        hostname = socket.gethostname()
-        dnsname  = socket.getfqdn()
-        body = Host(hostname=hostname, dnsname=dnsname, devices=[-1])
-
-
+        body = Host(me=me, device=device)
         endpoint = "/pilot/register"
         answer = self.try_request(
             self.host, endpoint, method="post", body=body.json() ,
         )
         if answer is None:
-            logger.error("Server offline")
+            logger.error(f"Not possible to register the current executor with name ({me}) into the pilot server.")
             return False
         else:
-            logger.info("Server online...")
+            logger.info(f"The executor with name ({me}) was registered into the pilot server.")
             return True

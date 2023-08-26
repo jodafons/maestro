@@ -5,6 +5,7 @@ from models import Task, Job
 from sqlalchemy import and_
 from loguru import logger
 from enumerations import JobStatus, TaskStatus, TaskTrigger
+from tqdm import tqdm
 
 
 
@@ -221,13 +222,9 @@ class Schedule:
   def __init__(self, db, mailing, extended_states : bool=False):
     logger.info("Creating schedule...")
     self.mailing = mailing
-    self.database = db
+    self.db = db
     self.extended_states = extended_states
     self.compile()
-
-
-  def db(self):
-    return self.database
 
 
   def run(self):
@@ -235,35 +232,34 @@ class Schedule:
     logger.info("Treat jobs with status running but not alive into the executor.")
     self.treat_jobs_not_alive()
 
-    for task in tqdm( self.db().tasks(), dect='Loop over tasks...'):
-      self.pulse(task)
+    for task in tqdm( self.db.tasks(), desc='Loop over tasks...'):
+      
+      # Run all JobStatus triggers to find the correct transiction
+      for source, transition, target in self.states:
+        # Check if the current JobStatus is equal than this JobStatus
+        if source == task.status:
+          try:
+            answer = transition(task)
+            if answer:
+              logger.info(f"Moving task from {source} to {target} state.")
+              task.status = target
+              break
+          except Exception as e:
+            logger.error(f"Found a problem to execute the transition from {source} to {target} state.")
+            traceback.print_exc()
+            return False
 
     logger.info("Commit all database changes.")
-    self.session.commit()
+    self.db.commit()
     return True
 
 
-
-  def pulse(self, task):
-
-    # Run all JobStatus triggers to find the correct transiction
-    for source, transition, target in self.states:
-      # Check if the current JobStatus is equal than this JobStatus
-      if source == task.status:
-        try:
-          answer = transition(task)
-          if answer:
-            logger.info(f"Moving task from {source} to {target} state.")
-            task.status = target
-            break
-        except Exception as e:
-          logger.error(f"Found a problem to execute the transition from {source} to {target} state.")
-          traceback.print_exc()
+    
 
        
   def get_n_assigned_jobs(self, njobs):
     try:
-      jobs = self.db().session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
+      jobs = self.db.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
       jobs.reverse()
       return jobs
     except Exception as e:
@@ -274,7 +270,7 @@ class Schedule:
 
   def get_running_jobs(self):
     try:
-      return self.db().session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+      return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
     except Exception as e:
       logger.error(f"Not be able to get running from database. Return an empty list to the user.")
       traceback.print_exc()

@@ -43,7 +43,7 @@ class client_postgres:
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
-      return None
+      return []
 
 
   def generate_id( self, model  ):

@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from loguru import logger
+from pilot import Pilot
 from api.client_postgres import client_postgres
-from api.client_mailing import client_mailing
+from api.client_mailing  import client_mailing
 from api.client_schedule import client_schedule
 
 
@@ -16,22 +17,14 @@ mailing_host  = os.environ['MAILING_SERVER_HOST']
 schedule_host = os.environ['SCHEDULE_SERVER_HOST']
 
 
-app = FastAPI()
-
-
+app      = FastAPI()
 db       = client_postgres(database_host)
 mailing  = client_mailing(mailing_host)
 schedule = client_schedule(schedule_host)
+pilot    = Pilot( db, schedule, mailing )
 
-
-
-#logger.info("Trying to connect to schedule service...")
-#if schedule.is_alive():
-#    logger.info("Schedule service online.")
-#else:
-#    logger.critical("Its not possible to connect with schedule service. Abort...")
-
-
+# Starting the pilot into a thread
+pilot.start()
 
 
 
@@ -40,17 +33,20 @@ async def is_alive() -> bool:
     return True
 
 
+
 class Host(BaseModel):
-    hostname : str
-    dnsname  : str
-    devices  : List
+    me      : str
+    device  : int
 
-
-@app.get("/pilot/register")
+@app.post("/pilot/register")
 async def register( host : Host ) -> bool:
+    logger.info(f"Registering {host.me} with device {host.device} into the pilot.")
+    return pilot.register( host.me, host.device )
 
-    logger.into("Registering {host.hostname} from {host.dnsname} into the pilot.")
-    
+
+@app.get("/pilot/reset")
+async def reset() -> bool:
+    logger.info(f"Registering {host.hostname} from {host.dnsname} into the pilot.")
     return True
 
 

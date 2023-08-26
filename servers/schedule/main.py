@@ -11,32 +11,22 @@ from api.client_mailing import client_mailing
 
 
 database_host = os.environ['DATABASE_SERVER_HOST']
+mailing_host  = os.environ['MAILING_SERVER_HOST']
 
-mailing_host = os.environ['MAILING_SERVER_HOST']
-
-
-app = FastAPI()
-
-
-db = client_postgres(database_host)
-
-mailing = client_mailing(mailing_host)
-
+app      = FastAPI()
+db       = client_postgres(database_host)
+mailing  = client_mailing(mailing_host)
 schedule = Schedule(db, mailing)
-
-
-device = 0
-binds = {
-        '/home':'/home', 
-        '/mnt/cern_data':'/mnt/cern_data'
-        }
-
 
 
 
 @app.get("/schedule/is_alive")
 async def is_alive() -> bool:
     return True
+
+@app.get("/schedule/run")
+async def run() -> bool:
+    return schedule.run()
 
 
 

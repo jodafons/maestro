@@ -28,8 +28,8 @@ postman    = Postman(from_email, password, templates)
 
 
 
-@app.get("/mailing/status")
-async def status() -> bool:
+@app.get("/mailing/is_alive")
+async def is_alive() -> bool:
     return True
 
 @app.post("/mailing/send")

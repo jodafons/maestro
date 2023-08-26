@@ -14,13 +14,7 @@ class EmailRequest(BaseModel):
 
 class client_mailing:
     def __init__(self, host):
-        logger.info(f"Connecting to {host}...")
         self.host = host
-
-        if not self.status():
-            logger.critical("Mailing server not connected. Abort.")
-        else:
-            logger.info("Mailing server connected.")
 
 
     def try_request( self,
@@ -39,34 +33,31 @@ class client_mailing:
 
         logger.info(f"Request to {service}{endpoint}...")
 
-        request = function(f"{service}{endpoint}", params=params, data=body)
+        try:
+            request = function(f"{service}{endpoint}", params=params, data=body)
+        except:
+            logger.error("Failed to establish a new connection.")
+            return None
 
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code} {request.response}")
+            logger.critical(f"Request failed. Got {request.status_code}")
+            return None
 
-        if not stream:
-            return request.json()
-        else:
-            def generate_response():
-                for payload in request.iter_lines():
-                    if isinstance(payload, bytes):
-                        yield orjson.loads(payload.lstrip(b"data:").rstrip(b"\n"))
-                    else:
-                        yield json.loads(payload.lstrip("data").rstrip("\n"))
-            return generate_response()
+        return request.json()
+      
 
 
-    def status(self):
-        endpoint = "/mailing/status"
+    def is_alive(self):
+        endpoint = "/mailing/is_alive"
         answer = self.try_request(
             self.host, endpoint, method="get",
         )
 
         if answer is None:
-            logger.error("Server offline")
+            logger.error(f"The mailing server with host ({self.host}) is offline.")
             return False
         else:
-            logger.info("Server online...")
+            logger.info(f"The executor server with host ({self.host}) is online.")
             return True
 
 
@@ -78,8 +69,8 @@ class client_mailing:
         )
 
         if answer is None:
-            logger.error("Email server error")
+            logger.error(f"It is not possible to send an email to {to}")
             return False
         else:
-            logger.info("Email dispatcher...")
+            logger.info(f"Your email was sent to {to}...")
             return True

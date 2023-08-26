@@ -32,7 +32,7 @@ class executor_client:
         request = function(f"{service}{endpoint}", params=params, data=body)
 
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code} {request.response}")
+            logger.critical(f"Request failed. Got {request.status_code}")
 
         if not stream:
             return request.json()

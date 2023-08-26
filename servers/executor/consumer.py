@@ -1,9 +1,8 @@
 
 
 
-import os, subprocess, traceback, psutil, time, sys
+import os, subprocess, traceback, psutil, time, sys, threading
 from enumerations import JobStatus
-from api.client_postgres import client_postgres
 from models import Job as Job_db
 from time import time, sleep
 from enum import Enum
@@ -168,20 +167,65 @@ class Job:
 #
 # A collection of slots
 #
-class Consumer:
+class Consumer(threading.Thread):
 
-  def __init__(self, device, binds, host=None):
+  def __init__(self, me, pilot, db, device=-1, binds={}, timeout=60, max_retry=5):
     
+    threading.Thread.__init__(self)
+    self.jobs      = {}
+    self.binds     = binds
+    self.db        = db
+    self.pilot     = pilot
+    self.tac       = time()
+    self.timeout   = timeout
+    self.max_retry = max_retry
+    self.device    = device
+    self.me        = me
+    self.__stop    = threading.Event()
     
-    self.jobs = {}
-    self.binds = binds
-    self.db = client_postgres(host) if host else None
+
+  def stop(self):
+    self.__stop.set()
+
+
+  #
+  # execute this as thread
+  #
+  def run(self):
+
+    retry = 0
+
+    while (not self.__stop.isSet()) and (retry < self.max_retry):
+      sleep(5)
+      tic = time()
+
+      # NOTE: If we enter here is because the server is not sent loop command anymore.
+      # Probably something happing with the connection between both.
+      if (tic - self.tac) > 10:
+        # NOTE: Check if we have a server.
+        if not self.pilot.is_alive():
+          logger.info("The pilot server is not alive. Not possible to stablish a connection.")
+          retry += 1
+        # NOTE: Server is alive
+        else:
+          if self.pilot.register( me = self.me, device=self.device ):
+            logger.info(f"The executor with host name {self.me} was registered into the pilot server.")
+            self.tac = time()
+            retry = 0
+          else:
+            retry+=1
+
+
+    # NOTE: If here, abort eveyrthing.
+    logger.critical("Stop server condition arise because the number of retry between the pilot and the executor exceeded.")
+
+
 
 
   #
   # Add a job into the slot
   #
-  def start( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={}, dry_run=False ):
+  def start_job( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={}, dry_run=False ):
 
     if job_id in self.jobs.keys():
       logger.error("Job exist into the consumer. Not possible to include here.")
@@ -205,7 +249,7 @@ class Consumer:
     return True
 
 
-  def kill(self, job_id):
+  def kill_job(self, job_id):
     if job_id in self.jobs.keys():
       logger.info(f"Send kill signal to job {job_id}")
       self.jobs[job_id].to_kill()
@@ -214,7 +258,7 @@ class Consumer:
     return False
 
 
-  def job(self, job_id):
+  def status_job(self, job_id):
     if job_id in self.jobs.keys():
       status = self.jobs[job_id].status()
       logger.info(f"Job {job_id} with status {status}")
@@ -225,8 +269,9 @@ class Consumer:
 
 
 
-  def run(self):
+  def loop(self):
 
+    self.tac = time()
     start = time()
 
     # Loop over all available consumers

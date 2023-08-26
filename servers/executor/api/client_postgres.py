@@ -21,7 +21,7 @@ class client_postgres:
       self.is_alive = True
     except Exception as e:
       traceback.print_exc()
-      logger.error("Not possible to connect to the database.")
+      logger.error("It is not possible to connect to the database.")
 
   def __del__(self):
     self.commit()

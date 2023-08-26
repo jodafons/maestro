@@ -4,6 +4,7 @@ import json, orjson
 
 from typing import Dict, Any
 from loguru import logger
+import traceback
 
 
 
@@ -11,7 +12,6 @@ class client_schedule:
 
 
     def __init__(self, host):
-        logger.info(f"Connecting to {host}...")
         self.host = host
 
 
@@ -29,31 +29,42 @@ class client_schedule:
             "post": requests.post,
         }[method]
 
-        request = function(f"{service}{endpoint}", params=params, data=body)
+        try:
+            request = function(f"{service}{endpoint}", params=params, data=body)
+        except:
+            logger.error("Failed to establish a new connection.")
+            traceback.print_exc()
+            return None
 
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code} {request.response}")
+            logger.critical(f"Request failed. Got {request.status_code}")
+            return None
 
-        if not stream:
-            return request.json()
-        else:
-            def generate_response():
-                for payload in request.iter_lines():
-                    if isinstance(payload, bytes):
-                        yield orjson.loads(payload.lstrip(b"data:").rstrip(b"\n"))
-                    else:
-                        yield json.loads(payload.lstrip("data").rstrip("\n"))
-            return generate_response()
+        return request.json()
+        
 
-    def status(self):
-        endpoint = "/executor/status"
+    def is_alive(self):
+        endpoint = "/schedule/is_alive"
         answer = self.try_request(
             self.host, endpoint, method="get",
         )
 
         if answer is None:
-            logger.error("Server offline")
+            logger.error(f"The schedule server with host ({self.host}) is offline.")
             return False
         else:
-            logger.info("Server online...")
+            logger.info(f"The schedule server with host ({self.host}) is online.")
+            return True
+
+    def run(self):
+        endpoint = "/schedule/run"
+        answer = self.try_request(
+            self.host, endpoint, method="get",
+        )
+
+        if answer is None:
+            logger.error(f"The schedule server with host ({self.host}) is offline.")
+            return False
+        else:
+            logger.info(f"The schedule server with host ({self.host}) is online.")
             return True
