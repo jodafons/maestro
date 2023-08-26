@@ -1,9 +1,10 @@
 
-__all__ = ["Consumer"]
 
 
 import os, subprocess, traceback, psutil, time, sys
 from enumerations import JobStatus
+from api.client_postgres import client_postgres
+from models import Job as Job_db
 from time import time, sleep
 from enum import Enum
 from loguru import logger
@@ -21,22 +22,24 @@ class Job:
                image: str, 
                workarea: str,
                device: int,
+               job_db: Job_db = None,
                extra_envs: dict={},
-               engine: Engine=Engine.SINGULARITY,
-               binds = {'/home':'/home','/mnt/cern_data':'/mnt/cern_data'}):
+               binds = {},
+               dry_run=False):
 
-    self.id       = job_id
-    self.image    = image
-    self.workarea = workarea
-    self.command  = command
-    self.pending  = True
-    self.broken   = False
-    self.__to_kill= False
-    self.killed   = False
-
-    self.env      = os.environ.copy()
-    self.binds    = binds
-    self.docker_engine = docker_engine
+    self.id         = job_id
+    self.image      = image
+    self.workarea   = workarea
+    self.command    = command
+    self.pending    = True
+    self.broken     = False
+    self.__to_kill  = False
+    self.__to_close = False
+    self.killed     = False
+    self.env        = os.environ.copy()
+    self.binds      = binds
+    self.job_db     = job_db
+    self.dry_run    = dry_run
 
    
     # Transfer all environ to singularity container
@@ -47,6 +50,8 @@ class Job:
     self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
     self.env["SINGULARITYENV_JOB_TASKNAME"] = taskname
     self.env["SINGULARITYENV_JOB_NAME"] = self.workarea.split('/')[-1]
+    #self.env["SINGULARITYENV_JOB_ID"] = self.id
+    
     # Update the job enviroment from external envs
     for key, value in extra_envs.items():
       self.env[key]="SINGULARITYENV_"+value
@@ -57,9 +62,10 @@ class Job:
     self.entrypoint=self.workarea+'/entrypoint.sh'
 
 
-  def name(self):
-    #return f'{self.taskname}_{self.id}'
-    return f'{self.id}'
+  def db(self):
+    return self.job_db
+
+
 
   #
   # Run the job process
@@ -82,19 +88,11 @@ class Job:
       with open(self.entrypoint,'r') as f:
         for line in f.readlines():
           logger.info(line)
-
-      if self.docker_engine:        
-        envs_str=''
-        volumes_str = '-v $HOME:$HOME '
-        for key,value in self.env.items():
-          if 'SINGULARITYENV' in key:
-            env_name = key.replace('SINGULARITYENV_','')
-            envs_str+=f'-e {env_name}={value} '
-        for source, target in self.binds.items():
-          volumes_str += f'-v {source}:{target} '
-        command = f"docker run {volumes_str} {envs_str} --user $(id -u):$(id -g) -it {self.image} bash {self.entrypoint}"
-      else:
-        # singularity
+   
+      if self.dry_run:
+        logger.info("This is a test job...")
+        command = f"bash {self.entrypoint} "
+      else: # singularity
         command = f"singularity exec --nv --writable-tmpfs --bind /home:/home {self.image} bash {self.entrypoint}"
 
       print(command)
@@ -118,6 +116,14 @@ class Job:
 
   def to_kill(self):
     self.__to_kill=True
+
+
+  def to_close(self):
+    self.__to_close=True
+
+
+  def closed(self):
+    return self.__to_close
 
 
   #
@@ -159,45 +165,42 @@ class Job:
 
 
 
-
-
-
-
 #
-# A collection of slots for each device (CPU and GPU)
+# A collection of slots
 #
 class Consumer:
 
-  def __init__(self, device, binds, docker_engine=False, database=None):
-    self.jobs = {}
-    self.docker_engine=docker_engine
-    self.binds = binds
-    self.device = device
-    self.database = database
-    self.dry_run = False if self.database else True
+  def __init__(self, device, binds, host=None):
     
+    
+    self.jobs = {}
+    self.binds = binds
+    self.db = client_postgres(host) if host else None
+
 
   #
   # Add a job into the slot
   #
-  def start( self, job_id, taskname, command, image, workarea, extra_envs={} ):
+  def start( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={}, dry_run=False ):
+
+    if job_id in self.jobs.keys():
+      logger.error("Job exist into the consumer. Not possible to include here.")
+      return False
+    
+    logger.info("Creating local job...")
     job = Job(  
            job_id,
            taskname,
            command,
            image,
            workarea,
-           self.device,
+           device,
            extra_envs=extra_envs,
-           docker_engine=self.docker_engine,
-           binds = self.binds)
-
-    if job.name() in self.jobs.keys():
-      logger.error("Job exist into the consumer. Not possible to include here.")
-      return False
+           job_db = self.db.retrieve(job_id) if (self.db and not dry_run) else None,
+           binds = self.binds,
+           dry_run=dry_run)
 
     self.jobs[job_id] = job
-    
     logger.info(f'Job with id {job.id} included into the consumer.')
     return True
 
@@ -207,15 +210,15 @@ class Consumer:
       logger.info(f"Send kill signal to job {job_id}")
       self.jobs[job_id].to_kill()
       return True
-
     logger.warning(f"Not possible to find job {job_id} into the consumer list.")
     return False
 
 
   def job(self, job_id):
     if job_id in self.jobs.keys():
-      #logger.info(f"Job {job_id} find into consumer.")
-      return self.jobs[job_id].status()
+      status = self.jobs[job_id].status()
+      logger.info(f"Job {job_id} with status {status}")
+      return status
 
     logger.warning(f"Not possible to find job {job_id} into the consumer list.")
     return None
@@ -226,56 +229,63 @@ class Consumer:
 
     start = time()
 
-    job_answer = {}
-    to_remove = []
-
     # Loop over all available consumers
     for key, job in self.jobs.items():
 
-      
-
-
-      if job.status() == JobStatus.KILL:
+      # NOTE: Checking with job is in KILL status by external trigger 
+      if job.db() and (job.db().status == JobStatus.KILL):
+        logger.info("Kill job from database...")
         job.kill()
+      else:
+        if job.status() == JobStatus.KILL:
+          logger.info("Kill job from endpoint...")
+          job.kill()
+
 
       if job.status() == JobStatus.PENDING:
         if job.run():
           logger.info(f'Job {job.id} is RUNNING.')
-          pass
+          if job.db():
+            job.db().status = JobStatus.RUNNING
         else:
           logger.info(f'Job {job.id} is BROKEN.')
-          to_remove.append(key)
+          if job.db():
+            job.db().status = JobStatus.BROKEN
+          job.to_close()
 
       elif job.status() is JobStatus.FAILED:
         logger.info(f'Job {job.id} is FAILED.')
-        to_remove.append(key)
+        if job.db():
+          job.db().status = JobStatus.FAILED
+        job.to_close()
 
       elif job.status() is JobStatus.KILLED:
         logger.info(f'Job {job.id} is KILLED.')
-        to_remove.append(key)
+        if job.db():
+          job.db().status = JobStatus.KILLED
+        job.to_close()
 
       elif job.status() is JobStatus.RUNNING:
         logger.info(f'Job {job.id} is RUNNING.')
 
       elif job.status() is JobStatus.COMPLETED:
         logger.info(f'Job {job.id} is COMPLETED.')
-        to_remove.append(key)
+        if job.db():
+          job.db().status = JobStatus.COMPLETED
+        job.to_close()
 
 
-    job_answer = {job_id:job.status() for job_id, job in self.jobs.items()}
-    for job_id in to_remove:
-      del self.jobs[job_id]
+    res = {job_id:job.status() for job_id, job in self.jobs.items()}
+
+    self.jobs = { job_id:job for job_id, job in self.jobs.items() if not job.closed()}
 
     end = time()
+    current_in = len(self.jobs.keys())
 
     logger.info(f"Run stage toke {round(end-start,4)} seconds")
-
-    current_in = len(self.jobs.keys())
     logger.info(f"We have a total of {current_in} jobs into the consumer.")
 
-    return current_in, job_answer
+    return current_in, res
 
 
-
-  
 

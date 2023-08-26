@@ -29,8 +29,8 @@ postman    = Postman(from_email, password, templates)
 
 
 @app.get("/mailing/status")
-async def status() -> str:
-    return "online"
+async def status() -> bool:
+    return True
 
 @app.post("/mailing/send")
 async def send(email : EmailRequest) -> bool:

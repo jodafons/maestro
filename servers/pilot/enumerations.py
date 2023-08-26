@@ -7,7 +7,6 @@ class JobStatus(Enum):
     REGISTERED = "Registered"
     TESTING    = "Testing"
     ASSIGNED   = "Assigned"
-    PENDING    = "Pending"
     RUNNING    = "Running"
     COMPLETED  = "Completed"
     BROKEN     = "Broken"

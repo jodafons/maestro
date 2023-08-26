@@ -1,24 +1,28 @@
 
-import sys,os, tempfile
+import sys, os, tempfile
 
 from time import time, sleep
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
-from consumer import Consumer
-from api.database import postgres_client, Base, Task, Job
+from schedule import Schedule
+from api.client_postgres import client_postgres
+from api.client_mailing import client_mailing
 
 
-host = os.environ['DATABASE_SERVER_HOST']
+database_host = os.environ['DATABASE_SERVER_HOST']
 
+mailing_host = os.environ['MAILING_SERVER_HOST']
 
 
 app = FastAPI()
 
 
-db = postgres_client(host)
+db = client_postgres(database_host)
 
-schedule = Schedule(db)
+mailing = client_mailing(mailing_host)
+
+schedule = Schedule(db, mailing)
 
 
 device = 0
@@ -28,47 +32,13 @@ binds = {
         }
 
 
-executor = Consumer(device, binds)
 
 
-@app.get("/executor/status")
-async def status() -> str:
-    return "online"
-
-@app.get("/executor/pulse")
-async def pulse() -> int:
-    return consume.run()
+@app.get("/schedule/is_alive")
+async def is_alive() -> bool:
+    return True
 
 
-
-
-
-@app.get("/executor/test") 
-async def test() -> str:
-
-    command = """python -c 'import time; time.sleep(10)'"""
-    workarea = tempfile.mkdtemp()
-
-    status = executor.start(job_id=0, 
-                            taskname="test", 
-                            command=command, 
-                            image="/mnt/cern_data/images/python_3.10.sif", 
-                            workarea=workarea)
-    
-    logger.info("Job test is intothe consumer")
-    while executor.job(0) is not None:
-        logger.info("Pulse the consumer...")
-        executor.run()
-        sleep(2)
-    logger.info("Job test is not into the consumer anymore")
-
-    return 'test'
-
-
-
-@app.post("/executor/start") 
-async def start(job: JobRequest) -> str:
-    return "ok"
 
 
 if __name__ == "__main__":

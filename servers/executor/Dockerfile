@@ -1,8 +1,14 @@
-FROM jodafons/orchestra:base
+ARG DOCKER_NAMESPACE
+FROM ${DOCKER_NAMESPACE}/base-server
 LABEL maintainer "Joao Victor da Fonseca Pinto <jodafons@lps.ufrj.br>"
-USER root
+#USER root
 SHELL [ "/bin/bash", "-c" ]
 WORKDIR /app
-COPY entrypoint.sh /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+COPY api api
+COPY consumer.py . 
+COPY enumerations.py .
+COPY models.py .
+COPY main.py .
+EXPOSE 80
+CMD ["uvicorn" , "main:app", "--host","0.0.0.0","--port", "80"]
 

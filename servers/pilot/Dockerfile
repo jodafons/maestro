@@ -5,7 +5,7 @@ LABEL maintainer "Joao Victor da Fonseca Pinto <jodafons@lps.ufrj.br>"
 SHELL [ "/bin/bash", "-c" ]
 WORKDIR /app
 COPY api api
-COPY schedule.py . 
+COPY pilot.py . 
 COPY enumerations.py .
 COPY models.py .
 COPY main.py .
