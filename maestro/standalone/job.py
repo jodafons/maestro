@@ -1,14 +1,14 @@
+
 import os, subprocess, traceback, psutil, time, sys, threading
 from enumerations import JobStatus
 from models import Job as Job_db
 from time import time, sleep
-from enum import Enum
 from loguru import logger
 
 
-
-
-
+#
+# TODO: copy from executor server. We need to move this to someplace in common in the future
+#
 class Job:
 
   def __init__(self, 

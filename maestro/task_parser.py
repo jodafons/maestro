@@ -17,125 +17,93 @@ from models import Task, Job
 
 
  #
-  # Create the new task
-  #
-  def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
-              image: str, command: str, dry_run: bool=False):
-
-    if db.task(taskname) is not None:
-      logger.critical("The task exist into the database. Abort.")
-
-    if (not '%IN' in command):
-      logger.critical("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
-
-    # task volume
-    volume = basepath + '/' + taskname
-
-    # create task volume
-    if not dry_run:
-      os.makedirs(volume, exist_ok=True)
-
-    try:
-      task_db = Task( id=db.generate_id(Task),
-                      name=taskname,
-                      volume=volume,
-                      status=TaskStatus.REGISTERED,
-                      action=TaskAction.WAITING)
-
-
-      # check if input file is json
-      files = expand_folders(inputfile)
-      offset = db.generate_id(Job)
-
-      for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
-        
-        workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
-        envs = str({})
-        job_db = Job(
-                      id=offset+idx,
-                      image=image,
-                      command=command.replace('%IN',fpath),
-                      workarea=workarea,
-                      inputfile=fpath,
-                      envs=envs,
-                      status=JobStatus.REGISTERED
-                    )
-
-        task_db.jobs.append(job_db)
-
-      task_db.status = TaskStatus.REGISTERED
-
-      if skip_local_test:
-        self.__db.session().add(task_db)
-        if not dry_run:
-          self.__db.commit()
-        return (True, "Succefully created.")
-
-     
-      if test_locally( task_db.jobs[0] ):
-        self.__db.session().add(task_db)
-        if not dry_run:
-          self.__db.commit()  
-        return (True, "Succefully created.")
-      else:
-        return (False, "Local test failed.")
-     
-    except Exception as e:
-      traceback.print_exc()
-      logger.critical("Unknown error.")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def test_locally( job_db ):
-
-  from orchestra.server.consumer import Job
-  from orchestra.server import Slot
-  from orchestra.status import JobStatus
-  job = Job( job_db, Slot(), extra_envs={'ORCHESTRA_LOCAL_TEST':'1'})
-  job.slot.enable()
-  job.db().status = JobStatus.PENDING
-  while True:
-      if job.status() == JobStatus.PENDING:
-          if not job.run():
-            return False
-      elif job.status() == JobStatus.FAILED:
-          return False
-      elif job.status() == JobStatus.RUNNING:
-          continue
-      elif job.status() == JobStatus.COMPLETED:
-          job_db.status=JobStatus.REGISTERED
-          return True
-      else:
-          continue
-
-
-
+# Create the new task
 #
-# Task parser
-#
+def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
+            image: str, command: str, dry_run: bool=False, do_test=True):
 
-class task_create:
+  if db.task(taskname) is not None:
+    logger.critical("The task exist into the database. Abort.")
 
-  def __init
+  if (not '%IN' in command):
+    logger.critical("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
+  
+  # task volume
+  volume = basepath + '/' + taskname
+  # create task volume
+  if not dry_run:
+    os.makedirs(volume, exist_ok=True)
+
+  try:
+    task_db = Task( id=db.generate_id(Task),
+                    name=taskname,
+                    volume=volume,
+                    status=TaskStatus.REGISTERED,
+                    action=TaskAction.WAITING)
+    # check if input file is json
+    files = expand_folders(inputfile)
+
+    offset = db.generate_id(Job)
+    for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=100):
+      
+      workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
+      envs = str({})
+      job_db = Job(
+                    id=offset+idx,
+                    image=image,
+                    command=command.replace('%IN',fpath),
+                    workarea=workarea,
+                    inputfile=fpath,
+                    envs=envs,
+                    status=JobStatus.REGISTERED
+                  )
+      task_db.jobs.append(job_db)
+
+
+    # NOTE: Should we skip test here?
+    if not do_test:
+      db.session().add(task_db)
+      if not dry_run:
+        db.commit()
+      logger.info( "Succefully created.")
+      return True
+   
+
+    # NOTE: Test my job localy
+    logger.info("Applying local test...")
+    if test_job( task_db.jobs[0] ):
+      db.session().add(task_db)
+      if not dry_run:
+        db.commit()  
+      logger.info("Succefully created.")
+    else:
+      logger.error("Local test failed.")
+      return False
+
+  except Exception as e:
+    traceback.print_exc()
+    logger.error("Unknown error.")
+    return False
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
