@@ -4,10 +4,13 @@
 
 import datetime, traceback
 
-from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+try:
+  from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+except:
+  from enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from loguru import logger
 
 

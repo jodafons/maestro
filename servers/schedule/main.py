@@ -15,6 +15,7 @@ database_host = os.environ['DATABASE_SERVER_HOST']
 mailing_host  = os.environ['MAILING_SERVER_HOST']
 test_mode     = bool(os.environ.get("SCHEDULE_SERVER_TEST"    , '0'))
 
+print(test_mode)
 app      = FastAPI()
 db       = client_postgres(database_host)
 mailing  = client_mailing(mailing_host)

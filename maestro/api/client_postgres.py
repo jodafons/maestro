@@ -73,4 +73,13 @@ class client_postgres:
     return t
 
 
+  def task( self, name ):
+    try:
+      return self.session().query(Task).filter(Task.name==name).first()
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return None
+
+
 

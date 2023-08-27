@@ -55,3 +55,12 @@ down:
 clean:
 	docker system prune -a
 	
+
+#
+# Test
+#
+
+
+test:
+	python -m pytest -vv tests/
+	

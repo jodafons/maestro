@@ -8,6 +8,12 @@ from enumerations import JobStatus, TaskStatus, TaskTrigger
 from tqdm import tqdm
 
 
+#from colorama import *
+#def bold_green( text )
+#Style.BRIGHT + Fore.GREEN
+#ERROR = Style.BRIGHT + Fore.RED
+
+
 
 class Transition:
 
@@ -235,17 +241,17 @@ class Schedule:
     for task in tqdm( self.db.tasks(), desc='Loop over tasks...'):
       
       # Run all JobStatus triggers to find the correct transiction
-      for source, transition, target in self.states:
+      for state in self.states:
         # Check if the current JobStatus is equal than this JobStatus
-        if source == task.status:
+        if state.source == task.status:
           try:
-            answer = transition(task)
+            answer = state(task)
             if answer:
-              logger.info(f"Moving task from {source} to {target} state.")
-              task.status = target
+              logger.info(f"Moving task from {state.source} to {state.target} state.")
+              task.status = state.target
               break
           except Exception as e:
-            logger.error(f"Found a problem to execute the transition from {source} to {target} state.")
+            logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
             traceback.print_exc()
             return False
 

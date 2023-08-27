@@ -11,6 +11,7 @@ from maestro.standalone.job import test_job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from maestro.models import Task, Job
 from maestro.api.client_postgres import client_postgres
+from maestro.expand_folders import expand_folders
 
 def convert_string_to_range(s):
      """
@@ -18,7 +19,7 @@ def convert_string_to_range(s):
      """
      return sum((i if len(i) == 1 else list(range(i[0], i[1]+1))
                 for i in ([int(j) for j in i if j] for i in
-                re.findall('(\d+),?(?:-(\d+))?', s))), [])
+                re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
 def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
             image: str, command: str, dry_run: bool=False, do_test=True,
@@ -41,15 +42,14 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
                     name=taskname,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
-                    action=TaskAction.WAITING)
+                    trigger=TaskTrigger.WAITING)
     # check if input file is json
-    files = list(glob.iglob(root_dir + '**/**.'+extension , recursive=True))
-
-
+    files = expand_folders( inputfile )
     offset = db.generate_id(Job)
     for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=50):
       
-      workarea = volume +'/'+ remove_extension( fpath.split('/')[-1] )
+      extension = fpath.split('/')[-1].split('.')[-1]
+      workarea = volume +'/'+ fpath.split('/')[-1].replace('.'+extension, '')
       envs = str({})
       job_db = Job(
                     id=offset+idx,
