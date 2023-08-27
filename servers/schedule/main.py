@@ -6,18 +6,26 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
 from schedule import Schedule
+from models import Base
 from api.client_postgres import client_postgres
 from api.client_mailing import client_mailing
 
 
 database_host = os.environ['DATABASE_SERVER_HOST']
 mailing_host  = os.environ['MAILING_SERVER_HOST']
+test_mode     = bool(os.environ.get("SCHEDULE_SERVER_TEST"    , '0'))
 
 app      = FastAPI()
 db       = client_postgres(database_host)
 mailing  = client_mailing(mailing_host)
 schedule = Schedule(db, mailing)
 
+if test_mode:
+    logger.info("test model acivated. Clean up the entire database")
+    Base.metadata.drop_all(db.engine())
+    Base.metadata.create_all(db.engine())
+    db.commit()
+    logger.info("Database created...")
 
 
 @app.get("/schedule/is_alive")

@@ -1,7 +1,7 @@
 
 import datetime, traceback
 
-from models import Task
+from models import Job
 from enumerations import JobStatus, TaskStatus, TaskTrigger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -37,19 +37,12 @@ class client_postgres:
     self.session().close()
 
 
-  def tasks(self):
+  def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED):
     try:
-      return self.session().query(Task).all()
+      jobs = self.session().query(Job).filter(  Job.status==status  ).order_by(Job.id).limit(njobs).with_for_update().all()
+      jobs.reverse()
+      return jobs
     except Exception as e:
+      logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
       traceback.print_exc()
-      logger.error(e)
-      return None
-
-
-  def generate_id( self, model  ):
-    if self.session().query(model).all():
-      return self.session().query(model).order_by(model.id.desc()).first().id + 1
-    else:
-      return 0
-
-
+      return []

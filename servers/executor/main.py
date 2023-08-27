@@ -10,48 +10,36 @@ from api.client_pilot import client_pilot
 from api.client_postgres import client_postgres
 
 
-class JobRequest(BaseModel):
-    id : int
-    command : str
-    taskname : str
-    image : str
-    workarea : str
-    
-class JobAnswer(BaseModel):
-    id : int
-    time : float
-    status : str
 
 
+class Resume(BaseModel):
+    size      : int
+    allocated : int
+    full      : bool
 
-app = FastAPI()
 
-device = -1
-binds = {
-        '/home'         :'/home', 
-        '/mnt/cern_data':'/mnt/cern_data'
-        }
 
 database_host = os.environ["DATABASE_SERVER_HOST"]
 pilot_host    = os.environ["PILOT_SERVER_HOST"]
 me            = os.environ["EXECUTOR_SERVER_HOST"]
-device        = int(os.environ["EXECUTOR_SERVER_DEVICE"])
-max_retry     = int(os.environ["EXECUTOR_SERVER_MAX_RETRY"])
-timeout       = int(os.environ["EXECUTOR_SERVER_TIMEOUT"])
+device        = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'-1'))
+max_retry     = int(os.environ.get("EXECUTOR_SERVER_MAX_RETRY", '5'))
+timeout       = int(os.environ.get("EXECUTOR_SERVER_TIMEOUT"  , '5'))
+test_mode     = bool(os.environ.get("EXECUTOR_SERVER_TEST"    , '0'))
+binds         = eval(os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}"))
 
 
-pilot = client_pilot(pilot_host)
-db    = client_postgres(database_host)
-
-# Create consumer
+app      = FastAPI()
+pilot    = client_pilot(pilot_host)
+db       = client_postgres(database_host)
 consumer = Consumer(me, pilot, db, device=device, binds=binds, max_retry=max_retry, timeout=timeout)
 
 # Start thread
 consumer.start()
 
 
-@app.get("/executor/status")
-async def status() -> bool:
+@app.get("/executor/is_alive")
+async def is_alive() -> bool:
     return True
 
 
@@ -60,9 +48,12 @@ async def run() -> int:
     return consume.loop()
 
 
+
+
 @app.post("/executor/start") 
-async def start(job: JobRequest) -> str:
+async def start(job_id) -> str:
     return "ok"
+
 
 
 @app.get("/executor/test") 
@@ -76,7 +67,7 @@ async def test() -> bool:
                                 command=command, 
                                 image="/mnt/cern_data/images/python_3.10.sif", 
                                 workarea=workarea,
-                                dry_run=True)
+                                dry_run=test_mode)
     
     logger.info("Job test is intothe consumer")
     while consumer.job(0) is not None:
@@ -88,6 +79,10 @@ async def test() -> bool:
     return True
 
 
+
+@app.get("/executor/resume")
+async def resume() -> Resume:
+    return Resume(size=consumer.size, allocated=consumer.allocated(), full=consumer.full())
 
 
 

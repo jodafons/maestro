@@ -37,6 +37,9 @@ class client_postgres:
     self.session().close()
 
 
+  def engine(self):
+    return self.__engine
+
   def tasks(self):
     try:
       return self.session().query(Task).all()

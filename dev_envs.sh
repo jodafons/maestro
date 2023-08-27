@@ -1,5 +1,7 @@
 
 export LOCAL_ENV=orchestra-env
+export MAESTRO_PATH=$PWD
+
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH
 export LOCAL_HOST=$(hostname).$(dnsdomainname)

@@ -182,6 +182,7 @@ class Consumer(threading.Thread):
     self.device    = device
     self.me        = me
     self.__stop    = threading.Event()
+    self.size      = 1
     
 
   def stop(self):
@@ -240,7 +241,7 @@ class Consumer(threading.Thread):
            workarea,
            device,
            extra_envs=extra_envs,
-           job_db = self.db.retrieve(job_id) if (self.db and not dry_run) else None,
+           job_db = self.db.retrieve(job_id),
            binds = self.binds,
            dry_run=dry_run)
 
@@ -333,4 +334,10 @@ class Consumer(threading.Thread):
     return current_in, res
 
 
+  def full(self):
+    return len(self.jobs.keys())>=self.size
 
+  def allocated(self):
+    return len(self.jobs.keys())
+
+  

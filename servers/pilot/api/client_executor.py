@@ -4,6 +4,13 @@ import json, orjson
 
 from typing import Dict, Any
 from loguru import logger
+from pydantic import BaseModel
+
+
+class Resume(BaseModel):
+    size      : int
+    allocated : int
+    full      : bool
 
 
 
@@ -55,3 +62,17 @@ class client_executor:
             logger.info("The executor server with host ({self.host}) is online.")
             return True
 
+
+    def resume(self):
+        
+        endpoint = "/executor/resume"
+        answer = self.try_request(
+            self.host, endpoint, method="get",
+        )
+
+        if answer is None:
+            logger.error(f"The executor server with host ({self.host}) is offline.")
+            return None
+        else:
+            logger.info(f"The executor server with host ({self.host}) is online.")
+            return Resume(**answer)

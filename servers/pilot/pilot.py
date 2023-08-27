@@ -16,14 +16,23 @@ class consumer:
         self.max_retry = max_retry
         self.retry = 0
 
-    def __call__(self):
-        return self.api
+    def resume(self):
+        return self.api.resume()
     
     def is_alive(self):
         return self.api.is_alive()
 
     def to_close(self):
         return self.retry>self.max_retry
+
+    def start(self, job_id):
+      pass
+
+    def run(self):
+      pass
+
+
+
 
 class Pilot( threading.Thread ):
 
@@ -108,22 +117,29 @@ class Pilot( threading.Thread ):
             logger.info(f"The executor with name {host} will be remoded from the pilot.")
 
       # NOTE: remove executors with max number of retries exceeded
-      self.executors = {host:executor for host, executor in self.executors if not executor.to_close()}
+      self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}
         
 
       # NOTE: only available executors  
-      for hostname, executor in self.executors:
+      for hostname, executor in self.executors.items():
 
-        #n = executor.size() - executor.allocated()
-        # NOTE: get n jobs from the database
-        #jobs = self.schedule.jobs(n)
+        # get all information about the executor
+        res = executor.resume()
 
-        #while executor.available() and len(jobs) > 0:
-        #  executor.start(jobs.pop())
+        if res:
+          # if is full, skip...
+          if res.full :
+            continue
+
+          # how many jobs to complete the queue?
+          n = res.size - res.allocated
+          # NOTE: get n jobs from the database
+          for job in self.db.get_n_jobs(n):
+            executor.start(job.id)
+
+          executor.run()
         
-        #executor.run()
-        pass
-      
+
       end = time()
       logger.info(f"The pilot run loop took {end-start} seconds.")
 
@@ -142,9 +158,10 @@ class Pilot( threading.Thread ):
         logger.info("Creating executor into the pilot")
         self.__lock.wait()
         self.executors[host] = consumer(host, device)
+        return True
     else:
         logger.info(f"Executor with name {host} exist into the executor list.")
-
+        return False
 
 
 if __name__ == "__main__":

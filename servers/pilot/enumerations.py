@@ -1,8 +1,8 @@
 
-from enum import Enum
+#from enum import Enum
 
 
-class JobStatus(Enum):
+class JobStatus:
 
     REGISTERED = "Registered"
     TESTING    = "Testing"
@@ -17,7 +17,7 @@ class JobStatus(Enum):
 
 
 
-class TaskStatus(Enum):
+class TaskStatus:
 
     REGISTERED = "Registered"
     TESTING    = "Testing"
@@ -32,7 +32,7 @@ class TaskStatus(Enum):
 #
 # Task order
 #
-class TaskTrigger(Enum):
+class TaskTrigger:
     RETRY      = "Retry"
     KILL       = "Kill"
     WAITING    = "Waiting"
