@@ -38,3 +38,8 @@ class TaskTrigger:
     WAITING    = "Waiting"
     DELETE     = "Delete"
 
+
+
+job_status = [JobStatus.REGISTERED, JobStatus.ASSIGNED , JobStatus.TESTING, 
+              JobStatus.RUNNING   , JobStatus.COMPLETED, JobStatus.FAILED, 
+              JobStatus.KILL      , JobStatus.KILLED   , JobStatus.BROKEN]

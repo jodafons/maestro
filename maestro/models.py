@@ -1,7 +1,10 @@
 
+
+
+
 import datetime, traceback
 
-from enumerations import JobStatus, TaskStatus, TaskTrigger
+from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -35,7 +38,29 @@ class Task (Base):
   def __add__ (self, job):
     self.jobs.append(job)
   
-  
+
+  def completed(self):
+    return self.status==TaskStatus.COMPLETED
+
+  def kill(self):
+    self.trigger = TaskTrigger.KILL
+
+  def retry(self):
+    self.trigger = TaskTrigger.RETRY
+
+  def delete(self):
+    self.trigger = TaskTrigger.DELETE
+
+
+  def resume(self):
+    
+    d = { str(status):0 for status in job_status }
+    for job in self.jobs:
+      d[job.status]+=1
+    return d
+
+
+
 #
 #   Jobs Table
 #

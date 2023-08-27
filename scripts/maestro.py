@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
+
 
 try:
   # in case we have root installed here
@@ -11,21 +12,21 @@ except:
 
 
 import sys, os, argparse
-from orchestra.database import postgres_client
-from orchestra.api import DeviceParser, PilotParser, TaskParser
+from maestro.api.client_postgres import client_postgres
+from maestro.task_parser import task_parser
+from maestro.database_parser import database_parser
 
 
 parser = argparse.ArgumentParser()
 commands = parser.add_subparsers(dest='mode')
-db = postgres_client( os.environ['ORCHESTRA_DATABASE_HOST'] )
+
+
+host = os.environ['DATABASE_SERVER_HOST']
 
 parsers = [
-            PilotParser(db, commands),
-            DeviceParser(db, commands),
-            TaskParser(db, commands),
+            task_parser(host, commands),
+            database_parser(host, commands ),
           ]
-
-
 
 if len(sys.argv)==1:
   print(parser.print_help())
@@ -35,7 +36,7 @@ args = parser.parse_args()
 
 # Run!
 for p in parsers:
-  p.compile(args)
+  p.parser(args)
 
 
 

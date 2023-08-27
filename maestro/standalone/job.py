@@ -1,7 +1,7 @@
 
 import os, subprocess, traceback, psutil, time, sys, threading
-from enumerations import JobStatus
-from models import Job as Job_db
+from maestro.enumerations import JobStatus
+from maestro.models import Job as Job_db
 from time import time, sleep
 from loguru import logger
 

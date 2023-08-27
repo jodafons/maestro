@@ -1,19 +1,20 @@
 
 import datetime, traceback
 
-from models import Task
-from enumerations import JobStatus, TaskStatus, TaskTrigger
+from maestro.enumerations import job_status
+from maestro.models import Task
+from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from loguru import logger
-
+from prettytable import PrettyTable
 
 class client_postgres:
 
   def __init__( self, host):
 
     self.host=host
-    logger.info(f"Connecting into {host}")
+    #logger.info(f"Connecting into {host}")
     try:
       self.__engine = create_engine(host)
       Session= sessionmaker(bind=self.__engine)
@@ -54,5 +55,22 @@ class client_postgres:
       return self.session().query(model).order_by(model.id.desc()).first().id + 1
     else:
       return 0
+
+
+
+  def resume( self , skip_status = [JobStatus.COMPLETED]):
+    
+    cols = ["ID", "Task"]; cols.extend(job_status); cols.extend(["Status"])
+    t = PrettyTable(cols)
+    for task in self.tasks():
+        if task.status in skip_status:
+          continue  
+        resume = task.resume()
+        values = [task.id, task.name]
+        values.extend( [ resume[status] for status in job_status ] )
+        values.extend( [task.status] )
+        t.add_row( values )
+    return t
+
 
 
