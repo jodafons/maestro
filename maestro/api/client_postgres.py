@@ -1,9 +1,14 @@
 
+
+try:
+  from maestro.models import Task
+  from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+except:
+  from models import Task 
+  from enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+
 import datetime, traceback
 
-from maestro.enumerations import job_status
-from maestro.models import Task
-from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from loguru import logger
@@ -82,4 +87,13 @@ class client_postgres:
       return None
 
 
+  def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED):
+    try:
+      jobs = self.session().query(Job).filter(  Job.status==status  ).order_by(Job.id).limit(njobs).with_for_update().all()
+      jobs.reverse()
+      return jobs
+    except Exception as e:
+      logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
+      traceback.print_exc()
+      return []
 
