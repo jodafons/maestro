@@ -1,17 +1,14 @@
+SHELL := /bin/bash
+.ONESHELL:
+
 
 #
 # Test
 #
 
+all: server
 
-test:
-	mkdir test_server 
-	cp ${MAESTRO_PATH}/maestro/models.py test_server
-	cp ${MAESTRO_PATH}/maestro/enumerations.py test_server
-	cp ${MAESTRO_PATH}/servers/executor/consumer.py test_server
-	cp ${MAESTRO_PATH}/schedule/schedule.py test_server
-	cp ${MAESTRO_PATH}/pilot/pilot.py test_server
-	cp ${MAESTRO_PATH}/maestro/__init__ test_server
-
-	python -m pytest -vv tests/
-	
+server:
+	docker compose -f test_server/docker-compose.yml up -d
+	python -m pytest --full-trace -vvv test_server/test.py
+	docker compose -f test_server/docker-compose.yml down

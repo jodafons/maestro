@@ -3,11 +3,17 @@ import traceback, os
 import threading
 
 from time import time, sleep
-from models import Task, Job
 from sqlalchemy import and_
 from loguru import logger
-from enumerations import JobStatus, TaskStatus, TaskTrigger
-from api.client_executor import client_executor
+
+try:
+  from models import Task, Job
+  from enumerations import JobStatus, TaskStatus, TaskTrigger
+  from api.client_executor import client_executor
+except:
+  from maestro.models import Task, Job
+  from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
+  from maestro.api.client_executor import client_executor
 
 class consumer:
     def __init__(self, host, device, max_retry=5):

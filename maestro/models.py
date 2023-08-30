@@ -33,7 +33,7 @@ class Task (Base):
   trigger  = Column( String, default=TaskTrigger.WAITING )
   # Foreign
   jobs     = relationship("Job", order_by="Job.id", back_populates="task")
-  
+  email    = Column(String)
 
   #
   # Method that adds jobs into task

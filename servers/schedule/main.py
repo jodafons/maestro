@@ -7,15 +7,20 @@ from pydantic import BaseModel
 from loguru import logger
 from schedule import Schedule
 from models import Base
-from api.client_postgres import client_postgres
-from api.client_mailing import client_mailing
+
+try:
+    from api.client_postgres import client_postgres
+    from api.client_mailing import client_mailing
+except:
+    from maestro.api.client_postgres import client_postgres
+    from maestro.api.client_mailing import client_mailing  
 
 
 database_host = os.environ['DATABASE_SERVER_HOST']
 mailing_host  = os.environ['MAILING_SERVER_HOST']
 test_mode     = bool(os.environ.get("SCHEDULE_SERVER_TEST"    , '0'))
 
-print(test_mode)
+
 app      = FastAPI()
 db       = client_postgres(database_host)
 mailing  = client_mailing(mailing_host)

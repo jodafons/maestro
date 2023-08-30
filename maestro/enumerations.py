@@ -5,6 +5,7 @@
 class JobStatus:
 
     REGISTERED = "Registered"
+    PENDING    = "Pending"
     TESTING    = "Testing"
     ASSIGNED   = "Assigned"
     RUNNING    = "Running"

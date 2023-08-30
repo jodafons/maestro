@@ -1,17 +1,16 @@
 
 import traceback, time, os
 
-from models import Task, Job
 from sqlalchemy import and_
 from loguru import logger
-from enumerations import JobStatus, TaskStatus, TaskTrigger
 from tqdm import tqdm
 
-
-#from colorama import *
-#def bold_green( text )
-#Style.BRIGHT + Fore.GREEN
-#ERROR = Style.BRIGHT + Fore.RED
+try:
+  from models import Task, Job
+  from enumerations import JobStatus, TaskStatus, TaskTrigger
+except:
+  from maestro.models import Task, Job
+  from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
 
@@ -31,6 +30,10 @@ class Transition:
         return False
     return True
 
+
+
+
+
 #
 # Transitions functions
 #
@@ -39,13 +42,16 @@ def send_email( task: Task , **kwargs) -> bool:
   """
   Send an email with the task status
   """
+  def get_mailing_api(kwargs):
+    return kwargs.get('mailing',None)
+  
   status = task.status
   taskname = task.name
   email = task.email
   subject = f"[LPS Cluster] Notification for task id {status}"
   message = (f"The task with name {taskname} was assigned with {status} status.")
-  if kwargs.get('mailing'):
-    api = kwargs.get('mailing')
+  api = get_mailing_api(kwargs)
+  if api:
     logger.info(f"Sending email to {email}") 
     api.mailing().send(email, subject, message)
   return True
@@ -203,7 +209,7 @@ def trigger_task_retry( task: Task , **kwargs) -> bool:
     return False
 
  
-def job_retry( task: Task ):
+def job_retry( task: Task, **kwargs ):
   """
     Check if all jobs into the task are killed
   """
@@ -225,7 +231,7 @@ def job_retry( task: Task ):
 
 class Schedule:
 
-  def __init__(self, db, mailing, extended_states : bool=False):
+  def __init__(self, db, mailing = None, extended_states : bool=False):
     logger.info("Creating schedule...")
     self.mailing = mailing
     self.db = db
@@ -245,7 +251,7 @@ class Schedule:
         # Check if the current JobStatus is equal than this JobStatus
         if state.source == task.status:
           try:
-            answer = state(task)
+            answer = state(task, mailing=self.mailing)
             if answer:
               logger.info(f"Moving task from {state.source} to {state.target} state.")
               task.status = state.target

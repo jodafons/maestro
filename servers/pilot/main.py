@@ -6,11 +6,17 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from loguru import logger
-from pilot import Pilot
-from api.client_postgres import client_postgres
-from api.client_mailing  import client_mailing
-from api.client_schedule import client_schedule
 
+try:
+    from pilot import Pilot
+    from api.client_postgres import client_postgres
+    from api.client_mailing  import client_mailing
+    from api.client_schedule import client_schedule
+except:
+    from servers.pilot.pilot import Pilot
+    from maestro.api.client_postgres import client_postgres
+    from maestro.api.client_mailing  import client_mailing
+    from maestro.api.client_schedule import client_schedule
 
 database_host = os.environ['DATABASE_SERVER_HOST']
 mailing_host  = os.environ['MAILING_SERVER_HOST']

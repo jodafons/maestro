@@ -1,10 +1,10 @@
 
 
 try:
-  from maestro.models import Task
+  from maestro.models import Task, Job
   from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 except:
-  from models import Task 
+  from models import Task, Job
   from enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 
 import datetime, traceback
@@ -78,13 +78,31 @@ class client_postgres:
     return t
 
 
-  def task( self, name ):
+  def task( self, task ):
     try:
-      return self.session().query(Task).filter(Task.name==name).first()
+      if type(task) is int:
+        return self.session().query(Task).filter(Task.id==task).first()
+      elif type(task) is str:
+        return self.session().query(Task).filter(Task.name==task).first()
+      else:
+        logger.error("taskname (str) or task id (int) should be passed to task retrievel...")
+        return None
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
       return None
+
+  def job( self, job_id ):
+    try:
+      return self.session().query(Job).filter(Job.id==job_id).first()
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return None
+
+
+      
+
 
 
   def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED):

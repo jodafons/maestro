@@ -7,12 +7,6 @@ from maestro.models import Base
 from maestro.api.client_postgres import client_postgres
 
 
-
-
-
-
-
-
 def create( db: client_postgres ) -> bool:
 
   try:
@@ -35,9 +29,9 @@ def create( db: client_postgres ) -> bool:
 
 def delete( db: client_postgres ) -> bool:
   try:
-    if not database_exists( db.engine().url ):
-      logger.error("The dataabse dont exists into the server. Its not possible to delete something that dont exist into the server...")
-      return False
+    #if not database_exists( db.engine().url ):
+    #  logger.error("The dataabse dont exists into the server. Its not possible to delete something that dont exist into the server...")
+    #  return False
 
     Base.metadata.drop_all(db.engine())
     db.commit()

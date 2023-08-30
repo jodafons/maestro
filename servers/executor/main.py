@@ -5,10 +5,15 @@ from time import time, sleep
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
-from consumer import Consumer
-from api.client_pilot import client_pilot
-from api.client_postgres import client_postgres
 
+try:
+    from consumer import Consumer
+    from api.client_pilot import client_pilot
+    from api.client_postgres import client_postgres
+except:
+    from servers.executor.consumer import Consumer
+    from maestro.api.client_pilot import client_pilot
+    from maestro.api.client_postgres import client_postgres
 
 
 
@@ -34,7 +39,7 @@ pilot    = client_pilot(pilot_host)
 db       = client_postgres(database_host)
 consumer = Consumer(me, pilot, db, device=device, binds=binds, max_retry=max_retry, timeout=timeout)
 
-# Start thread
+# Start thread with pilot
 consumer.start()
 
 

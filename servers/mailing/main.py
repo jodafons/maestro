@@ -5,7 +5,9 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
+
 from mailing.postman import Postman
+    
 
 class EmailRequest(BaseModel):
     to : str

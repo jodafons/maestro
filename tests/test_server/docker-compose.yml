@@ -3,7 +3,7 @@ version: '3.5'
 services:
 
   mailing_server:
-    container_name: mailing-server
+    container_name: mailing-test-server
     image: ${DOCKER_NAMESPACE}/mailing-server
     ports:
       - "5001:80"
@@ -13,7 +13,7 @@ services:
       MAILING_SERVER_EMAIL_PASSWORD: ${MAILING_SERVER_EMAIL_PASSWORD}
 
   database_server:
-    container_name: database-server
+    container_name: database-test-server
     image: postgres
     environment:
       POSTGRES_USER: postgres

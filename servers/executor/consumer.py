@@ -2,14 +2,16 @@
 
 
 import os, subprocess, traceback, psutil, time, sys, threading
-from enumerations import JobStatus
-from models import Job as Job_db
+
 from time import time, sleep
-from enum import Enum
 from loguru import logger
 
-
-
+try:
+  from enumerations import JobStatus
+  from models import Job as Job_db
+except:
+  from maestro.enumerations import JobStatus
+  from maestro.models import Job as Job_db
 
 
 class Job:
@@ -169,7 +171,7 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, me, pilot, db, device=-1, binds={}, timeout=60, max_retry=5):
+  def __init__(self, me, db=None, pilot=None, device=-1, binds={}, timeout=60, max_retry=5, size=1):
     
     threading.Thread.__init__(self)
     self.jobs      = {}
@@ -181,9 +183,9 @@ class Consumer(threading.Thread):
     self.max_retry = max_retry
     self.device    = device
     self.me        = me
+    self.size      = size
     self.__stop    = threading.Event()
-    self.size      = 1
-    
+
 
   def stop(self):
     self.__stop.set()
@@ -196,7 +198,7 @@ class Consumer(threading.Thread):
 
     retry = 0
 
-    while (not self.__stop.isSet()) and (retry < self.max_retry):
+    while (not self.__stop.isSet()) and (retry < self.max_retry) and self.pilot:
       sleep(5)
       tic = time()
 
@@ -218,8 +220,10 @@ class Consumer(threading.Thread):
 
 
     # NOTE: If here, abort eveyrthing.
-    logger.critical("Stop server condition arise because the number of retry between the pilot and the executor exceeded.")
-
+    if self.pilot:
+      logger.critical("Stop server condition arise because the number of retry between the pilot and the executor exceeded.")
+    else:
+      logger.warning("Pilot not passed to the consumer. This object will not execute in thread mode. Porbably you are running in standalone mode.")
 
 
 
@@ -241,7 +245,7 @@ class Consumer(threading.Thread):
            workarea,
            device,
            extra_envs=extra_envs,
-           job_db = self.db.retrieve(job_id),
+           job_db = self.db.job(job_id) if self.db else None,
            binds = self.binds,
            dry_run=dry_run)
 
@@ -336,6 +340,7 @@ class Consumer(threading.Thread):
 
   def full(self):
     return len(self.jobs.keys())>=self.size
+
 
   def allocated(self):
     return len(self.jobs.keys())

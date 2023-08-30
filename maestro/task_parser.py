@@ -22,15 +22,17 @@ def convert_string_to_range(s):
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
 def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
-            image: str, command: str, dry_run: bool=False, do_test=True,
+            image: str, command: str, email: str, dry_run: bool=False, do_test=True,
             extension='.json') -> bool:
 
   if db.task(taskname) is not None:
-    logger.critical("The task exist into the database. Abort.")
+    logger.error("The task exist into the database. Abort.")
+    return None
 
   if (not '%IN' in command):
-    logger.critical("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
-  
+    logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
+    return None
+
   # task volume
   volume = basepath + '/' + taskname
   # create task volume
@@ -42,9 +44,15 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
                     name=taskname,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
-                    trigger=TaskTrigger.WAITING)
+                    trigger=TaskTrigger.WAITING,
+                    email=email)
     # check if input file is json
     files = expand_folders( inputfile )
+
+    if len(files) == 0:
+      logger.error(f"It is not possible to find jobs into {inputfile}... Please check and try again...")
+      return None
+
     offset = db.generate_id(Job)
     for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=50):
       
@@ -65,11 +73,13 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
 
     # NOTE: Should we skip test here?
     if not do_test:
+      logger.info("Skipping local test...")
       db.session().add(task_db)
       if not dry_run:
+        logger.info("Commit task into the database.")
         db.commit()
       logger.info( "Succefully created.")
-      return True
+      return task_db.id
    
 
     # NOTE: Test my job localy
@@ -77,16 +87,18 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
     if test_job( task_db.jobs[0] ):
       db.session().add(task_db)
       if not dry_run:
+        logger.info("Commit task into the database.")
         db.commit()  
       logger.info("Succefully created.")
+      return task_db.id
     else:
       logger.error("Local test failed.")
-      return False
+      return None
 
   except Exception as e:
     traceback.print_exc()
     logger.error("Unknown error.")
-    return False
+    return None
 
 
 
@@ -187,7 +199,8 @@ class task_parser:
                           help = "Use this as debugger.")
       create_parser.add_argument('--do_test', action='store_true', dest='do_test', required=False, default=False,
                           help = "Do local test")
-      
+      create_parser.add_argument('-e','--email', action='store', dest='email', required=True,
+                          help = "The email of the task responsavel.")
 
       delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                     help = "All task ids to be deleted", type=str)
@@ -221,7 +234,7 @@ class task_parser:
 
       if args.option == 'create':
         self.create(os.getcwd(), args.taskname, args.inputfile,
-                    args.image, args.command, dry_run=args.dry_run,
+                    args.image, args.command, args.email, dry_run=args.dry_run,
                     do_test=args.do_test, extension=args.extension)
 
       elif args.option == 'retry':
@@ -241,9 +254,9 @@ class task_parser:
 
 
   def create(self, basepath: str, taskname: str, inputfile: str,
-                   image: str, command: str, dry_run: bool=False, do_test=True,
+                   image: str, command: str, email: str, dry_run: bool=False, do_test=True,
                    extension='.json' ):
-    return create(self.db, basepath, taskname, inputfile, image, command, dry_run, do_test, extension)
+    return create(self.db, basepath, taskname, inputfile, image, command, email, dry_run, do_test, extension)
 
   def kill(self, task_ids):
     for task_id in task_ids:
