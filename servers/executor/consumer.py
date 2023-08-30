@@ -98,8 +98,11 @@ class Job:
 
       print(command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
+      sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
-      return True
+      broken = self.status() == JobStatus.FAILED
+      self.broken = broken
+      return not broken # Lets considering the first seconds as broken
 
     except Exception as e:
       traceback.print_exc()

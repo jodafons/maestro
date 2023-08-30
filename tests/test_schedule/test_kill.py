@@ -21,7 +21,7 @@ import argparse
 import sys,os
 import traceback
 import json
-#import time
+import time
 
 parser = argparse.ArgumentParser(description = '', add_help = False)
 parser = argparse.ArgumentParser()
@@ -39,8 +39,7 @@ args = parser.parse_args()
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
 
-# this fail broke the job since we dont import time
-time.sleep(5)
+time.sleep(10)
 #print('Finish job...')
 """
 
@@ -52,7 +51,7 @@ TASK_NAME            = 'test.server'
 EMAIL                = 'jodafons@lps.ufrj.br'
 IMAGE                = ""
 
-class test_finalized(unittest.TestCase):
+class test_kill(unittest.TestCase):
 
     basepath      = tempfile.mkdtemp()
 
@@ -108,9 +107,12 @@ class test_finalized(unittest.TestCase):
         schedule = Schedule(db)
 
 
+        killed = False
+
         #
         # emulate pilot loop
         #
+        count = 0
         while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
 
             schedule.run()
@@ -122,8 +124,13 @@ class test_finalized(unittest.TestCase):
             for job in db.get_n_jobs(n):
                 executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
 
+            if count > 2 and not killed:
+                task_parser.kill([task_id])
+                killed=True
+
+
         task = db.task(TASK_NAME)
-        assert task.status == TaskStatus.FINALIZED
+        assert task.status == TaskStatus.KILLED
 
 
 
@@ -131,7 +138,7 @@ class test_finalized(unittest.TestCase):
 if __name__ == "__main__":
 
 
-    test = test_finalized()
+    test = test_kill()
     test.test_prepare_database()
     test.test_prepare_jobs()
     test.test_create_task()

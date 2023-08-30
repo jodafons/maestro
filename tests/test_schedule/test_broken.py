@@ -21,7 +21,7 @@ import argparse
 import sys,os
 import traceback
 import json
-#import time
+import time
 
 parser = argparse.ArgumentParser(description = '', add_help = False)
 parser = argparse.ArgumentParser()
@@ -39,7 +39,6 @@ args = parser.parse_args()
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
 
-# this fail broke the job since we dont import time
 time.sleep(5)
 #print('Finish job...')
 """
@@ -52,7 +51,7 @@ TASK_NAME            = 'test.server'
 EMAIL                = 'jodafons@lps.ufrj.br'
 IMAGE                = ""
 
-class test_finalized(unittest.TestCase):
+class test_broken(unittest.TestCase):
 
     basepath      = tempfile.mkdtemp()
 
@@ -88,7 +87,8 @@ class test_finalized(unittest.TestCase):
         parser = task_parser(DATABASE_HOST_SERVER)
         db = client_postgres(DATABASE_HOST_SERVER)
 
-        command  = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
+        # NOTE: This command will not work and must put the task in broken status (-j was move to -x to broke)
+        command  = "python {PATH}/program.py -x %IN".format(PATH=self.basepath)
         task_id = parser.create( self.basepath, TASK_NAME, self.basepath+'/jobs', IMAGE, command, EMAIL, do_test=False)
         
         assert task_id is not None
@@ -107,6 +107,7 @@ class test_finalized(unittest.TestCase):
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
         schedule = Schedule(db)
 
+
         #
         # emulate pilot loop
         #
@@ -122,7 +123,7 @@ class test_finalized(unittest.TestCase):
                 executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
 
         task = db.task(TASK_NAME)
-        assert task.status == TaskStatus.FINALIZED
+        assert task.status == TaskStatus.BROKEN
 
 
 
@@ -130,7 +131,7 @@ class test_finalized(unittest.TestCase):
 if __name__ == "__main__":
 
 
-    test = test_finalized()
+    test = test_broken()
     test.test_prepare_database()
     test.test_prepare_jobs()
     test.test_create_task()

@@ -122,7 +122,7 @@ def task_running( task: Task , **kwargs) -> bool:
   """
     Check if any jobs into the task is in assigned state
   """
-  return any([job.status==JobStatus.ASSIGNED] for job in task.jobs)
+  return any([job.status==JobStatus.ASSIGNED for job in task.jobs])
 
 
 def task_finalized( task: Task , **kwargs) -> bool:
@@ -145,9 +145,7 @@ def task_broken( task: Task , **kwargs) -> bool:
   """
     Broken all jobs inside of the task
   """
-  for job in task.jobs:
-    job.status = JobStatus.BROKEN
-  return True
+  return all([job.status==JobStatus.BROKEN for job in task.jobs])
 
 
 def task_retry( task: Task , **kwargs) -> bool:
@@ -174,6 +172,7 @@ def trigger_task_kill( task: Task , **kwargs) -> bool:
     Put all jobs to kill status when trigger
   """
   if task.trigger == TaskTrigger.KILL:
+    logger.info("Triggering kill task state...")
     for job in task.jobs:
       if job.status == JobStatus.RUNNING:
         job.status = JobStatus.KILL
@@ -246,6 +245,8 @@ class Schedule:
 
     for task in tqdm( self.db.tasks(), desc='Loop over tasks...'):
       
+      print([job.status for job in task.jobs])
+
       # Run all JobStatus triggers to find the correct transiction
       for state in self.states:
         # Check if the current JobStatus is equal than this JobStatus
@@ -310,6 +311,7 @@ class Schedule:
 
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]               ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.BROKEN     , relationship=[task_broken, send_email]                  ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_finalized, task_retry, send_email]   ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                        ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                             ),

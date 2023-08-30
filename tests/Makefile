@@ -9,6 +9,8 @@ SHELL := /bin/bash
 all: server
 
 server:
-	docker compose -f test_server/docker-compose.yml up -d
-	python -m pytest --full-trace -vvv test_server/test.py
-	docker compose -f test_server/docker-compose.yml down
+	docker compose -f test_schedule/docker-compose.yml up -d
+	pytest --full-trace -vvv test_schedule/test_completed.py
+	pytest --full-trace -vvv test_schedule/test_finalized.py
+	pytest --full-trace -vvv test_schedule/test_broken.py
+	docker compose -f test_schedule/docker-compose.yml down
