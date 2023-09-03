@@ -38,11 +38,7 @@ args = parser.parse_args()
 #print('Starting job...')
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
-
-# this fail broke the job since we dont import time
-time.sleep(5)
-
-raise RuntimeError("Force FAILED status")
+time.sleep(30)
 #print('Finish job...')
 """
 
@@ -54,7 +50,7 @@ TASK_NAME            = 'test.server'
 EMAIL                = 'jodafons@lps.ufrj.br'
 IMAGE                = ""
 
-class test_finalized(unittest.TestCase):
+class test_completed(unittest.TestCase):
 
     basepath      = tempfile.mkdtemp()
 
@@ -100,40 +96,52 @@ class test_finalized(unittest.TestCase):
 
         assert len(task.jobs) == NUMBER_OF_JOBS
 
+    
      
     @pytest.mark.order(4)
     def test_run(self):
 
         db = client_postgres(DATABASE_HOST_SERVER)
+        parser = task_parser(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
         schedule = Schedule(db, level='DEBUG')
 
 
+        deleted = False
+
         #
         # emulate pilot loop
         #
-        while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
+        count = 0
+        while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.REMOVED]:
 
             schedule.run()
             sleep(2)
             executor.loop()
+            count+=1
+            if count > 2 and not deleted:
+                task.delete()
+                db.commit()
+                deleted=True
+            
             if executor.full():
                 continue
             n = executor.size - executor.allocated()
             for job in db.get_n_jobs(n):
                 executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
 
+ 
+
+
         task = db.task(TASK_NAME)
-        assert task.status == TaskStatus.FINALIZED
-
-
+        assert task.status == TaskStatus.REMOVED
 
 
 if __name__ == "__main__":
 
 
-    test = test_finalized()
+    test = test_completed()
     test.test_prepare_database()
     test.test_prepare_jobs()
     test.test_create_task()

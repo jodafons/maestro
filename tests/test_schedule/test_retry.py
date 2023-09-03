@@ -39,10 +39,7 @@ args = parser.parse_args()
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
 
-# this fail broke the job since we dont import time
-time.sleep(5)
-
-raise RuntimeError("Force FAILED status")
+time.sleep(10)
 #print('Finish job...')
 """
 
@@ -54,7 +51,7 @@ TASK_NAME            = 'test.server'
 EMAIL                = 'jodafons@lps.ufrj.br'
 IMAGE                = ""
 
-class test_finalized(unittest.TestCase):
+class test_retry(unittest.TestCase):
 
     basepath      = tempfile.mkdtemp()
 
@@ -105,27 +102,44 @@ class test_finalized(unittest.TestCase):
     def test_run(self):
 
         db = client_postgres(DATABASE_HOST_SERVER)
+        parser = task_parser(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
         schedule = Schedule(db, level='DEBUG')
 
 
+        killed = False
+
         #
         # emulate pilot loop
         #
-        while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
+        count = 0
+        while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED]:
 
             schedule.run()
             sleep(2)
             executor.loop()
+            count+=1
+            # NOTE: wait to put all jobs to running state.
+            # after that, send signal kill
+            if count > 3 and not killed:
+                parser.kill([task.id])
+                killed=True
+            # NOTE: When killed, send signal retry
+            if task.status==TaskStatus.KILLED:
+                parser.retry([task.id])
+            
             if executor.full():
                 continue
             n = executor.size - executor.allocated()
             for job in db.get_n_jobs(n):
                 executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
 
+ 
+
+
         task = db.task(TASK_NAME)
-        assert task.status == TaskStatus.FINALIZED
+        assert task.status == TaskStatus.COMPLETED
 
 
 
@@ -133,7 +147,7 @@ class test_finalized(unittest.TestCase):
 if __name__ == "__main__":
 
 
-    test = test_finalized()
+    test = test_retry()
     test.test_prepare_database()
     test.test_prepare_jobs()
     test.test_create_task()

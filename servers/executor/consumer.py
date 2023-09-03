@@ -168,6 +168,10 @@ class Job:
       return JobStatus.COMPLETED
 
 
+  def ping(self):
+    if self.job_db:
+      self.job_db.ping()
+
 
 #
 # A collection of slots
@@ -236,7 +240,8 @@ class Consumer(threading.Thread):
   def start_job( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={}, dry_run=False ):
 
     if job_id in self.jobs.keys():
-      logger.error("Job exist into the consumer. Not possible to include here.")
+      print(self.jobs.keys())
+      logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
       return False
     
     logger.info("Creating local job...")
@@ -252,6 +257,7 @@ class Consumer(threading.Thread):
            binds = self.binds,
            dry_run=dry_run)
 
+    job.ping()
     self.jobs[job_id] = job
     logger.info(f'Job with id {job.id} included into the consumer.')
     return True
@@ -320,6 +326,8 @@ class Consumer(threading.Thread):
 
       elif job.status() is JobStatus.RUNNING:
         logger.info(f'Job {job.id} is RUNNING.')
+        logger.info(f"Job {job.id} pinging...")
+        job.ping()
 
       elif job.status() is JobStatus.COMPLETED:
         logger.info(f'Job {job.id} is COMPLETED.')
@@ -337,6 +345,9 @@ class Consumer(threading.Thread):
 
     logger.info(f"Run stage toke {round(end-start,4)} seconds")
     logger.info(f"We have a total of {current_in} jobs into the consumer.")
+
+    print('executor...')
+    print([(job_id, job.status(), job.db().status) for job_id, job in self.jobs.items()])
 
     return current_in, res
 

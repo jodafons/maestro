@@ -132,7 +132,7 @@ def retry( db: client_postgres, task_id: int ) -> bool:
       return False
     
     task.retry()
-    self.__db.commit()
+    db.commit()
     logger.info(f"Succefully retry.")
     return True
   except Exception as e:
@@ -150,14 +150,17 @@ def delete( db: client_postgres, task_id: int, force=False , remove=False) -> bo
       logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
       return False
 
-    # Check possible status before continue
-    if force:
-      db.session().query(Job).filter(Job.taskid==task_id).delete()
-      db.session().query(Task).filter(Task.id==task_id).delete()
-      db.commit()
-    else:
+
+    if not force:
       task.delete()
-      
+      db.commit()
+      while task.status != TaskStatus.REMOVED:
+        logger.info(f"Waiting for schedule... Task with status {task.status}")
+        sleep(2)
+    
+    db.session().query(Job).filter(Job.taskid==task_id).delete()
+    db.session().query(Task).filter(Task.id==task_id).delete()
+    db.commit()
     logger.info("Succefully deleted.")
     return True
  

@@ -28,6 +28,7 @@ class TaskStatus:
     KILL       = "Kill"
     KILLED     = "Killed"
     BROKEN     = "Broken"
+    REMOVED    = "Removed"
     UNKNOWN    = 'Unknown'
 
 #

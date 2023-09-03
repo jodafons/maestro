@@ -99,6 +99,7 @@ def task_registered( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are registered
   """
+  logger.debug("task_registered")
   return all([job.status==JobStatus.REGISTERED for job in task.jobs])
   
 
@@ -106,6 +107,7 @@ def task_assigned( task: Task , **kwargs) -> bool:
   """
   Force all jobs with ASSIGNED status
   """
+  logger.debug("task_assigned")
   for job in task.jobs:
       job.status =  JobStatus.ASSIGNED
   return True
@@ -115,6 +117,7 @@ def task_completed( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are completed
   """
+  logger.debug("task_completed")
   return all([job.status==JobStatus.COMPLETED for job in task.jobs])
   
 
@@ -122,13 +125,15 @@ def task_running( task: Task , **kwargs) -> bool:
   """
     Check if any jobs into the task is in assigned state
   """
-  return any([job.status==JobStatus.ASSIGNED for job in task.jobs])
+  logger.debug("task_running")
+  return any([ ((job.status==JobStatus.ASSIGNED) or (job.status==JobStatus.RUNNING))  for job in task.jobs])
 
 
 def task_finalized( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are completed or failed
   """
+  logger.debug("task_finalized")
   # NOTE: We have jobs waiting to be executed here. Task should be in running state  
   return (not task_running(task)) and (not all([job.status==JobStatus.COMPLETED for job in task.jobs]) )
 
@@ -138,6 +143,7 @@ def task_killed( task: Task , **kwargs) -> bool:
   """
     Check if all jobs into the task are killed
   """
+  logger.debug("task_killed")
   return all([job.status==JobStatus.KILLED for job in task.jobs])
   
 
@@ -145,6 +151,7 @@ def task_broken( task: Task , **kwargs) -> bool:
   """
     Broken all jobs inside of the task
   """
+  logger.debug("task_broken")
   return all([job.status==JobStatus.BROKEN for job in task.jobs])
 
 
@@ -152,6 +159,7 @@ def task_retry( task: Task , **kwargs) -> bool:
   """
     Retry all jobs inside of the task with failed status
   """
+  logger.debug("task_retry")
   retry_jobs = 0
   for job in task.jobs:
     if job.status != JobStatus.COMPLETED:
@@ -162,6 +170,28 @@ def task_retry( task: Task , **kwargs) -> bool:
   # NOTE: If we have jobs to retry we must keep the current state and dont finalized the task
   return not retry_jobs>0
 
+
+
+def task_removed(task , **kwargs):
+  """
+    Check if task removed
+  """
+  logger.debug("task_removed")
+  return task.to_remove
+  
+
+def task_kill(task, **kwargs):
+  """
+    Kill all jobs
+  """
+  logger.info("task_kill")
+  for job in task.jobs:
+    if job.status == JobStatus.RUNNING:
+      job.status = JobStatus.KILL
+    else:
+      job.status = JobStatus.KILLED
+  return True
+
 #
 # Triggers
 #
@@ -171,6 +201,7 @@ def trigger_task_kill( task: Task , **kwargs) -> bool:
   """
     Put all jobs to kill status when trigger
   """
+  logger.debug("trigger_task_kill")
   if task.trigger == TaskTrigger.KILL:
     logger.info("Triggering kill task state...")
     for job in task.jobs:
@@ -188,6 +219,7 @@ def trigger_task_retry( task: Task , **kwargs) -> bool:
   """
     Move all jobs to registered when trigger is retry given by external order
   """
+  logger.debug("trigger_task_retry")
   if task.trigger == TaskTrigger.RETRY:
 
     if task.status == TaskStatus.FINALIZED:
@@ -207,18 +239,22 @@ def trigger_task_retry( task: Task , **kwargs) -> bool:
   else:
     return False
 
- 
-def job_retry( task: Task, **kwargs ):
+
+
+def trigger_task_delete( task: Task , **kwargs) -> bool:
   """
-    Check if all jobs into the task are killed
+    Put all jobs to kill status when trigger
   """
-  for job in task.jobs:
-    if job.status == JobStatus.FAILED:
-      if job.retry < 10:
-        job.retry+=1
-        job.status = JobStatus.ASSIGNED
-  task.action = TaskAction.WAITING
-  return True
+  logger.debug("trigger_task_delete")
+  if task.trigger == TaskTrigger.DELETE:
+    task.remove()
+    task.kill()
+    return True
+  else:
+    return False
+
+
+
 
 
 
@@ -230,22 +266,26 @@ def job_retry( task: Task, **kwargs ):
 
 class Schedule:
 
-  def __init__(self, db, mailing = None, extended_states : bool=False):
+  def __init__(self, db, mailing = None, 
+                    extended_states : bool=False, 
+                    level: str='INFO'):
     logger.info("Creating schedule...")
     self.mailing = mailing
     self.db = db
     self.extended_states = extended_states
     self.compile()
+    logger.level(level)
 
 
   def run(self):
 
     logger.info("Treat jobs with status running but not alive into the executor.")
-    self.treat_jobs_not_alive()
+    #self.treat_jobs_not_alive()
 
     for task in tqdm( self.db.tasks(), desc='Loop over tasks...'):
       
-      print([job.status for job in task.jobs])
+      print("task status:")
+      print([(job.id, job.status) for job in task.jobs])
 
       # Run all JobStatus triggers to find the correct transiction
       for state in self.states:
@@ -314,12 +354,22 @@ class Schedule:
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.BROKEN     , relationship=[task_broken, send_email]                  ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_finalized, task_retry, send_email]   ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                        ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_delete, task_kill]           ),      
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                             ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
     
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                              ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
+      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
+      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
+      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
+
+
+
     ]
 
   

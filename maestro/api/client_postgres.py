@@ -48,7 +48,8 @@ class client_postgres:
 
   def tasks(self):
     try:
-      return self.session().query(Task).all()
+      # NOTE: All tasks assigned to remove should not be returned by the database.
+      return self.session().query(Task).filter(Task.status!=TaskStatus.REMOVED).all()
     except Exception as e:
       traceback.print_exc()
       logger.error(e)

@@ -44,7 +44,7 @@ time.sleep(10)
 """
 
 NUMBER_OF_JOBS       = 5
-NUMBER_OF_SLOTS      = 2
+NUMBER_OF_SLOTS      = 4
 LOCAL_HOST           = os.environ["LOCAL_HOST"]
 DATABASE_HOST_SERVER = f"postgresql://postgres:postgres@{LOCAL_HOST}:5432/postgres"
 TASK_NAME            = 'test.server'
@@ -102,9 +102,10 @@ class test_kill(unittest.TestCase):
     def test_run(self):
 
         db = client_postgres(DATABASE_HOST_SERVER)
+        parser = task_parser(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
-        schedule = Schedule(db)
+        schedule = Schedule(db, level='DEBUG')
 
 
         killed = False
@@ -118,15 +119,18 @@ class test_kill(unittest.TestCase):
             schedule.run()
             sleep(2)
             executor.loop()
+            count+=1
+            if count > 2 and not killed:
+                parser.kill([task.id])
+                killed=True
+            
             if executor.full():
                 continue
             n = executor.size - executor.allocated()
             for job in db.get_n_jobs(n):
                 executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
 
-            if count > 2 and not killed:
-                task_parser.kill([task_id])
-                killed=True
+ 
 
 
         task = db.task(TASK_NAME)

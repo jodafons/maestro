@@ -105,7 +105,7 @@ class test_broken(unittest.TestCase):
         db = client_postgres(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
-        schedule = Schedule(db)
+        schedule = Schedule(db, level='DEBUG')
 
 
         #

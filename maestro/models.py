@@ -9,7 +9,7 @@ try:
 except:
   from enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Boolean, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from loguru import logger
 
@@ -26,14 +26,19 @@ class Task (Base):
   __tablename__ = 'task'
 
   # Local
-  id       = Column(Integer, primary_key = True)
-  name     = Column(String, unique=True)
-  volume   = Column(String)
-  status   = Column(String, default=TaskStatus.REGISTERED)
-  trigger  = Column( String, default=TaskTrigger.WAITING )
-  # Foreign
-  jobs     = relationship("Job", order_by="Job.id", back_populates="task")
-  email    = Column(String)
+  id        = Column(Integer, primary_key = True)
+  name      = Column(String, unique=True)
+  volume    = Column(String)
+  status    = Column(String, default=TaskStatus.REGISTERED)
+  trigger   = Column(String, default=TaskTrigger.WAITING )
+  # Foreign 
+  jobs      = relationship("Job", order_by="Job.id", back_populates="task")
+
+  # NOTE: aux variable
+  to_remove = Column(Boolean, default=False)
+
+  # TODO: Should be removed from here.
+  email     = Column(String)
 
   #
   # Method that adds jobs into task
@@ -51,9 +56,14 @@ class Task (Base):
   def retry(self):
     self.trigger = TaskTrigger.RETRY
 
+  def reset(self):
+    self.trigger = TaskTrigger.WAITING
+
   def delete(self):
     self.trigger = TaskTrigger.DELETE
 
+  def remove(self):
+    self.to_remove = True
 
   def resume(self):
     

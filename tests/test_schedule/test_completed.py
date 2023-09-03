@@ -38,12 +38,12 @@ args = parser.parse_args()
 #print('Starting job...')
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
-time.sleep(5)
+time.sleep(30)
 #print('Finish job...')
 """
 
 NUMBER_OF_JOBS       = 5
-NUMBER_OF_SLOTS      = 2
+NUMBER_OF_SLOTS      = 4
 LOCAL_HOST           = os.environ["LOCAL_HOST"]
 DATABASE_HOST_SERVER = f"postgresql://postgres:postgres@{LOCAL_HOST}:5432/postgres"
 TASK_NAME            = 'test.server'
@@ -103,7 +103,7 @@ class test_completed(unittest.TestCase):
         db = client_postgres(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
         executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
-        schedule = Schedule(db)
+        schedule = Schedule(db, level='DEBUG')
 
         #
         # emulate pilot loop
