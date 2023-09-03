@@ -203,12 +203,6 @@ def trigger_task_kill( task: Task , **kwargs) -> bool:
   """
   logger.debug("trigger_task_kill")
   if task.trigger == TaskTrigger.KILL:
-    logger.info("Triggering kill task state...")
-    for job in task.jobs:
-      if job.status == JobStatus.RUNNING:
-        job.status = JobStatus.KILL
-      else:
-        job.status = JobStatus.KILLED
     task.trigger = TaskTrigger.WAITING
     return True
   else:
@@ -353,26 +347,20 @@ class Schedule:
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]               ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.BROKEN     , relationship=[task_broken, send_email]                  ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_finalized, task_retry, send_email]   ),
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill]                        ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill, task_kill]             ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_delete, task_kill]           ),      
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                             ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
-    
-      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                              ),
-      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
-      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
-      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
-      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
-      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                       ),
-
-
-
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                             ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
+      Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
+      Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
+      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
+      Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
     ]
-
-  
 
     if self.extended_states:
       logger.info("Adding test states into the graph.")
@@ -401,21 +389,4 @@ class Schedule:
 
 
 if __name__ == "__main__":
-  
-
-  host = os.environ['DATABASE_SERVER_HOST']
-  from sqlalchemy import create_engine 
-  from sqlalchemy.orm import sessionmaker
-  from api.database import postgres_client, Base, Task, Job
-
-
-  # prepare database
-  engine = create_engine(host)
-  Session = sessionmaker(bind=engine)
-  session = Session()
-  Base.metadata.drop_all(engine)
-  Base.metadata.create_all(engine)
-  session.commit()
-  session.close()
-
-  app = Schedule(host)
+  pass
