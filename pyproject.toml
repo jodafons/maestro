@@ -37,6 +37,7 @@ uvicorn = "^0.23.2"
 pydantic = "^2.2.1"
 orjson = "^3.9.5"
 python-socketio = "^5.8.0"
+gradio = "^3.42.0"
 
 
 [build-system]
