@@ -24,22 +24,27 @@ class Resume(BaseModel):
     allocated : int
     full      : bool
 
+class Job(BaseModel):
+    job_id    : int
 
 
 database_host = os.environ["DATABASE_SERVER_HOST"]
 pilot_host    = os.environ["PILOT_SERVER_HOST"]
 me            = os.environ["EXECUTOR_SERVER_HOST"]
+
 device        = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'-1'))
 max_retry     = int(os.environ.get("EXECUTOR_SERVER_MAX_RETRY", '5'))
 timeout       = int(os.environ.get("EXECUTOR_SERVER_TIMEOUT"  , '5'))
-test_mode     = bool(os.environ.get("EXECUTOR_SERVER_TEST"    , '0'))
+slot_size     = int(os.environ.get("EXECUTOR_SERVER_SLOT_SIZE", '1'))
 binds         = eval(os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}"))
 
 
 app      = FastAPI()
 pilot    = client_pilot(pilot_host)
 db       = client_postgres(database_host)
-consumer = Consumer(me, pilot=pilot, db=db, device=device, binds=binds, max_retry=max_retry, timeout=timeout)
+
+consumer = Consumer(me, pilot=pilot, db=db, device=device, binds=binds, 
+                    max_retry=max_retry, timeout=timeout, size=slot_size)
 
 # Start thread with pilot
 consumer.start()
@@ -58,8 +63,16 @@ async def run() -> int:
 
 
 @app.post("/executor/start") 
-async def start(job_id) -> str:
-    return "ok"
+async def start(Job: job) -> bool:
+
+    job_db = client_postgres.job(job.job_id)
+    return consumer.start_job( job_db.id, 
+                               job_db.task.name, 
+                               job_db.command, 
+                               job_db.image,
+                               job_db.workarea, 
+                               device=device, 
+                               extra_envs=job_db.extra_envs):
 
 
 
@@ -73,8 +86,7 @@ async def test() -> bool:
                                 taskname="test", 
                                 command=command, 
                                 image="/mnt/cern_data/images/python_3.10.sif", 
-                                workarea=workarea,
-                                dry_run=test_mode)
+                                workarea=workarea)
     
     logger.info("Job test is intothe consumer")
     while consumer.job(0) is not None:

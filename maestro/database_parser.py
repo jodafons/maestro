@@ -1,4 +1,6 @@
 
+__all__ = []
+
 import glob, traceback, os, argparse, re
 
 from sqlalchemy_utils import database_exists

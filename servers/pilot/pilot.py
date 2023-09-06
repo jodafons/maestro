@@ -32,7 +32,8 @@ class consumer:
         return self.retry>self.max_retry
 
     def start(self, job_id):
-      pass
+      return self.api.start_job( job_id )
+      
 
     def run(self):
       pass

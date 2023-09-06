@@ -6,11 +6,19 @@ from typing import Dict, Any
 from loguru import logger
 from pydantic import BaseModel
 
+try:
+    from maestro.api.base import try_request
+except:
+    from api.base import try_request
+
 
 class Resume(BaseModel):
     size      : int
     allocated : int
     full      : bool
+
+class Job(BaseModel):
+    job_id    : int
 
 
 
@@ -21,37 +29,10 @@ class client_executor:
         self.host = host
 
 
-    def try_request( self,
-                     service: str,
-                     endpoint: str,
-                     method: str = "get",
-                     params: Dict = {},
-                     body: str = "",
-                     stream: bool = False,
-                    ) -> Any:
-
-        function = {
-            "get" : requests.get,
-            "post": requests.post,
-        }[method]
-
-        try:
-            request = function(f"{service}{endpoint}", params=params, data=body)
-        except:
-            logger.error("Failed to establish a new connection.")
-            return None
-
-        if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code}")
-            return None
-
-        return request.json()
-    
-
     def is_alive(self):
         
         endpoint = "/executor/is_alive"
-        answer = self.try_request(
+        answer = try_request(
             self.host, endpoint, method="get",
         )
 
@@ -59,8 +40,24 @@ class client_executor:
             logger.error(f"The executor server with host ({self.host}) is offline.")
             return False
         else:
-            logger.info("The executor server with host ({self.host}) is online.")
+            logger.info(f"The executor server with host ({self.host}) is online.")
             return True
+
+
+    def start(self, job_id):
+
+        endpoint = "/executor/start_job"
+        answer = self.try_request(
+            self.host, endpoint, method="post",
+            body = Job(job_id=job_id).json(),
+        )
+        if answer is None:
+            logger.error(f"It is not possible to start job...")
+            return False
+        else:
+            logger.info(f"Job started into the executor...")
+            return True
+
 
 
     def resume(self):
@@ -69,10 +66,12 @@ class client_executor:
         answer = self.try_request(
             self.host, endpoint, method="get",
         )
-
         if answer is None:
             logger.error(f"The executor server with host ({self.host}) is offline.")
             return None
         else:
             logger.info(f"The executor server with host ({self.host}) is online.")
             return Resume(**answer)
+
+
+    

@@ -1,0 +1,81 @@
+version: '3.5'
+
+services:
+
+  executor_server:
+    container_name: executor-server
+    image: ${DOCKER_NAMESPACE}/executor-server
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      DATABASE_SERVER_HOST: "postgresql://postgres:postgres@${LOCAL_HOST}:5432/postgres" # database
+      PILOT_SERVER_HOST: "http://${LOCAL_HOST}:5003" # server
+      EXECUTOR_SERVER_HOST: "http://${LOCAL_HOST}:5000" # me
+      EXECUTOR_SERVER_DEVICE: "-1"
+      EXECUTOR_SERVER_MAX_RETRY: "5"
+      EXECUTOR_SERVER_TIMEOUT: "60" # seconds
+      EXECUTOR_SERVER_BINDS: "{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}"
+      EXECUTOR_SERVER_TEST: "1" # use python intead singularity
+    ports:
+      - "5000:80"
+    depends_on:
+      - pilot_server  
+
+  mailing_server:
+    container_name: mailing-server
+    image: ${DOCKER_NAMESPACE}/mailing-server
+    ports:
+      - "5001:80"
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      MAILING_SERVER_EMAIL_FROM: ${MAILING_SERVER_EMAIL_FROM}
+      MAILING_SERVER_EMAIL_PASSWORD: ${MAILING_SERVER_EMAIL_PASSWORD}
+
+
+  schedule_server:
+    container_name: schedule-server
+    image: ${DOCKER_NAMESPACE}/schedule-server
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      DATABASE_SERVER_HOST: "postgresql://postgres:postgres@${LOCAL_HOST}:5432/postgres"
+      MAILING_SERVER_HOST: "http://${LOCAL_HOST}:5001"
+      SCHEDULE_SERVER_TEST: "1" # recreate database
+    ports:
+      - "5002:80"
+    depends_on:
+      - mailing_server
+      - database_server
+
+  pilot_server:
+    container_name: pilot-server
+    image: ${DOCKER_NAMESPACE}/pilot-server
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      DATABASE_SERVER_HOST: "postgresql://postgres:postgres@${LOCAL_HOST}:5432/postgres"
+      MAILING_SERVER_HOST: "http://${LOCAL_HOST}:5001"
+      SCHEDULE_SERVER_HOST: "http://${LOCAL_HOST}:5002"
+    ports:
+      - "5003:80"
+    depends_on:
+      - mailing_server
+      - database_server
+      - schedule_server
+
+  database_server:
+    container_name: database-server
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${DATABASE_SERVER_DATA_PATH}:/var/lib/postgresql/data
+      
+
+
+
+
+
+
+  

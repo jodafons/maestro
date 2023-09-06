@@ -10,7 +10,6 @@ try:
 except:
   pass
 
-
 import sys, os, argparse
 from maestro.api.client_postgres import client_postgres
 from maestro.task_parser import task_parser

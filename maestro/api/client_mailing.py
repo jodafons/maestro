@@ -6,6 +6,11 @@ from loguru import logger
 from pydantic import BaseModel
 from typing import Dict, Any
 
+try:
+    from maestro.api.base import try_request
+except:
+    from api.base import try_request
+
 class EmailRequest(BaseModel):
     to : str
     subject : str
@@ -17,39 +22,9 @@ class client_mailing:
         self.host = host
 
 
-    def try_request( self,
-                     service: str,
-                     endpoint: str,
-                     method: str = "get",
-                     params: Dict = {},
-                     body: str = "",
-                     stream: bool = False,
-                    ) -> Any:
-
-        function = {
-            "get" : requests.get,
-            "post": requests.post,
-        }[method]
-
-        logger.info(f"Request to {service}{endpoint}...")
-
-        try:
-            request = function(f"{service}{endpoint}", params=params, data=body)
-        except:
-            logger.error("Failed to establish a new connection.")
-            return None
-
-        if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code}")
-            return None
-
-        return request.json()
-      
-
-
     def is_alive(self):
         endpoint = "/mailing/is_alive"
-        answer = self.try_request(
+        answer = try_request(
             self.host, endpoint, method="get",
         )
 

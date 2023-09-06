@@ -20,9 +20,9 @@ class Job:
                job_id: int, 
                taskname: str,
                command: str,
-               image: str, 
                workarea: str,
                device: int,
+               image: str = None, 
                job_db: Job_db = None,
                extra_envs: dict={},
                binds = {},
@@ -40,7 +40,6 @@ class Job:
     self.env        = os.environ.copy()
     self.binds      = binds
     self.job_db     = job_db
-    self.dry_run    = dry_run
 
    
     # Transfer all environ to singularity container
@@ -90,8 +89,8 @@ class Job:
         for line in f.readlines():
           logger.info(line)
    
-      if self.dry_run:
-        logger.info("This is a test job...")
+      if not self.image:
+        logger.info("Running job without image...")
         command = f"bash {self.entrypoint} "
       else: # singularity
         command = f"singularity exec --nv --writable-tmpfs --bind /home:/home {self.image} bash {self.entrypoint}"
@@ -237,10 +236,9 @@ class Consumer(threading.Thread):
   #
   # Add a job into the slot
   #
-  def start_job( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={}, dry_run=False ):
+  def start_job( self, job_id, taskname, command, image, workarea, device=-1, extra_envs={} ):
 
     if job_id in self.jobs.keys():
-      print(self.jobs.keys())
       logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
       return False
     
@@ -346,7 +344,6 @@ class Consumer(threading.Thread):
     logger.info(f"Run stage toke {round(end-start,4)} seconds")
     logger.info(f"We have a total of {current_in} jobs into the consumer.")
 
-    print('executor...')
     print([(job_id, job.status(), job.db().status) for job_id, job in self.jobs.items()])
 
     return current_in, res

@@ -30,11 +30,11 @@ build_pilot:
 
 
 up:
-	docker compose -f docker-compose.yml up -d
+	docker compose -f docker-compose-dev.yml up -d
 
 down:
-	docker compose -f docker-compose.yml down
+	docker compose -f docker-compose-dev.yml down
 
 up_debug:
 	make
-	docker compose -f docker-compose.yml up
+	docker compose -f docker-compose-dev.yml up

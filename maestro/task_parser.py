@@ -1,3 +1,4 @@
+__all__ = []
 
 
 import glob, traceback, os, argparse, re

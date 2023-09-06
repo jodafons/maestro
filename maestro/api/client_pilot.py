@@ -4,6 +4,11 @@ from loguru import logger
 from typing import Dict, Any, List
 from pydantic import BaseModel
 
+try:
+    from maestro.api.base import try_request
+except:
+    from api.base import try_request
+
 
 class Host(BaseModel):
     me       : str
@@ -18,36 +23,10 @@ class client_pilot:
         self.host = host
 
 
-    def try_request( self,
-                     service: str,
-                     endpoint: str,
-                     method: str = "get",
-                     params: Dict = {},
-                     body: str = "",
-                     stream: bool = False,
-                    ) -> Any:
-
-        function = {
-            "get" : requests.get,
-            "post": requests.post,
-        }[method]
-
-        try:
-            request = function(f"{service}{endpoint}", params=params, data=body)
-        except:
-            logger.error("Failed to establish a new connection.")
-            return None
-
-        if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code}")
-            return None
-
-        return request.json()
-      
 
     def is_alive(self):
         endpoint = "/pilot/is_alive"
-        answer = self.try_request(
+        answer = try_request(
             self.host, endpoint, method="get",
         )
 
