@@ -35,11 +35,14 @@ class Task (Base):
   # Foreign 
   jobs      = relationship("Job", order_by="Job.id", back_populates="task")
 
+  
+  # TODO: external email context
+  contact     = Column(String)
+
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
 
-  # TODO: Should be removed from here.
-  email     = Column(String)
+
 
   #
   # Method that adds jobs into task
@@ -92,13 +95,18 @@ class Job (Base):
   inputfile = Column(String)
   timer     = Column(DateTime)
   envs      = Column(String)
+  binds     = Column(String, default="{}")
+
   # Foreign
   task    = relationship("Task", back_populates="jobs")
   taskid  = Column(Integer, ForeignKey('task.id'))
   
-  def get_env(self, key):
-    return eval(self.envs).get(key,'')
+  def get_envs(self):
+    return eval(self.envs)
   
+  def get_binds(self):
+    return eval(self.binds)
+
   def ping(self):
     self.timer = datetime.datetime.now()
 

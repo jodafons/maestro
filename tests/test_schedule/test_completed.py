@@ -2,7 +2,7 @@
 
 from maestro.task_parser import task_parser
 from maestro.database_parser import database_parser
-from maestro.api.client_postgres import client_postgres
+from maestro.api.clients import database
 from maestro.enumerations import TaskStatus
 
 from servers.schedule.schedule import Schedule
@@ -38,7 +38,7 @@ args = parser.parse_args()
 #print('Starting job...')
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
-time.sleep(30)
+time.sleep(5)
 #print('Finish job...')
 """
 
@@ -84,7 +84,7 @@ class test_completed(unittest.TestCase):
     def test_create_task(self):
 
         parser = task_parser(DATABASE_HOST_SERVER)
-        db = client_postgres(DATABASE_HOST_SERVER)
+        db     = database(DATABASE_HOST_SERVER)
 
         command  = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
         task_id = parser.create( self.basepath, TASK_NAME, self.basepath+'/jobs', IMAGE, command, EMAIL, do_test=False)
@@ -100,24 +100,24 @@ class test_completed(unittest.TestCase):
     @pytest.mark.order(4)
     def test_run(self):
 
-        db = client_postgres(DATABASE_HOST_SERVER)
+        db = database(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
-        executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
-        schedule = Schedule(db, level='DEBUG')
+        executor = Consumer(slot_size=NUMBER_OF_SLOTS)
+        schedule = Schedule(level='DEBUG')
 
         #
         # emulate pilot loop
         #
         while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
 
-            schedule.run()
+            schedule.run(db())
             sleep(2)
-            executor.loop()
+            executor.loop(db())
             if executor.full():
                 continue
             n = executor.size - executor.allocated()
             for job in db.get_n_jobs(n):
-                executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
+                executor.start( job.id, db() )
 
         task = db.task(TASK_NAME)
         assert task.status == TaskStatus.COMPLETED 

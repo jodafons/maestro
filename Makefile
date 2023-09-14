@@ -4,7 +4,7 @@ DOCKER_NAMESPACE=orchestra-server
 SHELL := /bin/bash
 
 
-all: build_base build_executor build_server
+all: build_base build_server
 
 
 
@@ -26,8 +26,7 @@ build_local:
 # executor
 #
 start:
-	source ${LOCAL_ENV}/bin/activate && cd servers/executor && python main.py
-
+	cd servers && make start
 
 #
 # Server

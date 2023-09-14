@@ -104,7 +104,7 @@ class test_kill(unittest.TestCase):
         db = client_postgres(DATABASE_HOST_SERVER)
         parser = task_parser(DATABASE_HOST_SERVER)
         task = db.task(TASK_NAME)
-        executor = Consumer("executor-server", db, size=NUMBER_OF_SLOTS)
+        executor = Consumer("executor-server", db, slot_size=NUMBER_OF_SLOTS)
         schedule = Schedule(db, level='DEBUG')
 
 
@@ -128,7 +128,7 @@ class test_kill(unittest.TestCase):
                 continue
             n = executor.size - executor.allocated()
             for job in db.get_n_jobs(n):
-                executor.start_job( job.id, job.task.name, job.command, job.image, self.basepath, device=-1, dry_run=True )
+                executor.start_job( job.id, job.task.name, job.command, self.basepath, image=job.image )
 
  
 

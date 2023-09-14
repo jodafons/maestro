@@ -9,34 +9,35 @@ from loguru import logger
 try:
   from models import Task, Job
   from enumerations import JobStatus, TaskStatus, TaskTrigger
-  from api.client_executor import client_executor
+  from api.clients import *
 except:
   from maestro.models import Task, Job
   from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
-  from maestro.api.client_executor import client_executor
+  from maestro.api.clients import *
 
-class consumer:
+class Consumer:
+
     def __init__(self, host, device, max_retry=5):
-        self.api = client_executor(host)
+        self.host = host
+        self.api = executor(host)
         self.device = device
         self.max_retry = max_retry
         self.retry = 0
 
-    def resume(self):
-        return self.api.resume()
+    def status(self):
+        return self.api.status()
     
-    def is_alive(self):
-        return self.api.is_alive()
+    def ping(self):
+        return self.api.ping()
 
     def to_close(self):
         return self.retry>self.max_retry
 
     def start(self, job_id):
-      return self.api.start_job( job_id )
+      return self.api.start( job_id )
       
-
     def run(self):
-      pass
+      self.api.run()
 
 
 
@@ -44,16 +45,15 @@ class consumer:
 class Pilot( threading.Thread ):
 
 
-  def __init__(self, db, schedule, mailing ):
+  def __init__(self ):
 
     threading.Thread.__init__(self)
-
     self.executors = {}
-    self.db = db
-    self.schedule = schedule
-    self.mailing = mailing
-    self.__stop = threading.Event()
-    self.__lock = threading.Event()
+    self.db        = database(os.environ["DATABASE_SERVER_HOST"])
+    self.schedule  = schedule(os.environ['SCHEDULE_SERVER_HOST'])
+    self.postman   = postman(os.environ['POSTMAN_SERVER_HOST'])
+    self.__stop    = threading.Event()
+    self.__lock    = threading.Event()
     logger.info("Checking for services...")
     sleep(10)
     if not self.ping():
@@ -65,28 +65,25 @@ class Pilot( threading.Thread ):
 
   def ping(self):
 
-      #
-      # TODO: Need to check database connection...
-      #
-      #logger.info("Checking if database is alive...")
-      #if db.is_alive():
-      #  logger.info("The databse server is connected.")
-      #else:
-      #  logger.critical("The database server is out. Not possible to power up the pilot without this service.")
-
+      logger.info("Checking database server is alive...")
+      if self.db.ping():
+        logger.info("The database server is connected.")
+      else:
+        logger.error("The database server is out. Not possible to power up without this servive.")
+        return False
 
       logger.info("Checking if the schedule server is alive...")
-      if self.schedule.is_alive():
+      if self.schedule.ping():
           logger.info("The schedule server is connected.")
       else:
           logger.error("The schedule server is out. Not possible to power up the pilot without this service.")
           return False
 
-      logger.info("Checking if the mailing server is alive...")
-      if self.mailing.is_alive():
-          logger.info("The mailing server is connected.")
+      logger.info("Checking if the postman server is alive...")
+      if self.postman.ping():
+          logger.info("The postman server is connected.")
       else:
-          logger.error("The mailing server is out. Not possible to power up the pilot without this service.")
+          logger.error("The postman server is out. Not possible to power up the pilot without this service.")
           return False
 
       return True
@@ -99,23 +96,28 @@ class Pilot( threading.Thread ):
 
     while not self.__stop.isSet() and self.ping():
 
-
       sleep(5)
+
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()
+      
+      # NOTE: remove executors with max number of retries exceeded
+      self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}
+        
+      
       start = time()
 
-      logger.info("Running the schedule...")
-      if not self.schedule.run():
-        logger.error("Something happining into the schedule service...")
-        continue
 
       logger.info("Checking for all executors...")
     
+      # NOTE: only healthy executors
+      executors = {}
+
       # NOTE: check executor healthy
       for host, executor in self.executors.items():
-        if executor.is_alive():
+        if executor.ping():
             executor.retry = 0
+            executors[host] = executor
         else:
             logger.info( f"The executor with host name {host} is not alive...")
             executor.retry += 1
@@ -123,28 +125,22 @@ class Pilot( threading.Thread ):
         if executor.to_close():
             logger.info(f"The executor with name {host} will be remoded from the pilot.")
 
-      # NOTE: remove executors with max number of retries exceeded
-      self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}
-        
 
-      # NOTE: only available executors  
-      for hostname, executor in self.executors.items():
-
+      # NOTE: only healthy executors  
+      for host, executor in executors.items():
         # get all information about the executor
-        res = executor.resume()
-
+        res = executor.status()
         if res:
           # if is full, skip...
           if res.full :
+            logger.info("Executor is full...")
             continue
-
           # how many jobs to complete the queue?
           n = res.size - res.allocated
           # NOTE: get n jobs from the database
           for job in self.db.get_n_jobs(n):
             executor.start(job.id)
-
-          executor.run()
+          #executor.run()
         
 
       end = time()
@@ -160,16 +156,13 @@ class Pilot( threading.Thread ):
 
 
 
-  def register( self, host, device ):
+  def connect( self, host, device ):
     if host not in self.executors.keys():
         logger.info("Creating executor into the pilot")
         self.__lock.wait()
-        self.executors[host] = consumer(host, device)
+        self.executors[host] = Consumer(host, device)
         return True
     else:
         logger.info(f"Executor with name {host} exist into the executor list.")
         return False
 
-
-if __name__ == "__main__":
-  pass

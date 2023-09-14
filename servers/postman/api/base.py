@@ -34,8 +34,8 @@ class client:
         return request.json()
 
 
-    def ping(self):
-        res = self.try_request('ping', method="get")
+    def is_alive(self):
+        res = self.try_request('is_alive', method="get")
         if res is None:
             logger.error(f"The schedule server with host ({self.host}) is offline.")
             return False

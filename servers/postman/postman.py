@@ -41,7 +41,6 @@ class Postman:
       # Authenticating
       server = SMTP(self.__smtpServer, self.__smtpPort)
       server.starttls()
-   
       server.login(self.__myEmail, self.__myPassword)
       # Sending
       server.sendmail(self.__myEmail, to_email, msgBody.encode('utf-8'))

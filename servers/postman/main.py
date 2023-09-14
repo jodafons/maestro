@@ -5,37 +5,35 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
-
-from mailing.postman import Postman
+from postman import Postman
     
+try:
+    from api.clients import Email
+except:
+    print(traceback.print_exc())
 
-class EmailRequest(BaseModel):
-    to : str
-    subject : str
-    body : str
+    from maestro.api.clients import Email
 
 
 
 app = FastAPI()
 
 
-from_email = os.environ['MAILING_SERVER_EMAIL_FROM']
-password   = os.environ['MAILING_SERVER_EMAIL_PASSWORD']
-
-
-
-templates = os.getcwd()+'/mailing/templates'
+from_email = os.environ['POSTMAN_SERVER_EMAIL_FROM']
+password   = os.environ['POSTMAN_SERVER_EMAIL_PASSWORD']
+templates  = os.getcwd()+'/templates'
 postman    = Postman(from_email, password, templates)
 
 
 
 
-@app.get("/mailing/is_alive")
-async def is_alive() -> bool:
+@app.get("/postman/ping")
+async def ping() -> bool:
     return True
 
-@app.post("/mailing/send")
-async def send(email : EmailRequest) -> bool:
+
+@app.post("/postman/send")
+async def send(email : Email) -> bool:
     try:
         logger.info(f'Sending email to {email.to}')
         postman.send( email.to , email.subject, email.body )

@@ -22,7 +22,7 @@ services:
     environment:
       DATABASE_SERVER_HOST: ${DATABASE_SERVER_HOST}
       MAILING_SERVER_HOST: "http://${LOCAL_HOST}:5001"
-      SCHEDULE_SERVER_TEST: "0" # recreate database
+      SCHEDULE_SERVER_TEST: "" # recreate database
     ports:
       - "5002:80"
     depends_on:

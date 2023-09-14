@@ -1,6 +1,7 @@
 
-import traceback, time, os
+import traceback, time, os, threading
 
+from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from loguru import logger
 from tqdm import tqdm
@@ -8,9 +9,11 @@ from tqdm import tqdm
 try:
   from models import Task, Job
   from enumerations import JobStatus, TaskStatus, TaskTrigger
+  from api.clients import postman
 except:
   from maestro.models import Task, Job
   from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
+  from maestro.api.clients import postman
 
 
 
@@ -21,12 +24,12 @@ class Transition:
     self.target = target
     self.relationship = relationship
 
-  def __call__(self, task: Task, **kwargs) -> bool:   
+  def __call__(self, task: Task) -> bool:   
     """
       Apply the transition for each function
     """
     for func in self.relationship:
-      if not func(task, **kwargs):
+      if not func(task):
         return False
     return True
 
@@ -38,29 +41,27 @@ class Transition:
 # Transitions functions
 #
 
-def send_email( task: Task , **kwargs) -> bool:
+def send_email( task: Task ) -> bool:
   """
   Send an email with the task status
   """
-  def get_mailing_api(kwargs):
-    return kwargs.get('mailing',None)
-  
-  status = task.status
-  taskname = task.name
-  email = task.email
-  subject = f"[LPS Cluster] Notification for task id {status}"
-  message = (f"The task with name {taskname} was assigned with {status} status.")
-  api = get_mailing_api(kwargs)
-  if api:
+  postman = postman(os.environ['POSTMAN_SERVER_HOST'])
+  if postman.ping():
+    status = task.status
+    taskname = task.name
+    email = task.contact
+    subject = f"[LPS Cluster] Notification for task id {status}"
+    message = (f"The task with name {taskname} was assigned with {status} status.")
     logger.info(f"Sending email to {email}") 
-    api.mailing().send(email, subject, message)
+    postman.send(email, subject, message)
+    
   return True
 
 #
 # Job test
 #
 
-def test_job_fail( task: Task, **kwargs) -> bool:
+def test_job_fail( task: Task ) -> bool:
   """
     Check if the first job returns fail
   """
@@ -68,7 +69,7 @@ def test_job_fail( task: Task, **kwargs) -> bool:
   return (job.status == JobStatus.FAILED) or (job.status == JobStatus.BROKEN)
     
  
-def test_job_assigned( task: Task , **kwargs) -> bool:
+def test_job_assigned( task: Task ) -> bool:
   """
     Assigned the fist job to test
   """
@@ -76,14 +77,14 @@ def test_job_assigned( task: Task , **kwargs) -> bool:
   return True
 
 
-def test_job_running( task: Task , **kwargs) -> bool:
+def test_job_running( task: Task ) -> bool:
   """
     Check if the test job still running
   """
   return task.jobs[0].status == JobStatus.RUNNING
 
 
-def test_job_completed( task: Task , **kwargs) -> bool:
+def test_job_completed( task: Task ) -> bool:
   """
     Check if the test job is completed
   """
@@ -95,7 +96,7 @@ def test_job_completed( task: Task , **kwargs) -> bool:
 #
 
 
-def task_registered( task: Task , **kwargs) -> bool:
+def task_registered( task: Task ) -> bool:
   """
     Check if all jobs into the task are registered
   """
@@ -103,7 +104,7 @@ def task_registered( task: Task , **kwargs) -> bool:
   return all([job.status==JobStatus.REGISTERED for job in task.jobs])
   
 
-def task_assigned( task: Task , **kwargs) -> bool:
+def task_assigned( task: Task ) -> bool:
   """
   Force all jobs with ASSIGNED status
   """
@@ -113,7 +114,7 @@ def task_assigned( task: Task , **kwargs) -> bool:
   return True
 
 
-def task_completed( task: Task , **kwargs) -> bool:
+def task_completed( task: Task ) -> bool:
   """
     Check if all jobs into the task are completed
   """
@@ -121,7 +122,7 @@ def task_completed( task: Task , **kwargs) -> bool:
   return all([job.status==JobStatus.COMPLETED for job in task.jobs])
   
 
-def task_running( task: Task , **kwargs) -> bool:
+def task_running( task: Task ) -> bool:
   """
     Check if any jobs into the task is in assigned state
   """
@@ -129,7 +130,7 @@ def task_running( task: Task , **kwargs) -> bool:
   return any([ ((job.status==JobStatus.ASSIGNED) or (job.status==JobStatus.RUNNING))  for job in task.jobs])
 
 
-def task_finalized( task: Task , **kwargs) -> bool:
+def task_finalized( task: Task ) -> bool:
   """
     Check if all jobs into the task are completed or failed
   """
@@ -139,7 +140,7 @@ def task_finalized( task: Task , **kwargs) -> bool:
 
 
 
-def task_killed( task: Task , **kwargs) -> bool:
+def task_killed( task: Task ) -> bool:
   """
     Check if all jobs into the task are killed
   """
@@ -147,7 +148,7 @@ def task_killed( task: Task , **kwargs) -> bool:
   return all([job.status==JobStatus.KILLED for job in task.jobs])
   
 
-def task_broken( task: Task , **kwargs) -> bool:
+def task_broken( task: Task ) -> bool:
   """
     Broken all jobs inside of the task
   """
@@ -155,7 +156,7 @@ def task_broken( task: Task , **kwargs) -> bool:
   return all([job.status==JobStatus.BROKEN for job in task.jobs])
 
 
-def task_retry( task: Task , **kwargs) -> bool:
+def task_retry( task: Task ) -> bool:
   """
     Retry all jobs inside of the task with failed status
   """
@@ -172,7 +173,7 @@ def task_retry( task: Task , **kwargs) -> bool:
 
 
 
-def task_removed(task , **kwargs):
+def task_removed(task ):
   """
     Check if task removed
   """
@@ -180,7 +181,7 @@ def task_removed(task , **kwargs):
   return task.to_remove
   
 
-def task_kill(task, **kwargs):
+def task_kill(task):
   """
     Kill all jobs
   """
@@ -192,12 +193,13 @@ def task_kill(task, **kwargs):
       job.status = JobStatus.KILLED
   return True
 
+
 #
 # Triggers
 #
 
 
-def trigger_task_kill( task: Task , **kwargs) -> bool:
+def trigger_task_kill( task: Task ) -> bool:
   """
     Put all jobs to kill status when trigger
   """
@@ -209,7 +211,7 @@ def trigger_task_kill( task: Task , **kwargs) -> bool:
     return False
 
 
-def trigger_task_retry( task: Task , **kwargs) -> bool:
+def trigger_task_retry( task: Task ) -> bool:
   """
     Move all jobs to registered when trigger is retry given by external order
   """
@@ -235,7 +237,7 @@ def trigger_task_retry( task: Task , **kwargs) -> bool:
 
 
 
-def trigger_task_delete( task: Task , **kwargs) -> bool:
+def trigger_task_delete( task: Task ) -> bool:
   """
     Put all jobs to kill status when trigger
   """
@@ -258,27 +260,52 @@ def trigger_task_delete( task: Task , **kwargs) -> bool:
 # 
 
 
-class Schedule:
+class Schedule(threading.Thread):
 
-  def __init__(self, db, mailing = None, 
-                    extended_states : bool=False, 
-                    level: str='INFO'):
+  def __init__(self, extended_states : bool=False, level: str='INFO'):
+    threading.Thread.__init__(self)
+
     logger.info("Creating schedule...")
-    self.mailing = mailing
-    self.db = db
     self.extended_states = extended_states
+    self.db              = database(os.environ["DATABASE_SERVER_HOST"])
     self.compile()
     logger.level(level)
+    self.__stop    = threading.Event()
+
+
+  def stop(self):
+    self.__stop.set()
 
 
   def run(self):
 
-    logger.info("Treat jobs with status running but not alive into the executor.")
-    #self.treat_jobs_not_alive()
+    while (not self.__stop.isSet()):
+      sleep(10)
+      self.loop()
 
-    for task in tqdm( self.db.tasks(), desc='Loop over tasks...'):
+ 
+
+
+  def loop(self):
+
+    try:
+      logger.info("Treat jobs with status running but not alive into the executor.")
+      # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
+      jobs = self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+      for job in jobs:
+        if not job.is_alive():
+          job.status = JobStatus.ASSIGNED
       
-      print("task status:")
+      # NOTE: All tasks assigned to remove should not be returned by the database.
+      tasks = self.db.session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return False
+
+
+    for task in tasks:
+      
       print([(job.id, job.status) for job in task.jobs])
 
       # Run all JobStatus triggers to find the correct transiction
@@ -286,8 +313,8 @@ class Schedule:
         # Check if the current JobStatus is equal than this JobStatus
         if state.source == task.status:
           try:
-            answer = state(task, mailing=self.mailing)
-            if answer:
+            res = state(task)
+            if res:
               logger.info(f"Moving task from {state.source} to {state.target} state.")
               task.status = state.target
               break
@@ -301,10 +328,9 @@ class Schedule:
     return True
 
 
-    
-
+  
        
-  def get_n_assigned_jobs(self, njobs):
+  def get_n_assigned_jobs(self, db: Session, njobs: int):
     try:
       jobs = self.db.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
       jobs.reverse()
@@ -315,23 +341,10 @@ class Schedule:
       return []
 
 
-  def get_running_jobs(self):
-    try:
-      return self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
-    except Exception as e:
-      logger.error(f"Not be able to get running from database. Return an empty list to the user.")
-      traceback.print_exc()
-      return []
 
   
-  def treat_jobs_not_alive(self):
-    """
-      Check if we have any dead job when start the schedule
-    """
-    jobs = self.get_running_jobs()
-    for job in jobs:
-      if not job.is_alive():
-        job.status = JobStatus.ASSIGNED
+
+
 
 
 
@@ -387,6 +400,3 @@ class Schedule:
 
  
 
-
-if __name__ == "__main__":
-  pass

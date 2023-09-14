@@ -1,11 +1,14 @@
 SHELL := /bin/bash
 .ONESHELL:
 
-all: build_mailing build_executor build_schedule build_pilot
+all: build_postman build_executor build_schedule build_pilot
 
-build_mailing:
-	cd mailing
-	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/mailing-server --compress .
+build_postman:
+	cd postman
+	cp -r ${MAESTRO_PATH}/maestro/api .
+	cp ${MAESTRO_PATH}/maestro/enumerations.py .
+	cp ${MAESTRO_PATH}/maestro/models.py .
+	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/postman-server --compress .
 
 build_executor:
 	cd executor
@@ -38,3 +41,11 @@ down:
 up_debug:
 	make
 	docker compose -f docker-compose-dev.yml up
+
+
+start:
+	cd executor
+	cp ${MAESTRO_PATH}/maestro/enumerations.py .
+	cp ${MAESTRO_PATH}/maestro/models.py .
+	cp -r ${MAESTRO_PATH}/maestro/api .
+	source ${MAESTRO_PATH}/${LOCAL_ENV}/bin/activate && python main.py

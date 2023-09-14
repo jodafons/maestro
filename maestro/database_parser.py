@@ -6,10 +6,10 @@ import glob, traceback, os, argparse, re
 from sqlalchemy_utils import database_exists
 from loguru import logger
 from maestro.models import Base
-from maestro.api.client_postgres import client_postgres
+from maestro.api.clients import database
 
 
-def create( db: client_postgres ) -> bool:
+def create( db: database ) -> bool:
 
   try:
     #if database_exists( db.engine().url ):
@@ -29,7 +29,7 @@ def create( db: client_postgres ) -> bool:
 
 
 
-def delete( db: client_postgres ) -> bool:
+def delete( db: database ) -> bool:
   try:
     #if not database_exists( db.engine().url ):
     #  logger.error("The dataabse dont exists into the server. Its not possible to delete something that dont exist into the server...")
@@ -47,7 +47,7 @@ def delete( db: client_postgres ) -> bool:
     return False
 
 
-def recreate( db: client_postgres) -> bool:
+def recreate( db: database) -> bool:
 
   if (not delete(db)):
     return False
@@ -65,7 +65,7 @@ class database_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = client_postgres(host)
+    self.db = database(host)
     if args:
 
       # Create Task

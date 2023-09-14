@@ -2,47 +2,42 @@
 import sys, os, tempfile
 
 from time import time, sleep
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from loguru import logger
 from schedule import Schedule
 from models import Base
 
-try:
-    from api.client_postgres import client_postgres
-    from api.client_mailing import client_mailing
-except:
-    from maestro.api.client_postgres import client_postgres
-    from maestro.api.client_mailing import client_mailing  
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
 
 
-database_host = os.environ['DATABASE_SERVER_HOST']
-mailing_host  = os.environ['MAILING_SERVER_HOST']
-test_mode     = bool(os.environ.get("SCHEDULE_SERVER_TEST"    , '0'))
+
+recreate = bool(os.environ.get("SCHEDULE_SERVER_RECREATE"    , ''))
 
 
-app      = FastAPI()
-db       = client_postgres(database_host)
-mailing  = client_mailing(mailing_host)
-schedule = Schedule(db, mailing)
 
-if test_mode:
+if recreate:
+
+    engine = create_engine(os.environ["DATABASE_SERVER_HOST"])
+    session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     logger.info("test model acivated. Clean up the entire database")
-    Base.metadata.drop_all(db.engine())
-    Base.metadata.create_all(db.engine())
-    db.commit()
+    session = session()
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    session.commit()
+    session.close()
     logger.info("Database created...")
 
 
-@app.get("/schedule/is_alive")
-async def is_alive() -> bool:
+app      = FastAPI()
+schedule = Schedule()
+schedule.start()
+
+
+@app.get("/sedule/ping")
+async def ping() -> bool:
     return True
-
-@app.get("/schedule/run")
-async def run() -> bool:
-    return schedule.run()
-
-
 
 
 if __name__ == "__main__":

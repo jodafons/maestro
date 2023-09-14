@@ -11,7 +11,7 @@ from loguru import logger
 from maestro.standalone.job import test_job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from maestro.models import Task, Job
-from maestro.api.client_postgres import client_postgres
+from maestro.api.clients import database
 from maestro.expand_folders import expand_folders
 
 def convert_string_to_range(s):
@@ -22,9 +22,9 @@ def convert_string_to_range(s):
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
-def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
+def create( db: database, basepath: str, taskname: str, inputfile: str,
             image: str, command: str, email: str, dry_run: bool=False, do_test=True,
-            extension='.json') -> bool:
+            extension='.json', binds="{}") -> bool:
 
   if db.task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
@@ -46,7 +46,7 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
                     trigger=TaskTrigger.WAITING,
-                    email=email)
+                    contact=email)
     # check if input file is json
     files = expand_folders( inputfile )
 
@@ -67,6 +67,7 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
                     workarea=workarea,
                     inputfile=fpath,
                     envs=envs,
+                    binds=binds,
                     status=JobStatus.REGISTERED
                   )
       task_db.jobs.append(job_db)
@@ -103,7 +104,7 @@ def create( db: client_postgres, basepath: str, taskname: str, inputfile: str,
 
 
 
-def kill( db: client_postgres, task_id: int ) -> bool:
+def kill( db: database, task_id: int ) -> bool:
 
   try:
     task = db.session().query(Task).filter(Task.id==task_id).first()
@@ -121,7 +122,7 @@ def kill( db: client_postgres, task_id: int ) -> bool:
 
 
 
-def retry( db: client_postgres, task_id: int ) -> bool:
+def retry( db: database, task_id: int ) -> bool:
   try:
     task = db.session().query(Task).filter(Task.id==task_id).first()
     if not task:
@@ -142,7 +143,7 @@ def retry( db: client_postgres, task_id: int ) -> bool:
     return False
 
 
-def delete( db: client_postgres, task_id: int, force=False , remove=False) -> bool:
+def delete( db: database, task_id: int, force=False , remove=False) -> bool:
 
   try:
     # Get task by id
@@ -180,7 +181,7 @@ class task_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = client_postgres(host)
+    self.db = database(host)
     if args:
 
       # Create Task
@@ -195,7 +196,7 @@ class task_parser:
       create_parser.add_argument('-i','--inputfile', action='store',
                           dest='inputfile', required = True,
                           help = "The input config file that will be used to configure the job (sort and init).")
-      create_parser.add_argument('--image', action='store', dest='image', required=True, default=False,
+      create_parser.add_argument('--image', action='store', dest='image', required=False, default="",
                           help = "The singularity sif image path.")
       create_parser.add_argument('--exec', action='store', dest='command', required=True,
                           help = "The exec command")
@@ -204,7 +205,10 @@ class task_parser:
       create_parser.add_argument('--do_test', action='store_true', dest='do_test', required=False, default=False,
                           help = "Do local test")
       create_parser.add_argument('-e','--email', action='store', dest='email', required=True,
-                          help = "The email of the task responsavel.")
+                          help = "The user email contact.")
+      create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
+                          help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
+
 
       delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                     help = "All task ids to be deleted", type=str)
@@ -239,7 +243,7 @@ class task_parser:
       if args.option == 'create':
         self.create(os.getcwd(), args.taskname, args.inputfile,
                     args.image, args.command, args.email, dry_run=args.dry_run,
-                    do_test=args.do_test, extension=args.extension)
+                    do_test=args.do_test, binds=args.binds)
 
       elif args.option == 'retry':
         self.retry(convert_string_to_range(args.id))
@@ -259,8 +263,9 @@ class task_parser:
 
   def create(self, basepath: str, taskname: str, inputfile: str,
                    image: str, command: str, email: str, dry_run: bool=False, do_test=True,
-                   extension='.json' ):
-    return create(self.db, basepath, taskname, inputfile, image, command, email, dry_run, do_test, extension)
+                   extension='.json', binds="{}" ):
+    return create(self.db, basepath, taskname, inputfile, image, command, email, 
+                  dry_run=dry_run, do_test=do_test, binds=binds)
 
   def kill(self, task_ids):
     for task_id in task_ids:

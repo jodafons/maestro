@@ -4,8 +4,12 @@ LABEL maintainer "Joao Victor da Fonseca Pinto <jodafons@lps.ufrj.br>"
 #USER root
 SHELL [ "/bin/bash", "-c" ]
 WORKDIR /app
-COPY mailing mailing
+COPY templates templates
+COPY api api
+COPY enumerations.py enumerations.py
+COPY models.py models.py
 COPY main.py main.py 
+COPY postman.py postman.py
 EXPOSE 80
 CMD ["uvicorn" , "main:app", "--host","0.0.0.0","--port", "80"]
 

@@ -2,58 +2,38 @@
 import sys, os, tempfile
 
 from time import time, sleep
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, List
 from loguru import logger
 
 try:
     from pilot import Pilot
-    from api.client_postgres import client_postgres
-    from api.client_mailing  import client_mailing
-    from api.client_schedule import client_schedule
+    from api.clients import Executor
 except:
     from servers.pilot.pilot import Pilot
-    from maestro.api.client_postgres import client_postgres
-    from maestro.api.client_mailing  import client_mailing
-    from maestro.api.client_schedule import client_schedule
-
-database_host = os.environ['DATABASE_SERVER_HOST']
-mailing_host  = os.environ['MAILING_SERVER_HOST']
-schedule_host = os.environ['SCHEDULE_SERVER_HOST']
+    from maestro.api.clients import Executor
 
 
-app      = FastAPI()
-db       = client_postgres(database_host)
-mailing  = client_mailing(mailing_host)
-schedule = client_schedule(schedule_host)
-pilot    = Pilot( db, schedule, mailing )
-
+app   = FastAPI()
+pilot = Pilot()
 # Starting the pilot into a thread
 pilot.start()
 
 
 
-@app.get("/pilot/is_alive")
-async def is_alive() -> bool:
+@app.get("/pilot/ping")
+async def ping() -> bool:
     return True
 
 
-
-class Host(BaseModel):
-    me      : str
-    device  : int
-
-@app.post("/pilot/register")
-async def register( host : Host ) -> bool:
-    logger.info(f"Registering {host.me} with device {host.device} into the pilot.")
-    return pilot.register( host.me, host.device )
+@app.post("/pilot/connect")
+async def connect( executor : Executor ) -> bool:
+    logger.info(f"Connecting {executor.hostname} with device {executor.device} into the pilot.")
+    return pilot.connect( executor.hostname, executor.device )
 
 
-@app.get("/pilot/reset")
-async def reset() -> bool:
-    logger.info(f"Registering {host.hostname} from {host.dnsname} into the pilot.")
-    return True
+
 
 
 

@@ -2,15 +2,15 @@ version: '3.5'
 
 services:
 
-  mailing_server:
-    container_name: mailing-test-server
-    image: ${DOCKER_NAMESPACE}/mailing-server
+  postman_server:
+    container_name: postman-test-server
+    image: ${DOCKER_NAMESPACE}/postman-server
     ports:
       - "5001:80"
     command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
     environment:
-      MAILING_SERVER_EMAIL_FROM: ${MAILING_SERVER_EMAIL_FROM}
-      MAILING_SERVER_EMAIL_PASSWORD: ${MAILING_SERVER_EMAIL_PASSWORD}
+      POSTMAN_SERVER_EMAIL_FROM: ${POSTMAN_SERVER_EMAIL_FROM}
+      POSTMAN_SERVER_EMAIL_PASSWORD: ${POSTMAN_SERVER_EMAIL_PASSWORD}
 
   database_server:
     container_name: database-test-server
