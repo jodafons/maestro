@@ -117,7 +117,7 @@ class Job:
         command = f"singularity exec --nv --writable-tmpfs {binds} {self.image} bash {self.entrypoint}"
         command = command.replace('  ',' ') 
 
-      print(command)
+      #print(command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
       sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
@@ -188,7 +188,8 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, device=-1, binds={}, timeout=60, max_retry=5, slot_size=1):
+  def __init__(self, device: int=-1, binds: dict={}, timeout: int=60, max_retry: int=5, 
+                     slot_size: int=1, level: str="INFO"):
             
     threading.Thread.__init__(self)
     self.localhost = os.environ["EXECUTOR_SERVER_HOST"]
@@ -201,6 +202,7 @@ class Consumer(threading.Thread):
     self.device    = device
     self.size      = slot_size
     self.__stop    = threading.Event()
+    logger.level(level)
 
 
   def stop(self):
@@ -216,7 +218,7 @@ class Consumer(threading.Thread):
   #
   def run(self):
 
-    logger.info("Connecting into the server...")
+    logger.debug("Connecting into the server...")
     server = pilot(os.environ["PILOT_SERVER_HOST"])
     server.connect( self.localhost, self.device )
 
@@ -254,7 +256,7 @@ class Consumer(threading.Thread):
            )
     job.db().ping()
     self.jobs[job_id] = job
-    logger.info(f'Job with id {job.id} included into the consumer.')
+    logger.debug(f'Job with id {job.id} included into the consumer.')
     return True
 
 
@@ -274,34 +276,34 @@ class Consumer(threading.Thread):
 
       # NOTE: kill job option only available with database by external trigger
       if job.db().status == JobStatus.KILL:
-        logger.info("Kill job from database...")
+        logger.debug("Kill job from database...")
         job.kill()
     
       if job.status() == JobStatus.PENDING:
         if job.run():
-          logger.info(f'Job {job.id} is RUNNING.')
+          logger.debug(f'Job {job.id} is RUNNING.')
           job.db().status = JobStatus.RUNNING
         else:
-          logger.info(f'Job {job.id} is BROKEN.')
+          logger.debug(f'Job {job.id} is BROKEN.')
           job.db().status = JobStatus.BROKEN
           job.to_close()
 
       elif job.status() is JobStatus.FAILED:
-        logger.info(f'Job {job.id} is FAILED.')
+        logger.debug(f'Job {job.id} is FAILED.')
         job.db().status = JobStatus.FAILED
         job.to_close()
 
       elif job.status() is JobStatus.KILLED:
-        logger.info(f'Job {job.id} is KILLED.')
+        logger.debug(f'Job {job.id} is KILLED.')
         job_db.status = JobStatus.KILLED
         job.to_close()
 
       elif job.status() is JobStatus.RUNNING:
-        logger.info(f'Job {job.id} is RUNNING.')
+        logger.debug(f'Job {job.id} is RUNNING.')
         job.db().ping()
 
       elif job.status() is JobStatus.COMPLETED:
-        logger.info(f'Job {job.id} is COMPLETED.')
+        logger.debug(f'Job {job.id} is COMPLETED.')
         job.db().status = JobStatus.COMPLETED
         job.to_close()
 
@@ -311,7 +313,7 @@ class Consumer(threading.Thread):
 
     end = time()
     current_in = len(self.jobs.keys())
-    logger.info(f"Run stage toke {round(end-start,4)} seconds")
+    logger.debug(f"Run stage toke {round(end-start,4)} seconds")
     logger.info(f"We have a total of {current_in} jobs into the consumer.")
 
     # Update database values
@@ -336,7 +338,7 @@ class Consumer(threading.Thread):
       return False
     
     self.queue.append(job_id)
-    logger.info(f"Job {job_id} added into the queue. Waiting the next loop to start...")
+    logger.debug(f"Job {job_id} added into the queue. Waiting the next loop to start...")
     return True
 
 
