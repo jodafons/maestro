@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from loguru import logger
 from tqdm import tqdm
-from pprint import pprint
+from time import sleep, time
 
 try:
   from models import Task, Job
@@ -291,6 +291,7 @@ class Schedule(threading.Thread):
         for job in jobs:
           if not job.is_alive():
             job.status = JobStatus.ASSIGNED
+        session.commit()
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
@@ -302,10 +303,12 @@ class Schedule(threading.Thread):
       # NOTE: All tasks assigned to remove should not be returned by the database.
       tasks = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
 
+      #print([t.status for t in tasks])
+
       for task in tasks:
 
         logger.debug(f"task in {task.status} status.")
-        pprint([(job.id, job.status) for job in task.jobs])
+        print([(job.id, job.status) for job in task.jobs])
 
         # Run all JobStatus triggers to find the correct transiction
         for state in self.states:
@@ -321,6 +324,8 @@ class Schedule(threading.Thread):
               logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
               traceback.print_exc()
               return False
+              
+      session.commit()
 
 
     logger.debug("Commit all database changes.")

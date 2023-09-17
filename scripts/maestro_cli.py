@@ -11,7 +11,6 @@ except:
   pass
 
 import sys, os, argparse
-from maestro.api.clients import database
 from maestro.task_parser import task_parser
 from maestro.database_parser import database_parser
 

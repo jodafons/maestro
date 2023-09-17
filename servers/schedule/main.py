@@ -11,6 +11,11 @@ from models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+try:
+    from api.postgres import postgres
+except:
+    from maestro.api.postgres import postgres
+
 
 
 recreate = bool(os.environ.get("SCHEDULE_SERVER_RECREATE"    , ''))
@@ -18,14 +23,10 @@ recreate = bool(os.environ.get("SCHEDULE_SERVER_RECREATE"    , ''))
 
 
 if recreate:
-    engine = create_engine(os.environ["DATABASE_SERVER_HOST"])
-    session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = postgres(os.environ["DATABASE_SERVER_HOST"])
     logger.info("test model acivated. Clean up the entire database")
-    session = session()
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    session.commit()
-    session.close()
+    Base.metadata.drop_all(db.engine())
+    Base.metadata.create_all(db.engine())
     logger.info("Database created...")
 
 
@@ -34,16 +35,21 @@ schedule = Schedule(level=os.environ.get("SCHEDULE_LOGGER_LEVEL","INFO"))
 schedule.start()
 
 
-
 @app.get("/schedule/ping")
 async def ping():
     return {"message": "pong"}
 
 
 @app.get("/schedule/stop") 
-async def stop() -> bool:
+async def stop():
     schedule.stop()
     return {"message", "schedule was stopped by external signal."}
+
+
+@app.get("/schedule/start") 
+async def start():
+    schedule.start()
+    return {"message", "schedule was started by external signal."}
 
 
 @app.post("/schedule/get/{k}") 

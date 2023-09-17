@@ -3,10 +3,10 @@ import uvicorn, os
 
 from fastapi import FastAPI, HTTPException
 
-try:
-    from pilot import Pilot
-except:
-    from servers.pilot.pilot import Pilot
+#try:
+from pilot import Pilot
+#except:
+#    from servers.pilot.pilot import Pilot
 
 
 app   = FastAPI()
@@ -14,16 +14,14 @@ pilot = Pilot(level = os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
 pilot.start()
 
 
-
-
 @app.get("/pilot/ping")
 async def ping():
     return {"message": "pong"}
 
 
-@app.post("/pilot/append/{hostname}")
-async def append( hostname : str ):
-    if not pilot.append( hostname )
+@app.post("/pilot/connect_as/{hostname}")
+async def connect_as( hostname : str ):
+    if not pilot.connect_as( hostname ):
         raise HTTPException(status_code=404, detail=f"not possible to include executor as {hostname} into the pilot.")
     return {"message", f"executor as {hostname} was included into the pilot."}
 

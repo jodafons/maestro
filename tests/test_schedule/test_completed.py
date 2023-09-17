@@ -92,7 +92,7 @@ class test_completed(unittest.TestCase):
         assert task_id is not None
 
         with db as session:
-            task = db.task(task_id)
+            task = session.task(task_id)
             assert task is not None
 
             assert len(task.jobs) == NUMBER_OF_JOBS
@@ -101,29 +101,38 @@ class test_completed(unittest.TestCase):
     @pytest.mark.order(4)
     def test_run(self):
 
-        db = postgres(DATABASE_HOST_SERVER)
-        session = db()
-
-        task = session.task(TASK_NAME)
+        db       = postgres(DATABASE_HOST_SERVER)
         executor = Consumer(slot_size=NUMBER_OF_SLOTS, level="DEBUG")
         schedule = Schedule(level='DEBUG')
+
+        with db as session:
+            task_id = session.task(TASK_NAME).id
 
         #
         # emulate pilot loop
         #
-        while session.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
+        while True:
+        
+            with db as session:
+            
+                status = session.task(task_id).status
+              
+                if status in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
+                    break
 
-            schedule.loop()
-            sleep(2)
-            executor.loop()
-            if executor.full():
-                continue
-            n = executor.size - len(executor)
-            for job_id in schedule.get_jobs(n):
-                executor.start_job( job_id )
+                schedule.loop()
+                sleep(2)
+                executor.loop()
+                if executor.full():
+                    continue
+                n = executor.size - len(executor)
+                for job_id in schedule.get_jobs(n):
+                    executor.start_job( job_id )
 
-        task = session.task(TASK_NAME)
-        assert task.status == TaskStatus.COMPLETED 
+         
+        with db as session:
+            task = session.task(TASK_NAME)
+            assert task.status == TaskStatus.COMPLETED 
 
 
 

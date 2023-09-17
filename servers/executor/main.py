@@ -32,11 +32,17 @@ async def ping():
     return {"message": "pong"}
 
 
-@app.post("/executor/start/{job_id}") 
-async def start(job_id: int):
-    if not consumer.push_back( job_id )
+@app.post("/executor/start_job/{job_id}") 
+async def start_job(job_id: int):
+    if not consumer.start_job( job_id ):
         raise HTTPException(status_code=404, detail=f"Not possible to include {job_id} into the pipe.")
     return {"message", f"Job {job_id} was included into the pipe."}
+
+
+@app.get("/executor/start") 
+async def start():
+    consumer.start()
+    return {"message", "Executor was started by external signal."}
 
 
 @app.get("/executor/stop") 
@@ -45,7 +51,7 @@ async def stop():
     return {"message", "Executor was stopped by external signal."}
 
 
-@appls.get("/executor/describe")
+@app.get("/executor/describe")
 async def describe() -> Describe:
     return Describe(size=consumer.size, allocated=consumer.allocated(), full=consumer.full(), device=consumer.device)
 

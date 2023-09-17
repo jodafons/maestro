@@ -19,25 +19,30 @@ class postgres:
     self.__last_session = None
     try:
       self.__engine = create_engine(self.host)
-      self.__session = sessionmaker(bind=self.__engine)
+      self.__session = sessionmaker(autocommit=False, autoflush=False, bind=self.__engine)
     except Exception as e:
       traceback.print_exc()
       logger.critical(e)
+
+  def engine(self):
+    return self.__engine
 
   def __del__(self):
     if self.__last_session:
       self.__last_session.close()    
 
   def __call__(self):
+    logger.info("Create session.")
     return postgres_session( self.__session() )
 
   def __enter__(self):
     self.__last_session = self.__call__()
     return self.__last_session
 
-  def __exit__(self):
+  def __exit__(self, *args, **kwargs):
     if self.__last_session:
-      self.__last_session.commit()
+      #self.__last_session.commit()
+      logger.info("Close session.")
       self.__last_session.close()
 
 
@@ -71,12 +76,12 @@ class postgres_session:
       return 0
 
 
-  def task( self, task, with_for_update ):
+  def task( self, task, with_for_update=False ):
     try:
       if type(task) is int:
         task = self.__session.query(Task).filter(Task.id==task)
       elif type(task) is str:
-        task = session.query(Task).filter(Task.name==task)
+        task = self.__session.query(Task).filter(Task.name==task)
       else:
         raise ValueError("taskname (str) or task id (int) should be passed to task retrievel...")
       return task.with_for_update().first() if with_for_update else task.first()
@@ -89,7 +94,7 @@ class postgres_session:
   def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED, with_for_update=False):
     try:
       jobs = self.__session.query(Job).filter(  Job.status==status  ).order_by(Job.id).limit(njobs)
-      jobs = jobs..with_for_update().all() if with_for_update else jobs.all()
+      jobs = jobs.with_for_update().all() if with_for_update else jobs.all()
       jobs.reverse()
       return jobs
     except Exception as e:
@@ -100,7 +105,7 @@ class postgres_session:
 
   def job( self, job_id,  with_for_update=False):
     try:
-      job = self.__session.query(Job).filter(Job.id==job_id).first()
+      job = self.__session.query(Job).filter(Job.id==job_id)
       return job.with_for_update().first() if with_for_update else job.first()
     except Exception as e:
       traceback.print_exc()

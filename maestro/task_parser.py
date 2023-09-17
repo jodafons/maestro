@@ -11,7 +11,7 @@ from loguru import logger
 from maestro.standalone.job import test_job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from maestro.models import Task, Job
-from maestro.api.clients import database
+from maestro.api.postgres import postgres, postgres_session
 from maestro.expand_folders import expand_folders
 
 def convert_string_to_range(s):
@@ -22,11 +22,11 @@ def convert_string_to_range(s):
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
-def create( db: database, basepath: str, taskname: str, inputfile: str,
+def create( session: postgres_session, basepath: str, taskname: str, inputfile: str,
             image: str, command: str, email: str, dry_run: bool=False, do_test=True,
             extension='.json', binds="{}") -> bool:
 
-  if db.task(taskname) is not None:
+  if session.task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
     return None
 
@@ -41,7 +41,7 @@ def create( db: database, basepath: str, taskname: str, inputfile: str,
     os.makedirs(volume, exist_ok=True)
 
   try:
-    task_db = Task( id=db.generate_id(Task),
+    task_db = Task( id=session.generate_id(Task),
                     name=taskname,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
@@ -54,7 +54,7 @@ def create( db: database, basepath: str, taskname: str, inputfile: str,
       logger.error(f"It is not possible to find jobs into {inputfile}... Please check and try again...")
       return None
 
-    offset = db.generate_id(Job)
+    offset = session.generate_id(Job)
     for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=50):
       
       extension = fpath.split('/')[-1].split('.')[-1]
@@ -76,10 +76,10 @@ def create( db: database, basepath: str, taskname: str, inputfile: str,
     # NOTE: Should we skip test here?
     if not do_test:
       logger.info("Skipping local test...")
-      db.session().add(task_db)
+      session().add(task_db)
       if not dry_run:
         logger.info("Commit task into the database.")
-        db.commit()
+        session.commit()
       logger.info( "Succefully created.")
       return task_db.id
    
@@ -87,10 +87,10 @@ def create( db: database, basepath: str, taskname: str, inputfile: str,
     # NOTE: Test my job localy
     logger.info("Applying local test...")
     if test_job( task_db.jobs[0] ):
-      db.session().add(task_db)
+      session().add(task_db)
       if not dry_run:
         logger.info("Commit task into the database.")
-        db.commit()  
+        session.commit()  
       logger.info("Succefully created.")
       return task_db.id
     else:
@@ -104,15 +104,15 @@ def create( db: database, basepath: str, taskname: str, inputfile: str,
 
 
 
-def kill( db: database, task_id: int ) -> bool:
+def kill( session: postgres_session, task_id: int ) -> bool:
 
   try:
-    task = db.session().query(Task).filter(Task.id==task_id).first()
+    task = session().query(Task).filter(Task.id==task_id).first()
     if not task:
         logger.warning( f"The task with id ({task_id}) does not exist into the data base" )
         return False
     task.kill()
-    db.commit()
+    session.commit()
     logger.info(f"Succefully kill.")
     return True
   except Exception as e:
@@ -122,9 +122,9 @@ def kill( db: database, task_id: int ) -> bool:
 
 
 
-def retry( db: database, task_id: int ) -> bool:
+def retry( session: postgres_session, task_id: int ) -> bool:
   try:
-    task = db.session().query(Task).filter(Task.id==task_id).first()
+    task = session().query(Task).filter(Task.id==task_id).first()
     if not task:
       logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
       return False
@@ -134,7 +134,7 @@ def retry( db: database, task_id: int ) -> bool:
       return False
     
     task.retry()
-    db.commit()
+    session.commit()
     logger.info(f"Succefully retry.")
     return True
   except Exception as e:
@@ -143,11 +143,11 @@ def retry( db: database, task_id: int ) -> bool:
     return False
 
 
-def delete( db: database, task_id: int, force=False , remove=False) -> bool:
+def delete( session: postgres_session, task_id: int, force=False , remove=False) -> bool:
 
   try:
     # Get task by id
-    task = db.session().query(Task).filter(Task.id==task_id).first()
+    task = session().query(Task).filter(Task.id==task_id).first()
     if not task:
       logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
       return False
@@ -155,14 +155,14 @@ def delete( db: database, task_id: int, force=False , remove=False) -> bool:
 
     if not force:
       task.delete()
-      db.commit()
+      session.commit()
       while task.status != TaskStatus.REMOVED:
         logger.info(f"Waiting for schedule... Task with status {task.status}")
         sleep(2)
     
-    db.session().query(Job).filter(Job.taskid==task_id).delete()
-    db.session().query(Task).filter(Task.id==task_id).delete()
-    db.commit()
+    session().query(Job).filter(Job.taskid==task_id).delete()
+    session().query(Task).filter(Task.id==task_id).delete()
+    session.commit()
     logger.info("Succefully deleted.")
     return True
  
@@ -181,7 +181,7 @@ class task_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = database(host)
+    self.db = postgres(host)
     if args:
 
       # Create Task
@@ -264,23 +264,29 @@ class task_parser:
   def create(self, basepath: str, taskname: str, inputfile: str,
                    image: str, command: str, email: str, dry_run: bool=False, do_test=True,
                    extension='.json', binds="{}" ):
-    return create(self.db, basepath, taskname, inputfile, image, command, email, 
-                  dry_run=dry_run, do_test=do_test, binds=binds)
+
+    with self.db as session:
+      return create(session, basepath, taskname, inputfile, image, command, email, 
+                    dry_run=dry_run, do_test=do_test, binds=binds)
 
   def kill(self, task_ids):
-    for task_id in task_ids:
-      kill(self.db, task_id)
+    with self.db as session:
+      for task_id in task_ids:
+        kill(session, task_id)
 
   def delete(self, task_ids, force=False):
-    for task_id in task_ids:
-      delete(self.db, task_id, force=force)
+    with self.db as session:
+      for task_id in task_ids:
+        delete(session, task_id, force=force)
 
   def retry(self, task_ids):
-    for task_id in task_ids:
-      retry(self.db, task_id)
+    with self.db as session:
+      for task_id in task_ids:
+        retry(session, task_id)
 
   def list(self):
-    print(self.db.resume())
+    print('not implemented')
+  #  print(self.db.resume())
 
 
   

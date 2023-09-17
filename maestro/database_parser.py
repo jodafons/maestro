@@ -2,14 +2,12 @@
 __all__ = []
 
 import glob, traceback, os, argparse, re
-
-from sqlalchemy_utils import postgres_session_exists
 from loguru import logger
 from maestro.models import Base
-from maestro.api.clients import postgres_session
+from maestro.api.postgres import postgres
 
 
-def create( db: postgres_session ) -> bool:
+def create( db: postgres ) -> bool:
 
   try:
     Base.metadata.create_all(db.engine())
@@ -23,7 +21,7 @@ def create( db: postgres_session ) -> bool:
 
 
 
-def delete( db: postgres_session ) -> bool:
+def delete( db: postgres ) -> bool:
   try:
     Base.metadata.drop_all(db.engine())
     logger.info("Succefully deleted.")
@@ -35,7 +33,7 @@ def delete( db: postgres_session ) -> bool:
     return False
 
 
-def recreate( db: postgres_session) -> bool:
+def recreate( db: postgres) -> bool:
 
   if (not delete(db)):
     return False
@@ -87,16 +85,13 @@ class database_parser:
 
 
   def create(self):
-    with self.db as session:
-      return create(session)
+    return create(self.db)
 
   def delete(self):
-    with self.db as session:
-      return delete(session)
+    return delete(self.db)
    
   def recreate(self):
-    with self.db as session
-      return recreate(session)
+    return recreate(self.db)
     
   
 

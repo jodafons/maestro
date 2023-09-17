@@ -9,16 +9,19 @@ build_postman:
 	cp ${MAESTRO_PATH}/maestro/enumerations.py .
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/postman-server --compress .
+	rm -rf api 
+	rm enumerations.py
+	rm models.py
 	
-	
-
-
 build_executor:
 	cd executor
 	cp ${MAESTRO_PATH}/maestro/enumerations.py .
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	cp -r ${MAESTRO_PATH}/maestro/api .
 	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/executor-server --compress .
+	rm -rf api 
+	rm enumerations.py
+	rm models.py
 
 build_schedule:
 	cd schedule
@@ -26,6 +29,9 @@ build_schedule:
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	cp -r ${MAESTRO_PATH}/maestro/api .
 	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/schedule-server --compress .
+	rm -rf api 
+	rm enumerations.py
+	rm models.py
 
 build_pilot:
 	cd pilot
@@ -33,7 +39,9 @@ build_pilot:
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	cp -r ${MAESTRO_PATH}/maestro/api .
 	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/pilot-server --compress .
-
+	rm -rf api 
+	rm enumerations.py
+	rm models.py
 
 up:
 	docker compose -f docker-compose-dev.yml up -d
@@ -52,3 +60,6 @@ start:
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	cp -r ${MAESTRO_PATH}/maestro/api .
 	source ${MAESTRO_PATH}/${LOCAL_ENV}/bin/activate && python main.py
+	rm -rf api 
+	rm enumerations.py
+	rm models.py

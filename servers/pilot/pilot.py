@@ -6,6 +6,7 @@ from loguru import logger
 
 try:
   from api.clients import *
+  from api.postgres import *
 except:
   from maestro.api.clients import *
 
@@ -20,7 +21,7 @@ class Pilot( threading.Thread ):
     threading.Thread.__init__(self)
     logger.level(level)
     self.executors = {}
-    self.db        = database(os.environ["DATABASE_SERVER_HOST"])
+    self.db        = postgres(os.environ["DATABASE_SERVER_HOST"])
     self.schedule  = schedule(os.environ['SCHEDULE_SERVER_HOST'])
     self.postman   = postman(os.environ['POSTMAN_SERVER_HOST'])
     self.__stop    = threading.Event()
@@ -32,13 +33,6 @@ class Pilot( threading.Thread ):
 
  
   def ping(self):
-
-      logger.debug("ping database...")
-      if self.db.ping():
-        logger.debug("pong database.")
-      else:
-        logger.error("database server is out. Not possible to power up without this servive.")
-        return False
 
       logger.debug("ping schedule...")
       if self.schedule.ping():
@@ -95,12 +89,12 @@ class Pilot( threading.Thread ):
           continue
         # how many jobs to complete the queue?
         for job_id in get_jobs["gpu" if res.device>=0 else "cpu"]( res.size - res.allocated ):
-          executor().start(job_id)
+          executor().start_job(job_id)
       
     end = time()
     logger.debug(f"The pilot run loop took {end-start} seconds.")
     # NOTE: remove executors with max number of retries exceeded
-    self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}:
+    self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}
       
 
 
@@ -111,7 +105,7 @@ class Pilot( threading.Thread ):
       executor().stop()
 
 
-  def append( self, host ):
+  def connect_as( self, host ):
     if host not in self.executors.keys():
         logger.debug("join a new executor into the pilot.")
         self.__lock.wait()

@@ -41,8 +41,8 @@ class pilot(client):
         logger.info(f"Connecting to {host}...")
 
 
-    def append(self, hostname):
-        res = self.try_request('connect', method="post", body=Executor(hostname=hostname, device=device).json())
+    def connect_as(self, hostname):
+        res = self.try_request(f'connect_as/{hostname}', method="post")
         return True if res else False
 
 
@@ -52,8 +52,8 @@ class executor(client):
         client.__init__(self, host, "executor")
         
 
-    def start(self, job_id):
-        res = self.try_request(f"start/{job_id}", method="post")
+    def start_job(self, job_id):
+        res = self.try_request(f"start_job/{job_id}", method="post")
         return True if res else False
 
 
@@ -72,6 +72,13 @@ class schedule(client):
         res = self.try_request("run", method="get")
         return True if res else False
 
+    def get_cpu_jobs(self, k):
+        res = self.try_request(f"get/{k}", method="post")
+        return res
+
+    def get_gpu_jobs(self, k):
+        res = self.try_request(f"get/{k}", method="post")
+        return res
 
 class postman(client):
 

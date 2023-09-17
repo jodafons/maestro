@@ -216,7 +216,7 @@ class Consumer(threading.Thread):
 
     logger.debug("Connecting into the server...")
     server = pilot(os.environ["PILOT_SERVER_HOST"])
-    server.attach( self.localhost )
+    server.connect_as( self.localhost )
 
     while (not self.__stop.isSet()):
       sleep(2)
@@ -263,7 +263,8 @@ class Consumer(threading.Thread):
       job_db.status = JobStatus.PENDING
       job_db.ping()
       self.jobs[job_id] = job
-    
+      session.commit()
+
     self.__lock.set()
     logger.debug(f'Job with id {job.id} included into the consumer.')
     return True
