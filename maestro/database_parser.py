@@ -4,7 +4,7 @@ __all__ = []
 import glob, traceback, os, argparse, re
 from loguru import logger
 from maestro.models import Base
-from maestro.api.postgres import postgres
+from maestro.api.clients import postgres
 
 
 def create( db: postgres ) -> bool:

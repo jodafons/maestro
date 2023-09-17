@@ -2,7 +2,7 @@
 
 from maestro.task_parser import task_parser
 from maestro.database_parser import database_parser
-from maestro.api.postgres import postgres
+from maestro.api.clients import postgres
 from maestro.enumerations import TaskStatus
 
 from servers.schedule.schedule import Schedule

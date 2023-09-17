@@ -3,10 +3,11 @@ import uvicorn, os
 
 from fastapi import FastAPI, HTTPException
 
-try:
+
+if bool(os.environ.get("DOCKER_IMAGE",False)):
     from consumer import Consumer
     from api.clients import Describe
-except:
+else:
     from servers.executor.consumer import Consumer
     from maestro.api.clients import Describe
 
@@ -53,7 +54,7 @@ async def stop():
 
 @app.get("/executor/describe")
 async def describe() -> Describe:
-    return Describe(size=consumer.size, allocated=consumer.allocated(), full=consumer.full(), device=consumer.device)
+    return Describe(size=consumer.size, allocated=len(consumer), full=consumer.full(), device=consumer.device)
 
 
 if __name__ == "__main__":

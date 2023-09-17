@@ -3,15 +3,13 @@ __all__ = []
 
 import glob, traceback, os, argparse, re
 
-from sqlalchemy import and_, or_
-from prettytable import PrettyTable
 from tqdm import tqdm
 from loguru import logger
 
 from maestro.standalone.job import test_job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from maestro.models import Task, Job
-from maestro.api.postgres import postgres, postgres_session
+from maestro.api.clients import postgres, postgres_session
 from maestro.expand_folders import expand_folders
 
 def convert_string_to_range(s):

@@ -11,10 +11,10 @@ from models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-try:
-    from api.postgres import postgres
-except:
-    from maestro.api.postgres import postgres
+if bool(os.environ.get("DOCKER_IMAGE",False)):
+    from api.clients import postgres
+else:
+    from maestro.api.clients import postgres
 
 
 
@@ -52,9 +52,9 @@ async def start():
     return {"message", "schedule was started by external signal."}
 
 
-@app.post("/schedule/get/{k}") 
-async def get(k: int):
-    return schedule.get(k)
+@app.post("/schedule/get_jobs/{k}") 
+async def get_jobs(k: int):
+    return schedule.get_jobs(k)
 
 
 

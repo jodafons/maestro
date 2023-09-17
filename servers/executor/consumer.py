@@ -7,17 +7,14 @@ from loguru import logger
 from pprint import pprint
 from copy import copy
 
-try:
+if bool(os.environ.get("DOCKER_IMAGE",False)):
   from enumerations import JobStatus
   from models import Job as JobModel
-  from api.clients import pilot
-  from api.postgres import postgres
-
-except:
+  from api.clients import pilot, postgres
+else:
   from maestro.enumerations import JobStatus
   from maestro.models import Job as JobModel
-  from maestro.api.clients import pilot
-  from maestro.api.postgres import postgres
+  from maestro.api.clients import pilot, postgres
 
 SECONDS = 1
 
@@ -216,14 +213,17 @@ class Consumer(threading.Thread):
 
     logger.debug("Connecting into the server...")
     server = pilot(os.environ["PILOT_SERVER_HOST"])
-    server.connect_as( self.localhost )
 
+    
     while (not self.__stop.isSet()):
       sleep(2)
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()
+      
+      server.join( self.localhost )
+        
       self.loop()
       # NOTE: allow external user to incluse executors into the list
       self.__lock.set()

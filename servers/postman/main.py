@@ -5,9 +5,9 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from postman import Postman
     
-try:
+if bool(os.environ.get("DOCKER_IMAGE",False)):
     from api.clients import Email
-except:
+else:
     from maestro.api.clients import Email
 
 

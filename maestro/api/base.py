@@ -29,7 +29,7 @@ class client:
             logger.error("Failed to establish a new connection.")
             return None
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code}, {request.message}")
+            logger.error(f"Request failed. Got {request.status_code}")
             return None
         return request.json()
 
