@@ -6,16 +6,18 @@ from time import time, sleep
 from loguru import logger
 from pprint import pprint
 from copy import copy
-from collections import deque
 
 try:
   from enumerations import JobStatus
   from models import Job as JobModel
-  from api.clients import pilot, database
+  from api.clients import pilot
+  from api.postgres import postgres
+
 except:
   from maestro.enumerations import JobStatus
   from maestro.models import Job as JobModel
   from maestro.api.clients import pilot
+  from maestro.api.postgres import postgres
 
 SECONDS = 1
 
@@ -23,7 +25,6 @@ class Job:
 
   def __init__(self, 
                job_id: int, 
-               job_db: JobModel,
                taskname: str,
                command: str,
                workarea: str,
@@ -43,7 +44,6 @@ class Job:
     self.killed     = False
     self.env        = os.environ.copy()
     self.binds      = binds
-    self.job_db     = job_db
 
     # NOTE: Not an empty string
     if len(image)>0: 
@@ -81,10 +81,6 @@ class Job:
     self.entrypoint=self.workarea+'/entrypoint.sh'
 
 
-  def db(self):
-    return self.job_db
-
-
   #
   # Run the job process
   #
@@ -117,7 +113,7 @@ class Job:
         command = f"singularity exec --nv --writable-tmpfs {binds} {self.image} bash {self.entrypoint}"
         command = command.replace('  ',' ') 
 
-      #print(command)
+      print(command)
       self.__proc = subprocess.Popen(command, env=self.env, shell=True)
       sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
@@ -192,9 +188,9 @@ class Consumer(threading.Thread):
                      slot_size: int=1, level: str="INFO"):
             
     threading.Thread.__init__(self)
+    logger.level(level)
     self.localhost = os.environ["EXECUTOR_SERVER_HOST"]
-    self.db        = database(os.environ["DATABASE_SERVER_HOST"])
-    self.queue     = deque()
+    self.db        = postgres(os.environ["DATABASE_SERVER_HOST"])
     self.jobs      = {}
     self.binds     = binds
     self.timeout   = timeout
@@ -202,8 +198,8 @@ class Consumer(threading.Thread):
     self.device    = device
     self.size      = slot_size
     self.__stop    = threading.Event()
-    logger.level(level)
-
+    self.__lock    = threading.Event()
+    self.__lock.set()
 
   def stop(self):
     self.__stop.set()
@@ -220,11 +216,17 @@ class Consumer(threading.Thread):
 
     logger.debug("Connecting into the server...")
     server = pilot(os.environ["PILOT_SERVER_HOST"])
-    server.connect( self.localhost, self.device )
+    server.attach( self.localhost )
 
     while (not self.__stop.isSet()):
-      sleep(5)
+      sleep(2)
+      # NOTE wait to be set
+      self.__lock.wait() 
+      # NOTE: when set, we will need to wait to register until this loop is read
+      self.__lock.clear()
       self.loop()
+      # NOTE: allow external user to incluse executors into the list
+      self.__lock.set()
 
 
 
@@ -233,29 +235,36 @@ class Consumer(threading.Thread):
   #
   # Add a job into the slot
   #
-  def create( self, job_id ):
+  def start_job( self, job_id ):
+
+    self.__lock.wait()
+    self.__lock.clear()
 
     if job_id in self.jobs.keys():
       logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
       return False
     
-    job_db = self.db.job(job_id)
-    binds = copy(self.binds)
-    binds.update(job_db.get_binds())
-    envs = job_db.get_envs()
-    job = Job(  
-           job_db.id,
-           job_db, 
-           job_db.task.name,
-           job_db.command,
-           job_db.workarea,
-           image=job_db.image,
-           device=self.device,
-           extra_envs=envs,
-           binds=binds,
-           )
-    job.db().ping()
-    self.jobs[job_id] = job
+    with self.db as session:
+
+      job_db = session.job(job_id, with_for_update=True)
+      binds = copy(self.binds)
+      binds.update(job_db.get_binds())
+      envs = job_db.get_envs()
+      job = Job(  
+             job_db.id,
+             job_db.task.name,
+             job_db.command,
+             job_db.workarea,
+             image=job_db.image,
+             device=self.device,
+             extra_envs=envs,
+             binds=binds,
+             )
+      job_db.status = JobStatus.PENDING
+      job_db.ping()
+      self.jobs[job_id] = job
+    
+    self.__lock.set()
     logger.debug(f'Job with id {job.id} included into the consumer.')
     return True
 
@@ -267,48 +276,51 @@ class Consumer(threading.Thread):
 
     start = time()
 
-    # check if we have any job into the queue
-    if len(self.queue) > 0:
-      self.create( self.queue.pop() )
+    with self.db as session:
 
-    # Loop over all available consumers
-    for key, job in self.jobs.items():
+      # Loop over all available consumers
+      for key, job in self.jobs.items():
 
-      # NOTE: kill job option only available with database by external trigger
-      if job.db().status == JobStatus.KILL:
-        logger.debug("Kill job from database...")
-        job.kill()
-    
-      if job.status() == JobStatus.PENDING:
-        if job.run():
-          logger.debug(f'Job {job.id} is RUNNING.')
-          job.db().status = JobStatus.RUNNING
-        else:
-          logger.debug(f'Job {job.id} is BROKEN.')
-          job.db().status = JobStatus.BROKEN
+        job_db = session.job(job.id, with_for_update=True)
+
+        # NOTE: kill job option only available with database by external trigger
+        if job_db.status == JobStatus.KILL:
+          logger.debug("Kill job from database...")
+          job.kill()
+
+        if job.status() == JobStatus.PENDING:
+          if job.run():
+            logger.debug(f'Job {job.id} is RUNNING.')
+            job_db.status = JobStatus.RUNNING
+          else:
+            logger.debug(f'Job {job.id} is BROKEN.')
+            job_db.status = JobStatus.BROKEN
+            job.to_close()
+
+        elif job.status() is JobStatus.FAILED:
+          logger.debug(f'Job {job.id} is FAILED.')
+          job_db.status = JobStatus.FAILED
           job.to_close()
 
-      elif job.status() is JobStatus.FAILED:
-        logger.debug(f'Job {job.id} is FAILED.')
-        job.db().status = JobStatus.FAILED
-        job.to_close()
+        elif job.status() is JobStatus.KILLED:
+          logger.debug(f'Job {job.id} is KILLED.')
+          job_db.status = JobStatus.KILLED
+          job.to_close()
 
-      elif job.status() is JobStatus.KILLED:
-        logger.debug(f'Job {job.id} is KILLED.')
-        job_db.status = JobStatus.KILLED
-        job.to_close()
+        elif job.status() is JobStatus.RUNNING:
+          logger.debug(f'Job {job.id} is RUNNING.')
+          job_db.ping()
 
-      elif job.status() is JobStatus.RUNNING:
-        logger.debug(f'Job {job.id} is RUNNING.')
-        job.db().ping()
+        elif job.status() is JobStatus.COMPLETED:
+          logger.debug(f'Job {job.id} is COMPLETED.')
+          job_db.status = JobStatus.COMPLETED
+          job.to_close()
 
-      elif job.status() is JobStatus.COMPLETED:
-        logger.debug(f'Job {job.id} is COMPLETED.')
-        job.db().status = JobStatus.COMPLETED
-        job.to_close()
+        session.commit()
+
+    # Loop over all jobs
 
 
-    res = {job_id:job.status() for job_id, job in self.jobs.items()}
     self.jobs = { job_id:job for job_id, job in self.jobs.items() if not job.closed()}
 
     end = time()
@@ -316,30 +328,12 @@ class Consumer(threading.Thread):
     logger.debug(f"Run stage toke {round(end-start,4)} seconds")
     logger.info(f"We have a total of {current_in} jobs into the consumer.")
 
-    # Update database values
-    self.db.commit()
-
 
 
   def full(self):
     return len(self.jobs.keys())>=self.size
 
 
-  def push_back(self, job_id):
-    """
-      Add a job id into the queue
-    """
-    if self.full():
-      logger.warning(f"Executor is full. Please try once again late...")
-      return False
-
-    if job_id in self.jobs.keys():
-      logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
-      return False
-    
-    self.queue.append(job_id)
-    logger.debug(f"Job {job_id} added into the queue. Waiting the next loop to start...")
-    return True
-
+ 
 
   

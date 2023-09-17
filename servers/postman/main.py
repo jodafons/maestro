@@ -2,16 +2,12 @@
 import os, traceback
 import uvicorn
 
-from fastapi import FastAPI
-from pydantic import BaseModel
-from loguru import logger
+from fastapi import FastAPI, HTTPException
 from postman import Postman
     
 try:
     from api.clients import Email
 except:
-    print(traceback.print_exc())
-
     from maestro.api.clients import Email
 
 
@@ -26,23 +22,21 @@ postman    = Postman(from_email, password, templates)
 
 
 
-
-@app.get("/postman/ping")
-async def ping() -> bool:
-    return True
-
-
 @app.post("/postman/send")
-async def send(email : Email) -> bool:
+async def send(email : Email):
     try:
-        logger.info(f'Sending email to {email.to}')
         postman.send( email.to , email.subject, email.body )
-        return True
+        return {"message", f"The messager was delivered."}
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
-      self.broken=True
-      return False
+      raise HTTPException(status_code=404, detail=f"Not possible to send the email.")
+
+
+@app.get("/postman/ping")
+async def ping():
+    return {"message": "pong"}
+
 
 
 if __name__ == "__main__":

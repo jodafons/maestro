@@ -9,6 +9,9 @@ build_postman:
 	cp ${MAESTRO_PATH}/maestro/enumerations.py .
 	cp ${MAESTRO_PATH}/maestro/models.py .
 	docker build --progress=plain --build-arg DOCKER_NAMESPACE=${DOCKER_NAMESPACE} -t ${DOCKER_NAMESPACE}/postman-server --compress .
+	
+	
+
 
 build_executor:
 	cd executor

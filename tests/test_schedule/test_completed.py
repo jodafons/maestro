@@ -2,7 +2,7 @@
 
 from maestro.task_parser import task_parser
 from maestro.database_parser import database_parser
-from maestro.api.clients import database
+from maestro.api.postgres import postgres
 from maestro.enumerations import TaskStatus
 
 from servers.schedule.schedule import Schedule
@@ -38,14 +38,14 @@ args = parser.parse_args()
 #print('Starting job...')
 job  = json.load(open(args.job, 'r'))
 sort = job['sort']
-time.sleep(5)
+time.sleep(1)
 #print('Finish job...')
 """
 
 NUMBER_OF_JOBS       = 5
 NUMBER_OF_SLOTS      = 4
-LOCAL_HOST           = os.environ["LOCAL_HOST"]
-DATABASE_HOST_SERVER = f"postgresql://postgres:postgres@{LOCAL_HOST}:5432/postgres"
+HOSTNAME             = os.environ["HOSTNAME"]
+DATABASE_HOST_SERVER = os.environ["DATABASE_SERVER_HOST"]
 TASK_NAME            = 'test.server'
 EMAIL                = 'jodafons@lps.ufrj.br'
 IMAGE                = ""
@@ -56,7 +56,7 @@ class test_completed(unittest.TestCase):
 
     @pytest.mark.order(1)
     def test_prepare_database(self):
-        sleep(4)
+        sleep(1)
         parser = database_parser( DATABASE_HOST_SERVER )
         assert parser.recreate()
         
@@ -84,43 +84,47 @@ class test_completed(unittest.TestCase):
     def test_create_task(self):
 
         parser = task_parser(DATABASE_HOST_SERVER)
-        db     = database(DATABASE_HOST_SERVER)
+        db     = postgres(DATABASE_HOST_SERVER)
 
         command  = "python {PATH}/program.py -j %IN".format(PATH=self.basepath)
         task_id = parser.create( self.basepath, TASK_NAME, self.basepath+'/jobs', IMAGE, command, EMAIL, do_test=False)
         
         assert task_id is not None
 
-        task = db.task(task_id)
-        assert task is not None
+        with db as session:
+            task = db.task(task_id)
+            assert task is not None
 
-        assert len(task.jobs) == NUMBER_OF_JOBS
+            assert len(task.jobs) == NUMBER_OF_JOBS
 
      
     @pytest.mark.order(4)
     def test_run(self):
 
-        db = database(DATABASE_HOST_SERVER)
-        task = db.task(TASK_NAME)
-        executor = Consumer(slot_size=NUMBER_OF_SLOTS)
+        db = postgres(DATABASE_HOST_SERVER)
+        session = db()
+
+        task = session.task(TASK_NAME)
+        executor = Consumer(slot_size=NUMBER_OF_SLOTS, level="DEBUG")
         schedule = Schedule(level='DEBUG')
 
         #
         # emulate pilot loop
         #
-        while db.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
+        while session.task(task.id).status not in [TaskStatus.COMPLETED, TaskStatus.BROKEN, TaskStatus.FINALIZED, TaskStatus.KILLED]:
 
-            schedule.run(db())
+            schedule.loop()
             sleep(2)
-            executor.loop(db())
+            executor.loop()
             if executor.full():
                 continue
-            n = executor.size - executor.allocated()
-            for job in db.get_n_jobs(n):
-                executor.start( job.id, db() )
+            n = executor.size - len(executor)
+            for job_id in schedule.get_jobs(n):
+                executor.start_job( job_id )
 
-        task = db.task(TASK_NAME)
+        task = session.task(TASK_NAME)
         assert task.status == TaskStatus.COMPLETED 
+
 
 
 

@@ -2,7 +2,7 @@
 import sys, os, tempfile
 
 from time import time, sleep
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from loguru import logger
 from schedule import Schedule
@@ -18,7 +18,6 @@ recreate = bool(os.environ.get("SCHEDULE_SERVER_RECREATE"    , ''))
 
 
 if recreate:
-
     engine = create_engine(os.environ["DATABASE_SERVER_HOST"])
     session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     logger.info("test model acivated. Clean up the entire database")
@@ -31,13 +30,26 @@ if recreate:
 
 
 app      = FastAPI()
-schedule = Schedule()
+schedule = Schedule(level=os.environ.get("SCHEDULE_LOGGER_LEVEL","INFO"))
 schedule.start()
 
 
-@app.get("/sedule/ping")
-async def ping() -> bool:
-    return True
+
+@app.get("/schedule/ping")
+async def ping():
+    return {"message": "pong"}
+
+
+@app.get("/schedule/stop") 
+async def stop() -> bool:
+    schedule.stop()
+    return {"message", "schedule was stopped by external signal."}
+
+
+@app.post("/schedule/get/{k}") 
+async def get(k: int):
+    return schedule.get(k)
+
 
 
 if __name__ == "__main__":

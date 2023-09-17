@@ -1,18 +1,14 @@
 
-import sys, os, tempfile, socket, traceback
+import uvicorn, os
 
-from time import time, sleep
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from loguru import logger
-
 
 try:
     from consumer import Consumer
-    from api.clients import ExecutorStatus
+    from api.clients import Describe
 except:
     from servers.executor.consumer import Consumer
-    from maestro.api.clients import ExecutorStatus
+    from maestro.api.clients import Describe
 
 
 
@@ -32,7 +28,7 @@ app = FastAPI()
 
 
 @app.get("/executor/ping")
-async def ping() -> bool:
+async def ping():
     return {"message": "pong"}
 
 
@@ -44,17 +40,15 @@ async def start(job_id: int):
 
 
 @app.get("/executor/stop") 
-async def stop() -> bool:
+async def stop():
     consumer.stop()
     return {"message", "Executor was stopped by external signal."}
 
 
-@appls.get("/executor/status")
-async def status() -> ExecutorStatus:
-    return ExecutorStatus(size=consumer.size, allocated=consumer.allocated(), full=consumer.full())
-
+@appls.get("/executor/describe")
+async def describe() -> Describe:
+    return Describe(size=consumer.size, allocated=consumer.allocated(), full=consumer.full(), device=consumer.device)
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)

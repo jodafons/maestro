@@ -1,42 +1,38 @@
 
-import sys, os, tempfile
+import uvicorn, os
 
-from time import time, sleep
-from fastapi import FastAPI, Depends
-from pydantic import BaseModel
-from typing import Dict, Any, List
-from loguru import logger
+from fastapi import FastAPI, HTTPException
 
 try:
     from pilot import Pilot
-    from api.clients import Executor
 except:
     from servers.pilot.pilot import Pilot
-    from maestro.api.clients import Executor
 
 
 app   = FastAPI()
-pilot = Pilot()
-# Starting the pilot into a thread
+pilot = Pilot(level = os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
 pilot.start()
 
 
 
+
 @app.get("/pilot/ping")
-async def ping() -> bool:
-    return True
+async def ping():
+    return {"message": "pong"}
 
 
-@app.post("/pilot/connect")
-async def connect( executor : Executor ) -> bool:
-    logger.info(f"Connecting {executor.hostname} with device {executor.device} into the pilot.")
-    return pilot.connect( executor.hostname, executor.device )
+@app.post("/pilot/append/{hostname}")
+async def append( hostname : str ):
+    if not pilot.append( hostname )
+        raise HTTPException(status_code=404, detail=f"not possible to include executor as {hostname} into the pilot.")
+    return {"message", f"executor as {hostname} was included into the pilot."}
 
 
-
-
+@app.get("/pilot/stop") 
+async def stop():
+    pilot.stop()
+    return {"message", "pilot was stopped by external signal."}
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)

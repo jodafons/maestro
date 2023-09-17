@@ -15,6 +15,7 @@ services:
   database_server:
     container_name: database-test-server
     image: postgres
+    command: postgres -c 'max_connections=200'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

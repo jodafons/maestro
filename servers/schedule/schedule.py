@@ -5,16 +5,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from loguru import logger
 from tqdm import tqdm
+from pprint import pprint
 
 try:
   from models import Task, Job
   from enumerations import JobStatus, TaskStatus, TaskTrigger
   from api.clients import postman
+  from api.postgres import postgres
 except:
   from maestro.models import Task, Job
   from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
   from maestro.api.clients import postman
-
+  from maestro.api.postgres import postgres
 
 
 class Transition:
@@ -45,15 +47,15 @@ def send_email( task: Task ) -> bool:
   """
   Send an email with the task status
   """
-  postman = postman(os.environ['POSTMAN_SERVER_HOST'])
-  if postman.ping():
+  api = postman(os.environ['POSTMAN_SERVER_HOST'])
+  if api.ping():
     status = task.status
     taskname = task.name
     email = task.contact
     subject = f"[LPS Cluster] Notification for task id {status}"
     message = (f"The task with name {taskname} was assigned with {status} status.")
-    logger.info(f"Sending email to {email}") 
-    postman.send(email, subject, message)
+    logger.debug(f"Sending email to {email}") 
+    api.send(email, subject, message)
     
   return True
 
@@ -252,9 +254,6 @@ def trigger_task_delete( task: Task ) -> bool:
 
 
 
-
-
-
 #
 # Schedule implementation
 # 
@@ -264,12 +263,11 @@ class Schedule(threading.Thread):
 
   def __init__(self, extended_states : bool=False, level: str='INFO'):
     threading.Thread.__init__(self)
-
+    logger.level(level)
     logger.info("Creating schedule...")
     self.extended_states = extended_states
-    self.db              = database(os.environ["DATABASE_SERVER_HOST"])
+    self.db              = postgres(os.environ["DATABASE_SERVER_HOST"])
     self.compile()
-    logger.level(level)
     self.__stop    = threading.Event()
 
 
@@ -278,74 +276,67 @@ class Schedule(threading.Thread):
 
 
   def run(self):
-
     while (not self.__stop.isSet()):
       sleep(10)
       self.loop()
-
- 
 
 
   def loop(self):
 
     try:
-      logger.info("Treat jobs with status running but not alive into the executor.")
-      # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
-      jobs = self.db.session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
-      for job in jobs:
-        if not job.is_alive():
-          job.status = JobStatus.ASSIGNED
-      
-      # NOTE: All tasks assigned to remove should not be returned by the database.
-      tasks = self.db.session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
+      with self.db as session:
+        logger.debug("Treat jobs with status running but not alive into the executor.")
+        # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
+        jobs = session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+        for job in jobs:
+          if not job.is_alive():
+            job.status = JobStatus.ASSIGNED
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
       return False
-
-
-    for task in tasks:
       
-      print([(job.id, job.status) for job in task.jobs])
+    
+    with self.db as session:
 
-      # Run all JobStatus triggers to find the correct transiction
-      for state in self.states:
-        # Check if the current JobStatus is equal than this JobStatus
-        if state.source == task.status:
-          try:
-            res = state(task)
-            if res:
-              logger.info(f"Moving task from {state.source} to {state.target} state.")
-              task.status = state.target
-              break
-          except Exception as e:
-            logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
-            traceback.print_exc()
-            return False
+      # NOTE: All tasks assigned to remove should not be returned by the database.
+      tasks = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
 
-    logger.info("Commit all database changes.")
-    self.db.commit()
+      for task in tasks:
+
+        logger.debug(f"task in {task.status} status.")
+        pprint([(job.id, job.status) for job in task.jobs])
+
+        # Run all JobStatus triggers to find the correct transiction
+        for state in self.states:
+          # Check if the current JobStatus is equal than this JobStatus
+          if state.source == task.status:
+            try:
+              res = state(task)
+              if res:
+                logger.debug(f"Moving task from {state.source} to {state.target} state.")
+                task.status = state.target
+                break
+            except Exception as e:
+              logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
+              traceback.print_exc()
+              return False
+
+
+    logger.debug("Commit all database changes.")
     return True
 
 
-  
-       
-  def get_n_assigned_jobs(self, db: Session, njobs: int):
-    try:
-      jobs = self.db.session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(njobs).with_for_update().all()
-      jobs.reverse()
-      return jobs
-    except Exception as e:
-      logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
-      traceback.print_exc()
-      return []
-
-
-
-  
-
-
-
+  def get_jobs(self, k: int):
+    with self.db as session:
+      try:
+        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(k).all()
+        jobs.reverse()
+        return [job.id for job in jobs]
+      except Exception as e:
+        logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
+        traceback.print_exc()
+        return []
 
 
   #

@@ -29,16 +29,10 @@ class client:
             logger.error("Failed to establish a new connection.")
             return None
         if request.status_code != 200:
-            logger.critical(f"Request failed. Got {request.status_code}")
+            logger.critical(f"Request failed. Got {request.status_code}, {request.message}")
             return None
         return request.json()
 
 
     def ping(self):
-        res = self.try_request('ping', method="get")
-        if res is None:
-            logger.error(f"The schedule server with host ({self.host}) is offline.")
-            return False
-        else:
-            logger.info(f"The schedule server with host ({self.host}) is online.")
-            return True
+        return False if self.try_request('ping', method="get") is None else True

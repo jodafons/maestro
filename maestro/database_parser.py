@@ -3,22 +3,16 @@ __all__ = []
 
 import glob, traceback, os, argparse, re
 
-from sqlalchemy_utils import database_exists
+from sqlalchemy_utils import postgres_session_exists
 from loguru import logger
 from maestro.models import Base
-from maestro.api.clients import database
+from maestro.api.clients import postgres_session
 
 
-def create( db: database ) -> bool:
+def create( db: postgres_session ) -> bool:
 
   try:
-    #if database_exists( db.engine().url ):
-    #  logger.error("The dataabse exists into the server. Its not possible to create a database. Please recreate it or delete than create.")
-    #  return False
-
     Base.metadata.create_all(db.engine())
-    db.commit()
-
     logger.info("Succefully created.")
     return True
 
@@ -29,15 +23,9 @@ def create( db: database ) -> bool:
 
 
 
-def delete( db: database ) -> bool:
+def delete( db: postgres_session ) -> bool:
   try:
-    #if not database_exists( db.engine().url ):
-    #  logger.error("The dataabse dont exists into the server. Its not possible to delete something that dont exist into the server...")
-    #  return False
-
     Base.metadata.drop_all(db.engine())
-    db.commit()
-
     logger.info("Succefully deleted.")
     return True
 
@@ -47,14 +35,14 @@ def delete( db: database ) -> bool:
     return False
 
 
-def recreate( db: database) -> bool:
+def recreate( db: postgres_session) -> bool:
 
   if (not delete(db)):
     return False
 
   if (not create(db)):
     return False
-  #logger.info("Succefully recreated")
+
   return True
 
 
@@ -65,7 +53,7 @@ class database_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = database(host)
+    self.db = postgres(host)
     if args:
 
       # Create Task
@@ -73,23 +61,21 @@ class database_parser:
       recreate_parser = argparse.ArgumentParser(description = '', add_help = False)
       delete_parser   = argparse.ArgumentParser(description = '', add_help = False)
 
-
-
-      parent = argparse.ArgumentParser(description = '', add_help = False)
+      parent    = argparse.ArgumentParser(description = '', add_help = False)
       subparser = parent.add_subparsers(dest='option')
 
       # Datasets
       subparser.add_parser('create', parents=[create_parser])
       subparser.add_parser('recreate' , parents=[recreate_parser])
       subparser.add_parser('delete', parents=[delete_parser])
-      args.add_parser( 'database', parents=[parent] )
+      args.add_parser( 'postgres_session', parents=[parent] )
 
 
 
 
   def parser( self, args ):
 
-    if args.mode == 'database':
+    if args.mode == 'postgres_session':
       if args.option == 'create':
         self.create()
       elif args.option == 'recreate':
@@ -101,13 +87,16 @@ class database_parser:
 
 
   def create(self):
-    return create(self.db)
+    with self.db as session:
+      return create(session)
 
   def delete(self):
-    return delete(self.db)
+    with self.db as session:
+      return delete(session)
    
   def recreate(self):
-    return recreate(self.db)
+    with self.db as session
+      return recreate(session)
     
   
 
