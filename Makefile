@@ -17,10 +17,9 @@ build_server:
 	cd servers && make 
 build_executor:
 	make build_local
-
 build_local:
-	virtualenv -p python venv
-	source venv/bin/activate && pip install poetry && poetry install && which python
+	virtualenv -p python ${VIRTUALENV_NAMESPACE}
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && pip install poetry && poetry install && which python
 
 
 #

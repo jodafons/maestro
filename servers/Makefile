@@ -56,4 +56,4 @@ up_debug:
 
 start:
 	cd executor
-	source ${MAESTRO_PATH}/${LOCAL_ENV}/bin/activate && python main.py
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python main.py

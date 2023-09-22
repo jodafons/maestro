@@ -1,5 +1,4 @@
 
-
 CURRENT_DIR=$PWD
 REPO_DIR=$(mktemp -d)
 
@@ -15,6 +14,4 @@ make start
 
 
 cd $CURRENT_DIR
-
-
 
