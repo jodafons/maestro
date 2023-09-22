@@ -52,9 +52,9 @@ async def start():
     return {"message", "schedule was started by external signal."}
 
 
-@app.post("/schedule/get_jobs/{k}") 
-async def get_jobs(k: int):
-    return schedule.get_jobs(k)
+@app.post("/schedule/get_jobs/{partition}/{k}") 
+async def get_jobs(partition : str, k: int):
+    return schedule.get_jobs(partition, k)
 
 
 

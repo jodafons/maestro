@@ -56,10 +56,4 @@ up_debug:
 
 start:
 	cd executor
-	cp ${MAESTRO_PATH}/maestro/enumerations.py .
-	cp ${MAESTRO_PATH}/maestro/models.py .
-	cp -r ${MAESTRO_PATH}/maestro/api .
 	source ${MAESTRO_PATH}/${LOCAL_ENV}/bin/activate && python main.py
-	rm -rf api 
-	rm enumerations.py
-	rm models.py

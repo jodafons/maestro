@@ -23,9 +23,11 @@ class Describe(BaseModel):
     size      : int
     allocated : int
     full      : bool
+    partition : str
 
 class Executor(BaseModel):
     host   : str
+
 
 
 class Email(BaseModel):
@@ -77,13 +79,10 @@ class schedule(client):
         res = self.try_request("run", method="get")
         return True if res else False
 
-    def get_cpu_jobs(self, k):
-        res = self.try_request(f"get_jobs/{k}", method="post")
+    def get_jobs(self, partition, k):
+        res = self.try_request(f"get_jobs/{partition}/{k}", method="post")
         return res
 
-    def get_gpu_jobs(self, k):
-        res = self.try_request(f"get_jobs/{k}", method="post")
-        return res
 
 
 class postman(client):

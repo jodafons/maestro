@@ -20,9 +20,14 @@ def convert_string_to_range(s):
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
+partitions = os.environ.get("EXECUTOR_AVAILABLE_PARTITIONS","").split(',')
+
 def create( session: postgres_session, basepath: str, taskname: str, inputfile: str,
             image: str, command: str, email: str, dry_run: bool=False, do_test=True,
-            extension='.json', binds="{}") -> bool:
+            extension='.json', binds="{}", partition="cpu") -> bool:
+
+
+
 
   if session.task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
@@ -30,6 +35,10 @@ def create( session: postgres_session, basepath: str, taskname: str, inputfile: 
 
   if (not '%IN' in command):
     logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
+    return None
+
+  if (not partition in partitions):
+    logger.error(f"Partition {partition} not available.")
     return None
 
   # task volume
@@ -66,7 +75,8 @@ def create( session: postgres_session, basepath: str, taskname: str, inputfile: 
                     inputfile=fpath,
                     envs=envs,
                     binds=binds,
-                    status=JobStatus.REGISTERED
+                    status=JobStatus.REGISTERED,
+                    partition=partition
                   )
       task_db.jobs.append(job_db)
 
@@ -206,6 +216,8 @@ class task_parser:
                           help = "The user email contact.")
       create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
                           help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
+      create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
+                          help = f"The selected partitions. Availables: {partitions}")
 
 
       delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
@@ -241,7 +253,7 @@ class task_parser:
       if args.option == 'create':
         self.create(os.getcwd(), args.taskname, args.inputfile,
                     args.image, args.command, args.email, dry_run=args.dry_run,
-                    do_test=args.do_test, binds=args.binds)
+                    do_test=args.do_test, binds=args.binds, partition=args.partition)
 
       elif args.option == 'retry':
         self.retry(convert_string_to_range(args.id))

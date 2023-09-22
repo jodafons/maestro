@@ -18,7 +18,9 @@ consumer = Consumer(device   = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'-
                     max_retry= int(os.environ.get("EXECUTOR_SERVER_MAX_RETRY", '5')), 
                     timeout  = int(os.environ.get("EXECUTOR_SERVER_TIMEOUT"  , '5')), 
                     slot_size= int(os.environ.get("EXECUTOR_SERVER_SLOT_SIZE", '1')),
-                    level    = os.environ.get("EXECUTOR_LOGGER_LEVEL", "INFO"     ))
+                    level    = os.environ.get("EXECUTOR_LOGGER_LEVEL", "INFO"     ),
+                    partition= os.environ.get("EXECUTOR_PARTITION", "cpu"         ),
+                    )
 
 
 # Start thread with pilot
@@ -54,7 +56,11 @@ async def stop():
 
 @app.get("/executor/describe")
 async def describe() -> Describe:
-    return Describe(size=consumer.size, allocated=len(consumer), full=consumer.full(), device=consumer.device)
+    return Describe(size=consumer.size, 
+                    allocated=len(consumer), 
+                    full=consumer.full(), 
+                    partition=consumer.partition,
+                    device=consumer.device)
 
 
 if __name__ == "__main__":

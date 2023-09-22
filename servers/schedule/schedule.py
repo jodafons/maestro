@@ -330,13 +330,11 @@ class Schedule(threading.Thread):
     return True
 
 
-  def get_jobs(self, k: int):
+  def get_jobs(self, partition : str, k: int):
     with self.db as session:
       try:
-        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).order_by(Job.id).limit(k).all()
+        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).filter( Job.partition=partition).order_by(Job.id).limit(k).all()
         jobs.reverse()
-        print("AKI JOAO")
-        print([job.id for job in jobs])
         return [job.id for job in jobs]
       except Exception as e:
         logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")

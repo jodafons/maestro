@@ -87,15 +87,17 @@ class Job (Base):
   # Local
   id        = Column(Integer, primary_key = True)
   name      = Column(String)
-  image     = Column(String)
+  image     = Column(String , default="")
   command   = Column(String , default="")
   status    = Column(String , default=JobStatus.REGISTERED)
   retry     = Column(Integer, default=0)
   workarea  = Column(String)
   inputfile = Column(String)
   timer     = Column(DateTime)
-  envs      = Column(String)
+  envs      = Column(String, default="{}")
   binds     = Column(String, default="{}")
+  partition = Column(String, default='cpu')
+
 
   # Foreign
   task    = relationship("Task", back_populates="jobs")

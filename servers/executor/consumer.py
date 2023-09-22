@@ -182,12 +182,13 @@ class Job:
 class Consumer(threading.Thread):
 
   def __init__(self, device: int=-1, binds: dict={}, timeout: int=60, max_retry: int=5, 
-                     slot_size: int=1, level: str="INFO"):
+                     slot_size: int=1, level: str="INFO", partition: str='cpu'):
             
     threading.Thread.__init__(self)
     logger.level(level)
     self.localhost = os.environ["EXECUTOR_SERVER_HOST"]
     self.db        = postgres(os.environ["DATABASE_SERVER_HOST"])
+    self.partition = partition
     self.jobs      = {}
     self.binds     = binds
     self.timeout   = timeout

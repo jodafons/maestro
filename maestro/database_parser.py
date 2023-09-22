@@ -66,7 +66,7 @@ class database_parser:
       subparser.add_parser('create', parents=[create_parser])
       subparser.add_parser('recreate' , parents=[recreate_parser])
       subparser.add_parser('delete', parents=[delete_parser])
-      args.add_parser( 'postgres_session', parents=[parent] )
+      args.add_parser( 'data', parents=[parent] )
 
 
 
