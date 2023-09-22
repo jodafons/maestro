@@ -79,8 +79,8 @@ class schedule(client):
         res = self.try_request("run", method="get")
         return True if res else False
 
-    def get_jobs(self, partition, k):
-        res = self.try_request(f"get_jobs/{partition}/{k}", method="post")
+    def get_jobs(self, partition, n):
+        res = self.try_request(f"get_jobs/{partition}/{n}", method="post")
         return res
 
 

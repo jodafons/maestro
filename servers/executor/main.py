@@ -23,9 +23,6 @@ consumer = Consumer(device   = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'-
                     )
 
 
-# Start thread with pilot
-consumer.start()
-
 # create the server
 app = FastAPI()
 
@@ -63,5 +60,16 @@ async def describe() -> Describe:
                     device=consumer.device)
 
 
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    consumer.stop()
+
+@app.on_event("startup")
+async def startup_event():
+    consumer.start()
+
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
+    port=int(os.environ["EXECUTOR_SERVER_HOST"].split(":")[-1])
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

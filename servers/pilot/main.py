@@ -13,7 +13,7 @@ else:
 
 app   = FastAPI()
 pilot = Pilot(level = os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
-pilot.start()
+#pilot.start()
 
 @app.get("/pilot/ping")
 async def ping():
@@ -30,6 +30,15 @@ async def join( executor : Executor ):
 async def stop():
     pilot.stop()
     return {"message", "pilot was stopped by external signal."}
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    pilot.stop()
+
+@app.on_event("startup")
+async def startup_event():
+    pilot.start()
 
 
 if __name__ == "__main__":

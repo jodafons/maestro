@@ -330,10 +330,10 @@ class Schedule(threading.Thread):
     return True
 
 
-  def get_jobs(self, partition : str, k: int):
+  def get_jobs(self, partition : str, n: int):
     with self.db as session:
       try:
-        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).filter( Job.partition=partition).order_by(Job.id).limit(k).all()
+        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).filter( Job.partition==partition).order_by(Job.id).limit(n).all()
         jobs.reverse()
         return [job.id for job in jobs]
       except Exception as e:

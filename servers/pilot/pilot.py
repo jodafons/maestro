@@ -83,6 +83,7 @@ class Pilot( threading.Thread ):
     start = time()
     # NOTE: only healthy executors  
     for host, executor in self.executors.items():
+
       # get all information about the executor
       if not executor.ping():
           logger.info( f"executor with host name {host} is not alive...")
@@ -91,6 +92,7 @@ class Pilot( threading.Thread ):
 
       # NOTE: get all information from the current executor
       res = executor.describe()
+
       if res:
         # if is full, skip...
         if res.full :
@@ -103,7 +105,7 @@ class Pilot( threading.Thread ):
 
         logger.debug(f"getting {n} jobs from {partition} partition...")
         
-        for job_id in schedule.get_jobs( partition, n ):
+        for job_id in self.schedule.get_jobs( partition, n ):
           executor.start(job_id)
       
     end = time()

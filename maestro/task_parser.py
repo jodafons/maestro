@@ -273,11 +273,11 @@ class task_parser:
 
   def create(self, basepath: str, taskname: str, inputfile: str,
                    image: str, command: str, email: str, dry_run: bool=False, do_test=True,
-                   extension='.json', binds="{}" ):
+                   extension='.json', binds="{}", partition='cpu' ):
 
     with self.db as session:
       return create(session, basepath, taskname, inputfile, image, command, email, 
-                    dry_run=dry_run, do_test=do_test, binds=binds)
+                    dry_run=dry_run, do_test=do_test, binds=binds, partition=partition)
 
   def kill(self, task_ids):
     with self.db as session:

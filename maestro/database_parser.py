@@ -73,7 +73,7 @@ class database_parser:
 
   def parser( self, args ):
 
-    if args.mode == 'postgres_session':
+    if args.mode == 'data':
       if args.option == 'create':
         self.create()
       elif args.option == 'recreate':
