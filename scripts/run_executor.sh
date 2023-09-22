@@ -1,4 +1,5 @@
 
+#!/bin/sh
 
 REPO_DIR=$(mktemp -d)
 CURRENT_DIR=$PWD
