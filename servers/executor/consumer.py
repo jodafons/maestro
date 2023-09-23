@@ -238,7 +238,7 @@ class Consumer(threading.Thread):
       if answer and not self.db:
         logger.info(f"connecting to database host using {answer.database_host}")
         self.db = postgres(answer.database_host)
-        self.binds = answer.binds
+        self.binds = eval(answer.binds)
       
       if self.db:
         self.loop()
