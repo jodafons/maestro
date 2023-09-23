@@ -25,8 +25,13 @@ class Describe(BaseModel):
     full      : bool
     partition : str
 
+# ping
 class Executor(BaseModel):
     host   : str
+# pong
+class Server(BaseModel):
+    database_host : str
+    binds         : str
 
 
 
@@ -48,7 +53,7 @@ class pilot(client):
 
     def join(self, host):
         res = self.try_request(f'join', method="post", body=Executor(host=host).json())
-        return True if res else False
+        return Server(**res) if res else None
 
 
 class executor(client):

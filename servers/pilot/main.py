@@ -5,15 +5,15 @@ from fastapi import FastAPI, HTTPException
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
     from pilot import Pilot
-    from api.clients import Executor
+    from api.clients import Executor, Server
 else:
     from servers.pilot.pilot import Pilot
-    from maestro.api.clients import Executor
+    from maestro.api.clients import Executor, Server
 
 
 app   = FastAPI()
 pilot = Pilot(level = os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
-#pilot.start()
+
 
 @app.get("/pilot/ping")
 async def ping():
@@ -21,9 +21,9 @@ async def ping():
 
 
 @app.post("/pilot/join")
-async def join( executor : Executor ):
+async def join( executor : Executor ) -> Server:
     pilot.join_as( executor.host )
-    return {"message": "join"}
+    return Server( database_host = pilot.db.host, binds = pilot.binds )
 
 
 @app.get("/pilot/stop") 
@@ -36,9 +36,12 @@ async def stop():
 async def shutdown_event():
     pilot.stop()
 
+
 @app.on_event("startup")
 async def startup_event():
     pilot.start()
+
+
 
 
 if __name__ == "__main__":

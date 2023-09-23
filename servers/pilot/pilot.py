@@ -23,6 +23,7 @@ class Pilot( threading.Thread ):
     self.db        = postgres(os.environ["DATABASE_SERVER_HOST"])
     self.schedule  = schedule(os.environ['SCHEDULE_SERVER_HOST'])
     self.postman   = postman(os.environ['POSTMAN_SERVER_HOST'])
+    self.binds     = os.environ.get("EXECUTOR_SERVER_BINDS","{}")
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set()

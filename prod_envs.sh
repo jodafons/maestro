@@ -1,7 +1,7 @@
 
 
 export DOCKER_NAMESPACE='orchestra-server'
-export VIRTUALENV_NAMESPACE=orchestra-env
+export VIRTUALENV_NAMESPACE=.orchestra-env
 
 
 # Paths
@@ -22,7 +22,6 @@ export DATABASE_SERVER_PORT=5432
 export PGADMIN_SERVER_PORT=5433
 export MAESTRO_WEB_SERVER_PORT=5434
 export POSTMAN_SERVER_PORT=5435
-export EXECUTOR_SERVER_PORT=5001
 export SCHEDULE_SERVER_PORT=5002
 export PILOT_SERVER_PORT=5003
 
@@ -50,9 +49,8 @@ export SCHEDULE_SERVER_HOST="http://maestro-server.lps.ufrj.br:${SCHEDULE_SERVER
 
 
 # Executor
-export EXECUTOR_SERVER_HOST="http://${HOSTNAME}:${EXECUTOR_SERVER_PORT}"
-export EXECUTOR_SERVER_BINDS="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}"
 export EXECUTOR_AVAILABLE_PARTITIONS="cpu,cpu-large,gpu,gpu-large"
+export EXECUTOR_SERVER_BINDS="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}"
 
 
 # Web
@@ -63,7 +61,6 @@ export MAESTRO_WEB_SERVER_HOST="http://maestro-server.lps.ufrj.br:${MAESTRO_WEB_
 
 
 echo "=================================================================================="
-echo "EXECUTOR_SERVER_HOST    = ${EXECUTOR_SERVER_HOST}"
 echo "SCHEDULE_SERVER_HOST    = ${SCHEDULE_SERVER_HOST}"
 echo "PILOT_SERVER_HOST       = ${PILOT_SERVER_HOST}"
 echo "DATABASE_SERVER_HOST    = ${DATABASE_SERVER_HOST}"

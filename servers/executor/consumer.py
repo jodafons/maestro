@@ -1,7 +1,7 @@
 
 
 
-import os, subprocess, traceback, psutil, time, sys, threading
+import os, subprocess, traceback, psutil, time, sys, threading, socket
 from time import time, sleep
 from loguru import logger
 from pprint import pprint
@@ -181,13 +181,21 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, device: int=-1, binds: dict={}, timeout: int=60, max_retry: int=5, 
-                     slot_size: int=1, level: str="INFO", partition: str='cpu'):
+  def __init__(self, localhost     : str,
+                     server_host   : str, 
+                     database_host : str="",
+                     device        : int=-1, 
+                     binds         : dict={}, 
+                     timeout       : int=60, 
+                     max_retry     : int=5, 
+                     slot_size     : int=1, 
+                     level         : str="INFO", 
+                     partition     : str='cpu',
+                     ):
             
     threading.Thread.__init__(self)
     logger.level(level)
-    self.localhost = os.environ["EXECUTOR_SERVER_HOST"]
-    self.db        = postgres(os.environ["DATABASE_SERVER_HOST"])
+    self.localhost = localhost
     self.partition = partition
     self.jobs      = {}
     self.binds     = binds
@@ -197,7 +205,9 @@ class Consumer(threading.Thread):
     self.size      = slot_size
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
-    self.__lock.set()
+    self.__lock.set() 
+    self.db = postgres(database_host) if len(database_host) > 0 else None
+ 
 
   def stop(self):
     self.__stop.set()
@@ -215,6 +225,7 @@ class Consumer(threading.Thread):
     logger.debug("Connecting into the server...")
     server = pilot(os.environ["PILOT_SERVER_HOST"])
 
+    connected = False
     
     while (not self.__stop.isSet()):
       sleep(2)
@@ -223,9 +234,17 @@ class Consumer(threading.Thread):
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()
       
-      server.join( self.localhost )
-        
-      self.loop()
+      answer = server.join( self.localhost )
+      if answer and not self.db:
+        logger.info(f"connecting to database host using {answer.database_host}")
+        self.db = postgres(answer.database_host)
+        self.binds = answer.binds
+      
+      if self.db:
+        self.loop()
+      else:
+        logger.error("database not connected. its not possible to run loop...")
+
       # NOTE: allow external user to incluse executors into the list
       self.__lock.set()
 

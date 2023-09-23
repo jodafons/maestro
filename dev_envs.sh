@@ -1,7 +1,7 @@
 
-
+export HOSTNAME=$(hostname).$(dnsdomainname)
 export DOCKER_NAMESPACE='orchestra-server'
-export VIRTUALENV_NAMESPACE=orchestra-env
+export VIRTUALENV_NAMESPACE=.orchestra-server
 
 
 # Paths
@@ -10,8 +10,6 @@ export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH
 
 
-# Host
-export HOSTNAME=$(hostname).$(dnsdomainname)
 
 
 
@@ -35,6 +33,8 @@ export DATABASE_SERVER_DATA_PATH=$HOME/.data
 
 # POSTMAN
 export POSTMAN_SERVER_HOST="http://${HOSTNAME}:${POSTMAN_SERVER_PORT}"
+export PGADMIN_DEFAULT_EMAIL=$POSTMAN_SERVER_EMAIL_FROM
+export PGADMIN_DEFAULT_PASSWORD=$POSTMAN_SERVER_EMAIL_PASSWORD
 #export POSTMAN_SERVER_EMAIL_FROM="admin@email.com"
 #export POSTMAN_SERVER_EMAIL_PASSWORD="password"
 
