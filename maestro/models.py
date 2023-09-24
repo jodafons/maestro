@@ -49,6 +49,7 @@ class Task (Base):
   #
   def __add__ (self, job):
     self.jobs.append(job)
+    return self
   
 
   def completed(self):

@@ -48,4 +48,5 @@ class Task(BaseModel):
   name        : str
   volume      : str
   jobs        : List[Job]
+  partition   : str
   status      : str

@@ -1,16 +1,19 @@
 
 
 import uvicorn, os
+from time import sleep
 from fastapi import FastAPI, HTTPException
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
   from api.clients import *
   from pilot import Pilot
   import models, schemas
+  from enumerations import TaskStatus, JobStatus
 else:
   from servers.pilot.pilot import Pilot
   from maestro.api.clients import *
   from maestro import models, schemas
+  from maestro.enumerations import TaskStatus, JobStatus
 
 
 
@@ -64,7 +67,7 @@ async def join( executor : schemas.Executor ) -> schemas.Server:
 #
 
 
-@app.get("/pilot/task/{name}") 
+@app.post("/pilot/task/{name}") 
 async def task( name : str) :
 
     with db as session:
@@ -88,74 +91,80 @@ async def task( name : str) :
         return schemas.Task( name = task_db.name, id = task_db.id, jobs=jobs, volume=task_db.volume )
        
 
-@app.get("/pilot/create") 
+@app.post("/pilot/create") 
 async def create( task : schemas.Task ) :
 
     with pilot.db as session:
-
         if session.get_task(task.name):
-            raise HTTPException(status_code=404, detail=f"task exist into database.")
+            raise HTTPException(status_code=418, detail=f"task exist into database.")
         if task.partition not in pilot.partitions:
-            raise HTTPException(status_code=404, detail=f"{task.partition} partition not available.")
-        
+            raise HTTPException(status_code=418, detail=f"{task.partition} partition not available. partitions should be {pilot.partitions}")
         task_id = session.generate_id( models.Task )
         job_id_begin = session.generate_id( models.Job )
         task_db = models.Task( id = task_id, name = task.name, volume = task.volume )
         for idx, job in enumerate(task.jobs):
             job_db = models.Job( id         = job_id_begin + idx , 
-                                 name       = job.name,
                                  image      = job.image,
                                  command    = job.command,
                                  workarea   = job.workarea,
                                  envs       = job.envs,
                                  binds      = job.binds,
+                                 partition  = job.partition,
                                  inputfile  = job.inputfile )
             task_db+=job_db
         session().add(task_db)
         session.commit()
-        return {"message", f"task created with id {task_id}"}
+        return {"message", f"task created with id {task_db.id}"}
 
 
-@app.get("/pilot/kill") 
+@app.post("/pilot/kill/{task_id}") 
 async def kill( task_id : int ) :
 
     with pilot.db as session:
-        task_db = session.get_task(task.name)
+        task_db = session.get_task(task_id)
         if not task_db:
-            raise HTTPException(status_code=404, detail=f"task exist into database.")
+            raise HTTPException(status_code=418, detail=f"task exist into database.")
         task_db.kill()
         session.commit()
+        logger.info(f"Sending kill signal to task {task_db.id}")
         return {"message", f"kill signal sent to task {task_db.id}"}
 
 
-@app.get("/pilot/retry") 
+@app.post("/pilot/retry/{task_id}") 
 async def retry( task_id : int ) :
 
     with pilot.db as session:
-        task_db = session.get_task(task.name)
+        task_db = session.get_task(task_id)
         if not task_db:
-            raise HTTPException(status_code=404, detail=f"task exist into database.")
+            raise HTTPException(status_code=418, detail=f"task exist into database.")
         if task_db.completed():
-            raise HTTPException(status_code=404, detail=f"The task was completed. not possible to retry it." )    
+            raise HTTPException(status_code=418, detail=f"The task was completed. not possible to retry it." )    
         task_db.retry()
         session.commit()
+        logger.info(f"Sending retry signal to task {task_db.id}")
         return {"message", f"retry signal sent to task {task_db.id}"}
 
 
-@app.get("/pilot/delete") 
+@app.post("/pilot/delete/{task_id}") 
 async def delete( task_id : int ) :
 
     with pilot.db as session:
 
         task_db = session.get_task(task_id)
         if not task_db:
-            raise HTTPException(status_code=404, detail=f"task exist into database.")
+            raise HTTPException(status_code=418, detail=f"task not exist into database.")
   
         task_db.delete()
         session.commit()
-        while task_db.status != TaskStatus.REMOVED:
-          logger.info(f"waiting for schedule... task with status {task_db.status}")
-          sleep(2)
+
+        status = session.get_task(task_id).status
+        while status != TaskStatus.REMOVED:
+          logger.info(f"waiting for schedule... task with status {status}")
+          sleep(5)
+          # NOTE: since the status will change on the fly, we need to open a new session to get the latest status value
+          with pilot.db as session_loop:
+            status = session_loop.get_task(task_id).status
+
         logger.info("task stopped and ready to be removed...")
         session().query(models.Job).filter(models.Job.taskid==task_id).delete()
         session().query(models.Task).filter(models.Task.id==task_id).delete()

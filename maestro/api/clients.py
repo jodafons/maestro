@@ -28,10 +28,10 @@ class pilot(client):
     def join(self, host : str, device: int, size: int, 
                    allocated: int, full: bool, partition: str):
         
-        body = Executor(host=host,device=device,size=size,full=full, 
-                        partition=partition, allocated=allocated)
+        body = schemas.Executor(host=host,device=device,size=size,full=full, 
+                                partition=partition, allocated=allocated)
         res = self.try_request(f'join', method="post", body=body.json())
-        return Server(**res) if res else None
+        return schemas.Server(**res) if res else None
 
 
 class executor(client):
@@ -74,7 +74,7 @@ class postman(client):
         client.__init__(self, host, "postman")
 
     def send(self, to, subject, body):
-        res = self.try_request("send", method="post",body = Email(to=to, subject=subject, body=body).json())
+        res = self.try_request("send", method="post",body = schemas.Email(to=to, subject=subject, body=body).json())
         return True if res else False
 
 

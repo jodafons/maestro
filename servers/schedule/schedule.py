@@ -49,7 +49,7 @@ def send_email( task: Task ) -> bool:
   if api.ping():
     status = task.status
     taskname = task.name
-    email = task.contact
+    email = "jodafons@lps.ufrj.br"
     subject = f"[LPS Cluster] Notification for task id {status}"
     message = (f"The task with name {taskname} was assigned with {status} status.")
     logger.debug(f"Sending email to {email}") 

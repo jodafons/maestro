@@ -9,10 +9,6 @@ from maestro import models
 from maestro.api.clients import postgres
 
 
-
-
-
-
 class user_parser:
 
   def __init__(self , host, args=None):

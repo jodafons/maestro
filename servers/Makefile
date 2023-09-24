@@ -57,11 +57,16 @@ up:
 down:
 	docker compose -f docker-compose-dev.yml down
 
-up_debug:
+up_dev_debug:
 	make
 	docker compose -f docker-compose-dev.yml up
 
 
+up_prod_debug:
+	make
+	docker compose -f docker-compose.yml up
+
+
 start:
-	cd executor
-	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python main.py
+	make
+	docker compose -f docker-compose.yml up -d
