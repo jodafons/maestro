@@ -9,6 +9,7 @@ COPY api api
 COPY consumer.py . 
 COPY enumerations.py .
 COPY models.py .
+COPY schemas.py .
 COPY main.py .
 EXPOSE 80
 CMD ["uvicorn" , "main:app", "--host","0.0.0.0","--port", "80"]

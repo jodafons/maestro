@@ -12,6 +12,8 @@ COPY enumerations.py enumerations.py
 COPY models.py models.py
 COPY main.py main.py 
 COPY postman.py postman.py
+COPY schemas.py .
+
 EXPOSE 80
 CMD ["uvicorn" , "main:app", "--host","0.0.0.0","--port", "80"]
 

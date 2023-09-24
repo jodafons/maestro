@@ -6,14 +6,14 @@ from fastapi import FastAPI, HTTPException
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
     from consumer import Consumer
-    from api.clients import Describe
+    from schemas import *
 else:
     from servers.executor.consumer import Consumer
-    from maestro.api.clients import Describe
+    from maestro.schemas import *
 
 
 
-port           = int(os.environ.get("EXECUTOR_SERVER_PORT", 6000 ))
+port           = int(os.environ.get("EXECUTOR_SERVER_PORT", 6001000 ))
 local_host     = f"http://{socket.getfqdn()}:{str(port)}"
 server_host    = os.environ["PILOT_SERVER_HOST"]
 
@@ -76,8 +76,9 @@ async def start_job(job_id: int):
 
 
 @app.get("/executor/describe")
-async def describe() -> Describe:
-    return Describe(size=consumer.size, 
+async def describe() -> Executor:
+    return Executor(host=consumer.localhost ,
+                    size=consumer.size, 
                     allocated=len(consumer), 
                     full=consumer.full(), 
                     partition=consumer.partition,
@@ -85,10 +86,10 @@ async def describe() -> Describe:
 
 
 @app.post("/executor/update")
-async def update( describe : Describe ) :
-    consumer.partition = describe.partition
-    consumer.size = describe.size
-    consumer.device = describe.device
+async def update( executor : Executor ) :
+    consumer.partition = executor.partition
+    consumer.size      = executor.size
+    consumer.device    = executor.device
     return {"message", f"consumer was updated."}
 
 

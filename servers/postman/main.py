@@ -6,9 +6,9 @@ from fastapi import FastAPI, HTTPException
 from postman import Postman
     
 if bool(os.environ.get("DOCKER_IMAGE",False)):
-    from api.clients import Email
+    from schemas import Email
 else:
-    from maestro.api.clients import Email
+    from maestro.schemas import Email
 
 
 

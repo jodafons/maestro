@@ -232,12 +232,18 @@ class Consumer(threading.Thread):
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
-      self.__lock.clear()
-      
-      answer = server.join( self.localhost )
+      self.__lock.clear()      
+
+      answer = server.join( host      = self.localhost, 
+                            device    = self.device, 
+                            size      = self.size, 
+                            allocated = len(self), 
+                            full      = self.full(),
+                            partition = self.partition )
+
       if answer and not self.db:
         logger.info(f"connecting to database host using {answer.database_host}")
-        self.db = postgres(answer.database_host)
+        self.db = postgres(answer.database)
         self.binds = eval(answer.binds)
       
       if self.db:

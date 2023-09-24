@@ -1,5 +1,5 @@
 
-import traceback
+import traceback, os
 
 from loguru import logger
 from typing import Dict, Any, List
@@ -7,52 +7,33 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-try:
+if bool(os.environ.get("DOCKER_IMAGE",False)):
     from api.base import client
     from enumerations import JobStatus
-    from models import Task, Job
-except:
+    from models import Task as Task_db
+    from models import Job as Job_db
+    from schemas import *
+else:
     from maestro.api.base import client
     from maestro.enumerations import JobStatus
-    from maestro.models import Task, Job
+    from maestro.models import Task as Task_db
+    from maestro.models import Job as Job_db
+    from maestro.schemas import *
 
-
-
-class Describe(BaseModel):
-    device    : int
-    size      : int
-    allocated : int
-    full      : bool
-    partition : str
-
-# ping
-class Executor(BaseModel):
-    host   : str
-# pong
-class Server(BaseModel):
-    database_host : str
-    binds         : str
-
-
-
-class Email(BaseModel):
-    to      : str
-    subject : str
-    body    : str
-
-#
-# APIs
-#
 
 class pilot(client):
 
     def __init__(self, host):
         client.__init__(self, host, "pilot")
-        logger.info(f"Connecting to {host}...")
+        logger.info(f"connecting to {host}...")
 
 
-    def join(self, host):
-        res = self.try_request(f'join', method="post", body=Executor(host=host).json())
+    def join(self, host : str, device: int, size: int, 
+                   allocated: int, full: bool, partition: str):
+        
+        body = Executor(host=host,device=device,size=size,full=full, 
+                        partition=partition, allocated=allocated)
+        res = self.try_request(f'join', method="post", body=body.json())
         return Server(**res) if res else None
 
 
@@ -69,7 +50,7 @@ class executor(client):
 
     def describe(self): 
         res = self.try_request("describe", method="get")
-        return Describe(**res) if res else None
+        return Executor(**res) if res else None
 
     def to_close(self):
         return self.retry>self.max_retry
@@ -161,14 +142,14 @@ class postgres_session:
       return 0
 
 
-  def task( self, task, with_for_update=False ):
+  def get_task( self, task, with_for_update=False ):
     try:
       if type(task) is int:
-        task = self.__session.query(Task).filter(Task.id==task)
+        task = self.__session.query(Task_db).filter(Task_db.id==task)
       elif type(task) is str:
-        task = self.__session.query(Task).filter(Task.name==task)
+        task = self.__session.query(Task_db).filter(Task_db.name==task)
       else:
-        raise ValueError("taskname (str) or task id (int) should be passed to task retrievel...")
+        raise ValueError("task name or id should be passed to task retrievel...")
       return task.with_for_update().first() if with_for_update else task.first()
     except Exception as e:
       traceback.print_exc()
@@ -178,19 +159,19 @@ class postgres_session:
 
   def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED, with_for_update=False):
     try:
-      jobs = self.__session.query(Job).filter(  Job.status==status  ).order_by(Job.id).limit(njobs)
+      jobs = self.__session.query(Job_db).filter(  Job_db.status==status  ).order_by(Job_db.id).limit(njobs)
       jobs = jobs.with_for_update().all() if with_for_update else jobs.all()
       jobs.reverse()
       return jobs
     except Exception as e:
-      logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
+      logger.error(f"not be able to get {njobs} from database. return an empty list to the user.")
       traceback.print_exc()
       return []
 
 
-  def job( self, job_id,  with_for_update=False):
+  def get_job( self, job_id,  with_for_update=False):
     try:
-      job = self.__session.query(Job).filter(Job.id==job_id)
+      job = self.__session.query(Job_db).filter(Job_db.id==job_id)
       return job.with_for_update().first() if with_for_update else job.first()
     except Exception as e:
       traceback.print_exc()
