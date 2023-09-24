@@ -1,5 +1,5 @@
 
-__all__ = []
+__all__ = ["database_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger

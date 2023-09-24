@@ -9,8 +9,6 @@ else:
   from maestro.api.clients import *
 
 
-
-
 class Pilot( threading.Thread ):
 
 
@@ -23,6 +21,7 @@ class Pilot( threading.Thread ):
     self.schedule  = schedule(os.environ['SCHEDULE_SERVER_HOST'])
     self.postman   = postman(os.environ['POSTMAN_SERVER_HOST'])
     self.binds     = os.environ.get("EXECUTOR_SERVER_BINDS","{}")
+    self.partitions= os.environ.get("PILOT_AVAILABLE_PARTITIONS").split(',')
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set()

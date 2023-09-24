@@ -8,12 +8,10 @@ from pprint import pprint
 from copy import copy
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
-  from enumerations import JobStatus
-  from models import Job as JobModel
   from api.clients import pilot, postgres
+  from enumerations import JobStatus
 else:
   from maestro.enumerations import JobStatus
-  from maestro.models import Job as JobModel
   from maestro.api.clients import pilot, postgres
 
 SECONDS = 1
@@ -242,7 +240,7 @@ class Consumer(threading.Thread):
                             partition = self.partition )
 
       if answer and not self.db:
-        logger.info(f"connecting to database host using {answer.database_host}")
+        logger.info(f"connecting to database host using {answer.database}")
         self.db = postgres(answer.database)
         self.binds = eval(answer.binds)
       

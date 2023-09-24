@@ -34,10 +34,10 @@ class Task (Base):
   trigger   = Column(String, default=TaskTrigger.WAITING )
   # Foreign 
   jobs      = relationship("Job", order_by="Job.id", back_populates="task")
+  user      = Column(String)
 
-  
   # TODO: external email context
-  contact     = Column(String)
+  contact   = Column(String)
 
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
@@ -117,3 +117,16 @@ class Job (Base):
 
 
 
+#
+#   Tasks Table
+#
+class User (Base):
+
+  __tablename__ = 'user'
+
+  # Local
+  id        = Column(Integer, primary_key = True)
+  name      = Column(String, unique=True)
+  token     = Column(String, default="")
+  priority  = Column(Integer, default=1)
+  email     = Column(String)

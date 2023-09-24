@@ -1,4 +1,6 @@
 
+__all__ = []
+
 from typing import Dict, Any, List
 from pydantic import BaseModel
 
@@ -19,12 +21,9 @@ class Executor(BaseModel):
     full      : bool
     partition : str
 
-
-
 # pong
 class Server(BaseModel):
-    host          : str
-    database_host : str
+    database      : str
     binds         : str
     partitions    : List[str]
     executors     : List[Executor]
@@ -41,7 +40,7 @@ class Job(BaseModel):
   binds       : str
   workarea    : str
   inputfile   : str
-  partititon  : str
+  partition   : str
   status      : str
 
 class Task(BaseModel):

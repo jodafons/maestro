@@ -13,14 +13,13 @@ from . import models
 __all__.extend( models.__all__ )
 from .models import *
 
-from . import database_parser
-__all__.extend( database_parser.__all__ )
-from .database_parser import *
+from . import schemas
+__all__.extend( schemas.__all__ )
+from .schemas import *
 
-from . import task_parser
-__all__.extend( task_parser.__all__ )
-from .task_parser import *
-
+from . import parsers
+__all__.extend( parsers.__all__ )
+from .parsers import *
 
 from . import api
 __all__.extend( api.__all__ )

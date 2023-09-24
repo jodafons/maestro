@@ -10,15 +10,12 @@ from sqlalchemy.orm import sessionmaker, Session
 if bool(os.environ.get("DOCKER_IMAGE",False)):
     from api.base import client
     from enumerations import JobStatus
-    from models import Task as Task_db
-    from models import Job as Job_db
-    from schemas import *
+    import models, schemas
 else:
     from maestro.api.base import client
     from maestro.enumerations import JobStatus
-    from maestro.models import Task as Task_db
-    from maestro.models import Job as Job_db
-    from maestro.schemas import *
+    from maestro import models 
+    from maestro import schemas
 
 
 class pilot(client):
@@ -145,9 +142,9 @@ class postgres_session:
   def get_task( self, task, with_for_update=False ):
     try:
       if type(task) is int:
-        task = self.__session.query(Task_db).filter(Task_db.id==task)
+        task = self.__session.query(models.Task).filter(models.Task.id==task)
       elif type(task) is str:
-        task = self.__session.query(Task_db).filter(Task_db.name==task)
+        task = self.__session.query(models.Task).filter(models.Task.name==task)
       else:
         raise ValueError("task name or id should be passed to task retrievel...")
       return task.with_for_update().first() if with_for_update else task.first()
@@ -156,10 +153,24 @@ class postgres_session:
       logger.error(e)
       return None
 
+  def get_user( self, user, with_for_update=False ):
+    try:
+      if type(user) is int:
+        user = self.__session.query(models.User).filter(models.User.id==user)
+      elif type(user) is str:
+        user = self.__session.query(models.User).filter(models.User.name==user)
+      else:
+        raise ValueError("user name or id should be passed to user retrievel...")
+      return user.with_for_update().first() if with_for_update else user.first()
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return None
+
 
   def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED, with_for_update=False):
     try:
-      jobs = self.__session.query(Job_db).filter(  Job_db.status==status  ).order_by(Job_db.id).limit(njobs)
+      jobs = self.__session.query(models.Job).filter(  models.Job.status==status  ).order_by(models.Job.id).limit(njobs)
       jobs = jobs.with_for_update().all() if with_for_update else jobs.all()
       jobs.reverse()
       return jobs
@@ -171,7 +182,7 @@ class postgres_session:
 
   def get_job( self, job_id,  with_for_update=False):
     try:
-      job = self.__session.query(Job_db).filter(Job_db.id==job_id)
+      job = self.__session.query(models.Job).filter(models.Job.id==job_id)
       return job.with_for_update().first() if with_for_update else job.first()
     except Exception as e:
       traceback.print_exc()

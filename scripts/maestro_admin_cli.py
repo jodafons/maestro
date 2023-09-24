@@ -1,18 +1,6 @@
 #!/usr/bin/env python
-
-
-try:
-  # in case we have root installed here
-  import ROOT
-  from ROOT import gROOT
-  ROOT.PyConfig.IgnoreCommandLineOptions = True
-  gROOT.SetBatch()
-except:
-  pass
-
 import sys, os, argparse
-from maestro.task_parser import task_parser
-from maestro.database_parser import database_parser
+from maestro.parsers import *
 
 
 parser = argparse.ArgumentParser()
@@ -22,6 +10,7 @@ commands = parser.add_subparsers(dest='mode')
 host = os.environ['DATABASE_SERVER_HOST']
 
 parsers = [
+            user_parser(host, commands),
             task_parser(host, commands),
             database_parser(host, commands ),
           ]

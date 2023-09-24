@@ -43,13 +43,13 @@ export PGADMIN_DEFAULT_PASSWORD=$POSTMAN_SERVER_EMAIL_PASSWORD
 
 # Pilot
 export PILOT_SERVER_HOST="http://maestro-server.lps.ufrj.br:${PILOT_SERVER_PORT}"
+export PILOT_AVAILABLE_PARTITIONS="cpu-large,gpu,gpu-large"
 
 # Schedule
 export SCHEDULE_SERVER_HOST="http://maestro-server.lps.ufrj.br:${SCHEDULE_SERVER_PORT}"
 
 
 # Executor
-export EXECUTOR_AVAILABLE_PARTITIONS="cpu,cpu-large,gpu,gpu-large"
 export EXECUTOR_SERVER_BINDS="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}"
 
 

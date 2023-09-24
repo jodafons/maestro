@@ -1,18 +1,18 @@
 
-import uvicorn, os
 
+import uvicorn, os
 from fastapi import FastAPI, HTTPException
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
-    from pilot import Pilot
-    from schemas import *
-    from models import Job as Job_db
-    from models import Task as Task_db
+  from api.clients import *
+  from pilot import Pilot
+  import models, schemas
 else:
-    from servers.pilot.pilot import Pilot
-    from maestro.schemas import *
-    from maestro.models import Job as Job_db
-    from maestro.models import Task as Task_db
+  from servers.pilot.pilot import Pilot
+  from maestro.api.clients import *
+  from maestro import models, schemas
+
+
 
 app   = FastAPI()
 pilot = Pilot(level = os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
@@ -40,26 +40,25 @@ async def stop():
 
 
 @app.get("/pilot/describe") 
-async def describe() :
-
-    executor_desc = []
-    for executor in pilot.executors.values:
-        if executor.ping():
-            res = executor.describe()
-            executor_desc.append(res)
-    return Server( host      = pilot.host, 
-                   database  = pilot.db.host, 
-                   binds     = pilot.binds,
-                   partition = pilot.partitions ,
-                   executors = executor_desc )
-
+async def describe() -> schemas.Server : 
+    return schemas.Server( 
+                           database  = pilot.db.host, 
+                           binds     = str(pilot.binds),
+                           partitions= pilot.partitions ,
+                           executors = [executor.describe() for executor in pilot.executors.values() if executor.ping()]
+                           )
+    
 
 @app.post("/pilot/join")
-async def join( executor : Executor ) -> Server:
+async def join( executor : schemas.Executor ) -> schemas.Server:
     pilot.join_as( executor.host )
-    return describe()
-
-
+    return schemas.Server( 
+                           database  = pilot.db.host, 
+                           binds     = str(pilot.binds),
+                           partitions= pilot.partitions ,
+                           executors = [executor.describe() for executor in pilot.executors.values() if executor.ping()]
+                           )
+    
 #
 # database manipulation
 #
@@ -75,22 +74,22 @@ async def task( name : str) :
         
         jobs = []
         for job_db in task_db.jobs:
-            job = Job(  id          = job_db.id, 
-                        name        = job_db.name, 
-                        image       = job_db.image, 
-                        command     = job_db.command,
-                        envs        = job_db.envs, 
-                        inputfile   = job_db.inputfile, 
-                        workarea    = job_db.workarea,
-                        partition   = job_db.partition,
-                        status      = job_db.status,
-                        )
+            job = schemas.Job(  id          = job_db.id, 
+                                name        = job_db.name, 
+                                image       = job_db.image, 
+                                command     = job_db.command,
+                                envs        = job_db.envs, 
+                                inputfile   = job_db.inputfile, 
+                                workarea    = job_db.workarea,
+                                partition   = job_db.partition,
+                                status      = job_db.status,
+                                )
             jobs.append(job)
-        return Task( name = task_db.name, id = task_db.id, jobs=jobs, volume=task_db.volume )
+        return schemas.Task( name = task_db.name, id = task_db.id, jobs=jobs, volume=task_db.volume )
        
 
 @app.get("/pilot/create") 
-async def create( task : Task ) :
+async def create( task : schemas.Task ) :
 
     with pilot.db as session:
 
@@ -99,18 +98,18 @@ async def create( task : Task ) :
         if task.partition not in pilot.partitions:
             raise HTTPException(status_code=404, detail=f"{task.partition} partition not available.")
         
-        task_id = session.generate_id( Task_db )
-        job_id_begin = session.generate_id( Job_db )
-        task_db = Task_db ( id = task_id, name = task.name, volume = task.volume )
+        task_id = session.generate_id( models.Task )
+        job_id_begin = session.generate_id( models.Job )
+        task_db = models.Task( id = task_id, name = task.name, volume = task.volume )
         for idx, job in enumerate(task.jobs):
-            job_db = Job_db( id         = job_id_begin + idx , 
-                             name       = job.name,
-                             image      = job.image,
-                             command    = job.command,
-                             workarea   = job.workarea,
-                             envs       = job.envs,
-                             binds      = job.binds,
-                             inputfile  = job.inputfile )
+            job_db = models.Job( id         = job_id_begin + idx , 
+                                 name       = job.name,
+                                 image      = job.image,
+                                 command    = job.command,
+                                 workarea   = job.workarea,
+                                 envs       = job.envs,
+                                 binds      = job.binds,
+                                 inputfile  = job.inputfile )
             task_db+=job_db
         session().add(task_db)
         session.commit()
@@ -144,10 +143,11 @@ async def retry( task_id : int ) :
 
 
 @app.get("/pilot/delete") 
-async def delete( task : Task ) :
+async def delete( task_id : int ) :
 
     with pilot.db as session:
-        task_db = session.get_task(task.name)
+
+        task_db = session.get_task(task_id)
         if not task_db:
             raise HTTPException(status_code=404, detail=f"task exist into database.")
   
@@ -157,8 +157,8 @@ async def delete( task : Task ) :
           logger.info(f"waiting for schedule... task with status {task_db.status}")
           sleep(2)
         logger.info("task stopped and ready to be removed...")
-        session().query(Job).filter(Job.taskid==task_id).delete()
-        session().query(Task).filter(Task.id==task_id).delete()
+        session().query(models.Job).filter(models.Job.taskid==task_id).delete()
+        session().query(models.Task).filter(models.Task.id==task_id).delete()
         session.commit()
         return {"message", f"task deleted into the database"}
 

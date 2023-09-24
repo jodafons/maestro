@@ -47,6 +47,8 @@ export PGADMIN_DEFAULT_PASSWORD=$POSTMAN_SERVER_EMAIL_PASSWORD
 
 # Pilot
 export PILOT_SERVER_HOST="http://${HOSTNAME}:${PILOT_SERVER_PORT}"
+export PILOT_AVAILABLE_PARTITIONS="cpu-large,gpu,gpu-large"
+
 
 # Schedule
 export SCHEDULE_SERVER_HOST="http://${HOSTNAME}:${SCHEDULE_SERVER_PORT}"
@@ -55,7 +57,6 @@ export SCHEDULE_SERVER_HOST="http://${HOSTNAME}:${SCHEDULE_SERVER_PORT}"
 # Executor
 export EXECUTOR_SERVER_HOST="http://${HOSTNAME}:${EXECUTOR_SERVER_PORT}"
 export EXECUTOR_SERVER_BINDS="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}"
-export EXECUTOR_AVAILABLE_PARTITIONS="cpu-large,gpu,gpu-large"
 
 
 # Web
