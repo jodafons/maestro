@@ -21,7 +21,7 @@ build_local:
 # Server
 #
 up:
-	cd servers && make up_debug
+	cd servers && make up
 down:
 	cd servers && make down
 start:
