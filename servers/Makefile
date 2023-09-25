@@ -51,22 +51,28 @@ build_pilot:
 	rm models.py
 	rm schemas.py
 
-up:
+#
+# dev
+#
+dev_up:
 	docker compose -f docker-compose-dev.yml up -d
 
-down:
+dev_down:
 	docker compose -f docker-compose-dev.yml down
 
-up_dev_debug:
+dev_up_debug:
 	make
 	docker compose -f docker-compose-dev.yml up
 
-
-up_prod_debug:
+#
+# prod
+#
+up:
 	make
 	docker compose -f docker-compose.yml up
 
+down:
+	docker compose -f docker-compose.yml down
 
 start:
-	make
-	docker compose -f docker-compose.yml up -d
+	cd executor && python main.py

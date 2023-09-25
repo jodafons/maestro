@@ -8,10 +8,9 @@ echo "download repository..."
 git clone https://github.com/jodafons/orchestra-server.git && cd orchestra-server
 git checkout dev
 
-export VIRTUALENV_NAMESPACE=orchestra-env
+export VIRTUALENV_NAMESPACE=orchestra-server-env
 export MAESTRO_PATH=$PWD
 export PYTHONPATH=$PWD:$PYTHONPATH
-
 ls -lisah
 make build_local
 make start
