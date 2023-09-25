@@ -21,6 +21,8 @@ MoreFilesForYou-*
 build
 .python-version
 orchestra-env
+.orchestra-env
+.venv
 # vscode
 ./.vscode/*
 .pytest_cache

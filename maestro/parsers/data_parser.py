@@ -1,5 +1,5 @@
 
-__all__ = ["database_parser"]
+__all__ = ["data_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
@@ -47,7 +47,7 @@ def recreate( db: postgres) -> bool:
 
 
 
-class database_parser:
+class data_parser:
 
   def __init__(self , host, args=None):
 

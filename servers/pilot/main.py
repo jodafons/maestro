@@ -15,6 +15,13 @@ else:
   from maestro import models, schemas
   from maestro.enumerations import TaskStatus, JobStatus
 
+def verify_token(session , request):
+    logger.info(f"checking token {request.token}")
+    user = session().query(models.User).filter(models.User.token==request.token).first()
+    if user:
+        logger.info(f"requested made by {user.name}.")
+    return True if user else False
+
 
 
 app   = FastAPI()
@@ -67,34 +74,12 @@ async def join( executor : schemas.Executor ) -> schemas.Server:
 #
 
 
-@app.post("/pilot/task/{name}") 
-async def task( name : str) :
-
-    with db as session:
-        task_db = session.get_task(name)
-        if not task_db:
-            raise HTTPException(status_code=404, detail=f"task exist into database.")
-        
-        jobs = []
-        for job_db in task_db.jobs:
-            job = schemas.Job(  id          = job_db.id, 
-                                name        = job_db.name, 
-                                image       = job_db.image, 
-                                command     = job_db.command,
-                                envs        = job_db.envs, 
-                                inputfile   = job_db.inputfile, 
-                                workarea    = job_db.workarea,
-                                partition   = job_db.partition,
-                                status      = job_db.status,
-                                )
-            jobs.append(job)
-        return schemas.Task( name = task_db.name, id = task_db.id, jobs=jobs, volume=task_db.volume )
-       
-
 @app.post("/pilot/create") 
 async def create( task : schemas.Task ) :
 
     with pilot.db as session:
+        if not verify_token(session , task):
+            raise HTTPException(status_code=400 , detail="not authenticated properly.")
         if session.get_task(task.name):
             raise HTTPException(status_code=418, detail=f"task exist into database.")
         if task.partition not in pilot.partitions:
@@ -117,24 +102,30 @@ async def create( task : schemas.Task ) :
         return {"message", f"task created with id {task_db.id}"}
 
 
-@app.post("/pilot/kill/{task_id}") 
-async def kill( task_id : int ) :
+@app.post("/pilot/kill") 
+async def kill( task : schemas.Task ) :
+
 
     with pilot.db as session:
-        task_db = session.get_task(task_id)
+        if not verify_token(session , task):
+            raise HTTPException(status_code=400 , detail="not authenticated properly.")
+        task_db = session.get_task(task.id)
         if not task_db:
             raise HTTPException(status_code=418, detail=f"task exist into database.")
+
         task_db.kill()
         session.commit()
         logger.info(f"Sending kill signal to task {task_db.id}")
         return {"message", f"kill signal sent to task {task_db.id}"}
 
 
-@app.post("/pilot/retry/{task_id}") 
-async def retry( task_id : int ) :
+@app.post("/pilot/retry") 
+async def retry( task : schemas.Task ) :
 
     with pilot.db as session:
-        task_db = session.get_task(task_id)
+        if not verify_token(session , task):
+            raise HTTPException(status_code=400 , detail="not authenticated properly.")
+        task_db = session.get_task(task.id)
         if not task_db:
             raise HTTPException(status_code=418, detail=f"task exist into database.")
         if task_db.completed():
@@ -145,29 +136,17 @@ async def retry( task_id : int ) :
         return {"message", f"retry signal sent to task {task_db.id}"}
 
 
-@app.post("/pilot/delete/{task_id}") 
-async def delete( task_id : int ) :
+@app.post("/pilot/delete") 
+async def delete( task : schemas.Task ) :
 
     with pilot.db as session:
-
-        task_db = session.get_task(task_id)
+        if not verify_token(session , task):
+            raise HTTPException(status_code=400 , detail="not authenticated properly.")
+        task_db = session.get_task(task.id)
         if not task_db:
             raise HTTPException(status_code=418, detail=f"task not exist into database.")
   
         task_db.delete()
-        session.commit()
-
-        status = session.get_task(task_id).status
-        while status != TaskStatus.REMOVED:
-          logger.info(f"waiting for schedule... task with status {status}")
-          sleep(5)
-          # NOTE: since the status will change on the fly, we need to open a new session to get the latest status value
-          with pilot.db as session_loop:
-            status = session_loop.get_task(task_id).status
-
-        logger.info("task stopped and ready to be removed...")
-        session().query(models.Job).filter(models.Job.taskid==task_id).delete()
-        session().query(models.Task).filter(models.Task.id==task_id).delete()
         session.commit()
         return {"message", f"task deleted into the database"}
 

@@ -77,7 +77,7 @@ class user_parser:
       if session.get_user( name ):
         logger.error(f"the user {name} exist into the database.")
         return False
-      user = models.User( name = name, email = email , priority = priority, token = uuid4())
+      user = models.User( name = name, email = email , priority = priority, token = str(uuid4()))
       session().add(user)
       session.commit()
       logger.info(f"the user {name} new token {user.token}")
@@ -102,7 +102,7 @@ class user_parser:
         logger.error(f"the user {name} not found into the database.")
         return False
       user = session.get_user( name )
-      user.token = uuid4()
+      user.token = str(uuid4())
       session.commit()
       logger.info(f"the user {name} new token {user.token}")
       return user.token

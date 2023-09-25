@@ -12,7 +12,7 @@ host = os.environ['DATABASE_SERVER_HOST']
 parsers = [
             user_parser(host, commands),
             task_parser(host, commands),
-            database_parser(host, commands ),
+            data_parser(host, commands ),
           ]
 
 if len(sys.argv)==1:

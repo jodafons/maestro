@@ -244,7 +244,8 @@ def trigger_task_delete( task: Task ) -> bool:
   logger.debug("trigger_task_delete")
   if task.trigger == TaskTrigger.DELETE:
     task.remove()
-    task.kill()
+    if task.status == TaskStatus.RUNNING:
+      task.kill()
     return True
   else:
     return False
@@ -281,6 +282,9 @@ class Schedule(threading.Thread):
 
   def loop(self):
 
+    #
+    # treat dead jobs
+    #
     try:
       with self.db as session:
         logger.debug("Treat jobs with status running but not alive into the executor.")
@@ -295,7 +299,9 @@ class Schedule(threading.Thread):
       logger.error(e)
       return False
       
-    
+    #
+    # Update task states
+    #
     with self.db as session:
 
       # NOTE: All tasks assigned to remove should not be returned by the database.
@@ -324,6 +330,18 @@ class Schedule(threading.Thread):
               return False
               
       session.commit()
+
+    #
+    # remove tasks
+    #
+    with self.db as session:
+      tasks = session().query(Task).filter(Task.status==TaskStatus.REMOVED).all()
+      for task in tasks:
+        logger.info(f"delete task {task.id}...")
+        session().query(Job).filter(Job.taskid==task.id).delete()
+        session().query(Task).filter(Task.id==task.id).delete()
+        session.commit()
+
 
 
     logger.debug("Commit all database changes.")
@@ -361,7 +379,12 @@ class Schedule(threading.Thread):
       Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
+      
+      # NOTE: removed by trigger or when the task is in running state and go to killed status
+      Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                             ),
+      
+      
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
