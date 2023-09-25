@@ -21,7 +21,18 @@ MoreFilesForYou-*
 build
 .python-version
 orchestra-env
+.orchestra-env
+.venv
 # vscode
 ./.vscode/*
 .pytest_cache
 
+
+
+# server
+servers/schedule/api
+servers/pilot/api
+servers/mailing/api
+servers/executor/api
+servers/*/models.py
+servers/*/enumerations.py

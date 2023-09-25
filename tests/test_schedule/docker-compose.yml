@@ -1,0 +1,34 @@
+version: '3.5'
+
+services:
+
+  postman_server:
+    container_name: postman-test-server
+    image: ${DOCKER_NAMESPACE}/postman-server
+    ports:
+      - "5001:80"
+    command: ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 80"]
+    environment:
+      POSTMAN_SERVER_EMAIL_FROM: ${POSTMAN_SERVER_EMAIL_FROM}
+      POSTMAN_SERVER_EMAIL_PASSWORD: ${POSTMAN_SERVER_EMAIL_PASSWORD}
+
+  database_server:
+    container_name: database-test-server
+    image: postgres
+    command: postgres -c 'max_connections=200'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${DATABASE_SERVER_DATA_PATH}:/var/lib/postgresql/data
+      
+
+
+
+
+
+
+  

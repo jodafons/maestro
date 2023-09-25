@@ -1,41 +1,36 @@
 
-DOCKER_BASE=jodafons
+
+DOCKER_NAMESPACE=orchestra-server
+SHELL := /bin/bash
 
 
-all: build_base build_server build_executor
+all: build_base build_server
 
+#
+# Build
+#
 build_base: 
-	docker build -t $(DOCKER_BASE)/orchestra:base .
-
+	docker build --progress=plain -t ${DOCKER_NAMESPACE}/base-server --compress .
 build_server:
-	cd servers/schedule && docker build -t $(DOCKER_BASE)/orchestra:server .
+	cd servers && make 
 
-build_executor:
-	cd servers/executor && docker build -t $(DOCKER_BASE)/orchestra:executor .
+#
+# Server
+#
+start:
+	cd servers && make up_prod_debug
+down:
+	cd servers && make down
 
-test:
-	cd servers/database && docker-compose up -d
-	python -m pytest -vv -s tests/
-	cd servers/database && docker-compose down
+#
+# Docker
+#
 
-push:
-	docker push jodafons/orchestra:base
-	docker push jodafons/orchestra:executor
-
-
-
-deploy_server:
-	cd servers/schedule && docker-compose up
-
-deploy_db:
-	cd servers/database && docker-compose up -d
-	python scripts/create_database.py
-	
-down_db:
-	cd servers/database && docker-compose down
-
-#run:
-#	$(DOCKER_CMD) run -v $(CUTQC_VOLUME_PATH):/volume -it $(DOCKER_BASE)/cutqc-base
 clean:
 	docker system prune -a
 	
+
+build_local:
+	virtualenv -p python ${VIRTUALENV_NAMESPACE}
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && pip install poetry && poetry install && which python
+
