@@ -6,10 +6,10 @@ from fastapi import FastAPI, HTTPException
 
 if bool(os.environ.get("DOCKER_IMAGE",False)):
     from consumer import Consumer
-    from schemas import *
+    import schemas
 else:
     from servers.executor.consumer import Consumer
-    from maestro.schemas import *
+    from maestro import schemas
 
 
 
@@ -76,17 +76,17 @@ async def start_job(job_id: int):
 
 
 @app.get("/executor/describe")
-async def describe() -> Executor:
-    return Executor(host=consumer.localhost ,
-                    size=consumer.size, 
-                    allocated=len(consumer), 
-                    full=consumer.full(), 
-                    partition=consumer.partition,
-                    device=consumer.device)
+async def describe() -> schemas.Executor:
+    return schemas.Executor(host=consumer.localhost ,
+                            size=consumer.size, 
+                            allocated=len(consumer), 
+                            full=consumer.full(), 
+                            partition=consumer.partition,
+                            device=consumer.device)
 
 
 @app.post("/executor/update")
-async def update( executor : Executor ) :
+async def update( executor : schemas.Executor ) :
     consumer.partition = executor.partition
     consumer.size      = executor.size
     consumer.device    = executor.device
