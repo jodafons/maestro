@@ -6,7 +6,6 @@ CURRENT_DIR=$PWD
 cd $REPO_DIR
 echo "download repository..."
 git clone https://github.com/jodafons/orchestra-server.git && cd orchestra-server
-git checkout dev
 
 export VIRTUALENV_NAMESPACE=orchestra-server-env
 export MAESTRO_PATH=$PWD
