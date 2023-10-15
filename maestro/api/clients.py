@@ -53,29 +53,7 @@ class executor(client):
         return self.retry>self.max_retry
 
 
-class schedule(client):
 
-    def __init__(self, host):
-        client.__init__(self, host, "schedule")
-
-    def run(self):
-        res = self.try_request("run", method="get")
-        return True if res else False
-
-    def get_jobs(self, partition, n):
-        res = self.try_request(f"get_jobs/{partition}/{n}", method="post")
-        return res
-
-
-
-class postman(client):
-
-    def __init__(self, host):
-        client.__init__(self, host, "postman")
-
-    def send(self, to, subject, body):
-        res = self.try_request("send", method="post",body = schemas.Email(to=to, subject=subject, body=body).json())
-        return True if res else False
 
 
 class postgres:

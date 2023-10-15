@@ -5,14 +5,7 @@ from typing import Dict, Any, List
 from pydantic import BaseModel
 
 
-#
-# orchestra service integration
-#
 
-class Email(BaseModel):
-    to      : str = ""
-    subject : str = ""
-    body    : str = ""
 
 class Executor(BaseModel):
     host      : str  = ""
@@ -30,15 +23,7 @@ class Server(BaseModel):
 
 
 
-#
-# maestro and orchestra integration
-#
-
-class Request(BaseModel):
-  token       : str = ""
-
-
-class Job(Request):  
+class Job(BaseModel):  
   id          : int = -1
   image       : str = ""
   command     : str = ""
@@ -49,7 +34,7 @@ class Job(Request):
   partition   : str = ""
   status      : str = "Unknown"
 
-class Task(Request):
+class Task(BaseModel):
   id          : int = -1
   name        : str = ""
   volume      : str = ""

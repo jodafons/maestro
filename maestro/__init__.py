@@ -1,9 +1,7 @@
 
 __all__ = []
 
-from . import expand_folders
-__all__.extend( expand_folders.__all__ )
-from .expand_folders import *
+
 
 from . import enumerations
 __all__.extend( enumerations.__all__ )
