@@ -8,9 +8,7 @@ from loguru import logger
 from pprint import pprint
 from copy import copy
 from maestro.enumerations import JobStatus
-from maestro.api.clients import pilot, postgres
-
-SECONDS = 1
+from maestro.models import Database
 
 class Job:
 
@@ -177,7 +175,6 @@ class Consumer(threading.Thread):
 
   def __init__(self, localhost     : str,
                      server_host   : str, 
-                     database_host : str="",
                      device        : int=-1, 
                      binds         : dict={}, 
                      timeout       : int=60, 
@@ -185,6 +182,7 @@ class Consumer(threading.Thread):
                      slot_size     : int=1, 
                      level         : str="INFO", 
                      partition     : str='cpu',
+                     db            : Database=None,
                      ):
             
     threading.Thread.__init__(self)
@@ -200,7 +198,7 @@ class Consumer(threading.Thread):
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set() 
-    self.db = postgres(database_host) if len(database_host) > 0 else None
+    self.db = db
  
 
   def stop(self):
@@ -216,11 +214,18 @@ class Consumer(threading.Thread):
   #
   def run(self):
 
-    logger.debug("Connecting into the server...")
-    server = pilot(os.environ["PILOT_SERVER_HOST"])
+    logger.debug("Connecting to the server...")
+
+    # get the server host location from the database
+    hostname = self.db().get_env( "PILOT_SERVER_HOSTNAME" )
+    port     = self.db().get_env( "PILOT_SERVER_PORT" )
+    host     = f"{hostname}:{port}"
+    server   = schemas.client( host, 'pilot')
 
     connected = False
-    
+
+
+
     while (not self.__stop.isSet()):
       sleep(2)
       # NOTE wait to be set
@@ -234,6 +239,16 @@ class Consumer(threading.Thread):
                             allocated = len(self), 
                             full      = self.full(),
                             partition = self.partition )
+
+
+      body = schemas.Executor(host=host,device=device,size=size,full=full, 
+                                partition=partition, allocated=allocated)
+      
+      res = server.try_request(f'join', method="post", body=body.json())
+      res = schemas.Server(**res) if res else None
+
+
+
 
       if answer and not self.db:
         logger.info(f"connecting to database host using {answer.database}")
@@ -355,6 +370,9 @@ class Consumer(threading.Thread):
     return len(self.jobs.keys())>=self.size
 
 
- 
+  #def system_info(self):
+  # pass
+
+   
 
   

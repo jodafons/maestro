@@ -7,14 +7,13 @@ from maestro import schemas
 
 
 
-port           = int(os.environ.get("EXECUTOR_SERVER_PORT", 3050 ))
-local_host     = f"http://{socket.getfqdn()}:{str(port)}"
-server_host    = os.environ["PILOT_SERVER_HOST"]
+port        = int(os.environ.get("EXECUTOR_SERVER_PORT", 6000 ))
+hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" ,  f"http://{socket.getfqdn()}")
+host        = f"{hostname}:{port}"
 
 
-
-consumer = Consumer(local_host, 
-                    server_host   = server_host, 
+consumer = Consumer(host, 
+                    db            = Database(os.environ["DATABASE_SERVER_HOST"]),
                     device        = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'-1')), 
                     binds         = eval(os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}")), 
                     max_retry     = int(os.environ.get("EXECUTOR_SERVER_MAX_RETRY", '5')), 
@@ -57,11 +56,6 @@ async def shutdown_event():
     consumer.stop()
 
 
-#
-#
-#
-
-
 @app.post("/executor/start_job/{job_id}") 
 async def start_job(job_id: int):
     if not consumer.start_job( job_id ):
@@ -69,22 +63,13 @@ async def start_job(job_id: int):
     return {"message", f"Job {job_id} was included into the pipe."}
 
 
-@app.get("/executor/describe")
-async def describe() -> schemas.Executor:
-    return schemas.Executor(host=consumer.localhost ,
-                            size=consumer.size, 
-                            allocated=len(consumer), 
-                            full=consumer.full(), 
-                            partition=consumer.partition,
-                            device=consumer.device)
 
 
-@app.post("/executor/update")
-async def update( executor : schemas.Executor ) :
-    consumer.partition = executor.partition
-    consumer.size      = executor.size
-    consumer.device    = executor.device
-    return {"message", f"consumer was updated."}
+#@app.get("/executor/system_info")
+#async def system_info() -> schemas.Executor:
+#    return schemas.Executor( **consumer.system_info() )
+
+
 
 
 

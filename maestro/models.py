@@ -1,5 +1,5 @@
 
-__all__ = ["Postgres", "Task", "Job"]
+__all__ = ["Database", "Task", "Job", "Env"]
 
 
 import datetime, traceback, os
@@ -12,6 +12,17 @@ from loguru import logger
 
 
 Base = declarative_base()
+
+
+#
+# mimic an environ dict into the postgres database
+#
+class Env (Base):
+  __tablename__ = 'env'
+  # Local
+  id        = Column(Integer, primary_key = True)
+  key       = Column(String, unique=True)
+  value     = Column(String)
 
 
 #
@@ -108,15 +119,6 @@ class Job (Base):
 
 
 
-#
-#   Environ global control
-#
-class Environ (Base):
-  __tablename__ = 'environ'
-  # Local
-  id        = Column(Integer, primary_key = True)
-  key       = Column(String, unique=True)
-  value     = Column(String)
 
 
 
@@ -124,10 +126,7 @@ class Environ (Base):
 
 
 
-
-
-
-class Postgres:
+class Database:
 
   def __init__(self, host):
     self.host=host
@@ -147,7 +146,7 @@ class Postgres:
       self.__last_session.close()    
 
   def __call__(self):
-    return postgres_session( self.__session() )
+    return Session( self.__session() )
 
   def __enter__(self):
     self.__last_session = self.__call__()
@@ -225,6 +224,28 @@ class Session:
     try:
       job = self.__session.query(models.Job).filter(models.Job.id==job_id)
       return job.with_for_update().first() if with_for_update else job.first()
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return None
+
+
+  def set_environ( self, key : str, value : str):
+    env = self.get_environ(key)
+    if not env:
+      id = self.generate_id(Env)
+      logger.info(f"setting new environ ({id}) as {key}:{value}")
+      env = Env( id = id, key=key, value=value)
+      self.__session.add(env)
+    else:
+      env.value = value
+    self.commit()
+    
+
+  def get_environ( self, key : str):
+    try:
+      env = self.__session.query(Env).filter(Env.key==key).first()
+      return env
     except Exception as e:
       traceback.print_exc()
       logger.error(e)

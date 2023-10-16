@@ -1,4 +1,6 @@
 
+__all__ = ["Pilot"]
+
 import traceback, os, threading
 from time import time, sleep
 from loguru import logger
@@ -24,7 +26,7 @@ class Pilot( threading.Thread ):
 
   def run(self):
 
-    while not self.__stop.isSet() and self.ping():
+    while not self.__stop.isSet():
       sleep(10)
       # NOTE wait to be set
       self.__lock.wait() 

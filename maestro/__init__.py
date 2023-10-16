@@ -15,14 +15,15 @@ from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
 
-from . import parsers
-__all__.extend( parsers.__all__ )
-from .parsers import *
+#from . import parsers
+#__all__.extend( parsers.__all__ )
+#from .parsers import *
 
-from . import api
-__all__.extend( api.__all__ )
-from .api import *
+#from . import standalone
+#__all__.extend( standalone.__all__ )
+#from .standalone import *
 
-from . import standalone
-__all__.extend( standalone.__all__ )
-from .standalone import *
+
+from . import servers
+__all__.extend( servers.__all__ )
+from .servers import *

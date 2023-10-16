@@ -1,29 +1,53 @@
+#
+# enviroments for configuration:
+#
+# POSTMAN_SERVER_EMAIL_FROM
+# POSTMAN_SERVER_EMAIL_PASSWORD
+# POSTMAN_SERVER_EMAIL_TO
+# DATABASE_SERVER_RECREATE
+# DATABASE_SERVER_HOST
+# SCHEDULE_LOGGER_LEVEL
+# PILOT_LOGGER_LEVEL
+# PILOT_SERVER_PORT
+#
 
-
-import uvicorn, os
+import uvicorn, os, socket
 from time import sleep
 from fastapi import FastAPI, HTTPException
-from maestro.servers.control_plane import Pilot
-from maestro import models, schemas
+from maestro import models, schemas, Database, Schedule, Pilot
+from maestro.models import Base
+from loguru import logger
 
 
 
-
-level      = os.environ.get("CONTROL_PLANE_LOGGER_LEVEL","INFO")
-from_email = os.environ['POSTMAN_SERVER_EMAIL_FROM']
-password   = os.environ['POSTMAN_SERVER_EMAIL_PASSWORD']
-database   = os.environ["DATABASE_SERVER_HOST"]
-from_email = os.environ['POSTMAN_SERVER_EMAIL_FROM']
-password   = os.environ['POSTMAN_SERVER_EMAIL_PASSWORD']
-to_email   = os.environ['POSTMAN_SERVER_EMAIL_TO']
-
-
+port        = int(os.environ.get("PILOT_SERVER_PORT", 5000 ))
+hostname    = os.environ.get("PILOT_SERVER_HOSTNAME", f"http://{socket.getfqdn()}")
+host        = f"{hostname}:{port}"
 
 
 app      = FastAPI()
-db       = Postgres(database)
-schedule = Schedule(db, level=level)
-pilot    = Pilot(schedule, level=level)
+db       = Database(os.environ["DATABASE_SERVER_HOST"])
+
+
+if bool(os.environ.get("DATABASE_SERVER_RECREATE"    , '1')):
+    logger.info("clean up the entire database and recreate it...")
+    Base.metadata.drop_all(db.engine())
+    Base.metadata.create_all(db.engine())
+    logger.info("Database created...")
+else:
+    logger.info("set the enviroment with the pilot current location at the network...")
+
+
+with db as session:
+    # rewrite all environs into the database
+    session.set_environ( "PILOT_SERVER_HOSTNAME" , hostname)
+    session.set_environ( "PILOT_SERVER_PORT" , port)
+
+
+
+
+schedule = Schedule(db, level=os.environ.get("SCHEDULE_LOGGER_LEVEL","INFO"))
+pilot    = Pilot(schedule, level=os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
 
 
 
@@ -44,21 +68,7 @@ async def ping():
     return {"message": "pong"}
 
 
-@app.get("/pilot/stop") 
-async def stop():
-    schedule.stop()
-    pilot.stop()
-    return {"message", "pilot was stopped by external signal."}
 
-
-@app.get("/pilot/describe") 
-async def describe() -> schemas.Server : 
-    return schemas.Server( 
-                           database  = db.host, 
-                           binds     = str(pilot.binds),
-                           partitions= pilot.partitions ,
-                           executors = [executor.describe() for executor in pilot.executors.values() if executor.ping()]
-                           )
     
 
 @app.post("/pilot/join")

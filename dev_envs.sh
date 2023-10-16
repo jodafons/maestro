@@ -1,5 +1,6 @@
 
-export HOSTNAME=$(hostname).$(dnsdomainname)
+#export HOSTNAME=$(hostname).$(dnsdomainname)
+export HOSTNAME='0.0.0.0'
 export DOCKER_NAMESPACE='orchestra-server'
 export VIRTUALENV_NAMESPACE=.orchestra-server
 
@@ -67,12 +68,14 @@ export MAESTRO_WEB_SERVER_HOST="http://${HOSTNAME}:${MAESTRO_WEB_SERVER_PORT}"
 
 
 echo "=================================================================================="
-echo "EXECUTOR_SERVER_HOST    = ${EXECUTOR_SERVER_HOST}"
-echo "SCHEDULE_SERVER_HOST    = ${SCHEDULE_SERVER_HOST}"
-echo "PILOT_SERVER_HOST       = ${PILOT_SERVER_HOST}"
-echo "DATABASE_SERVER_HOST    = ${DATABASE_SERVER_HOST}"
-echo "PGADMIN_SERVER_HOST     = ${PGADMIN_SERVER_HOST}" 
-echo "MAESTRO_WEB_SERVER_HOST = ${MAESTRO_WEB_SERVER_HOST}"
-echo "POSTMAN_SERVER_HOST     = ${POSTMAN_SERVER_HOST}"
-echo "EXECUTOR_SERVER_BINDS   = ${EXECUTOR_SERVER_BINDS}"
+echo "EXECUTOR_SERVER_HOST      = ${EXECUTOR_SERVER_HOST}"
+echo "SCHEDULE_SERVER_HOST      = ${SCHEDULE_SERVER_HOST}"
+echo "PILOT_SERVER_HOST         = ${PILOT_SERVER_HOST}"
+echo "DATABASE_SERVER_HOST      = ${DATABASE_SERVER_HOST}"
+echo "PGADMIN_SERVER_HOST       = ${PGADMIN_SERVER_HOST}" 
+echo "MAESTRO_WEB_SERVER_HOST   = ${MAESTRO_WEB_SERVER_HOST}"
+echo "POSTMAN_SERVER_HOST       = ${POSTMAN_SERVER_HOST}"
+echo "=================================================================================="
+echo "EXECUTOR_SERVER_BINDS     = ${EXECUTOR_SERVER_BINDS}"
+echo "DATABASE_SERVER_DATA_PATH = ${DATABASE_SERVER_DATA_PATH}"
 echo "=================================================================================="

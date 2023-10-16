@@ -1,4 +1,6 @@
 
+__all__ = ["Schedule"]
+
 import traceback, time, os, threading
 
 from sqlalchemy import and_
@@ -7,7 +9,7 @@ from tqdm import tqdm
 from time import sleep, time
 from maestro.models import Task, Job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
-from maestro import Postman
+#from maestro import Postman
 
 
 #
@@ -150,7 +152,7 @@ def task_retry( task: Task ) -> bool:
 
 
 
-def task_removed(task ):
+def task_removed( task: Task ):
   """
     Check if task removed
   """
@@ -158,7 +160,7 @@ def task_removed(task ):
   return task.to_remove
   
 
-def task_kill(task):
+def task_kill( task: Task ):
   """
     Kill all jobs
   """

@@ -6,11 +6,11 @@ import glob, traceback, os, argparse, re
 from tqdm import tqdm
 from loguru import logger
 
-from maestro.standalone.job import test_job
+#from maestro.standalone.job import test_job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 from maestro.models import Task, Job
-from maestro.api.clients import postgres, postgres_session
-from maestro.expand_folders import expand_folders
+#from maestro.api.clients import postgres, Session
+#from maestro.expand_folders import expand_folders
 
 def convert_string_to_range(s):
      """
@@ -22,7 +22,7 @@ def convert_string_to_range(s):
 
 partitions = os.environ.get("EXECUTOR_AVAILABLE_PARTITIONS","").split(',')
 
-def create( session: postgres_session, basepath: str, taskname: str, inputfile: str,
+def create( session: Session, basepath: str, taskname: str, inputfile: str,
             image: str, command: str, email: str, dry_run: bool=False, do_test=True,
             extension='.json', binds="{}", partition="cpu") -> bool:
 
@@ -112,7 +112,7 @@ def create( session: postgres_session, basepath: str, taskname: str, inputfile: 
 
 
 
-def kill( session: postgres_session, task_id: int ) -> bool:
+def kill( session: Session, task_id: int ) -> bool:
 
   try:
     task = session().query(Task).filter(Task.id==task_id).first()
@@ -130,7 +130,7 @@ def kill( session: postgres_session, task_id: int ) -> bool:
 
 
 
-def retry( session: postgres_session, task_id: int ) -> bool:
+def retry( session: Session, task_id: int ) -> bool:
   try:
     task = session().query(Task).filter(Task.id==task_id).first()
     if not task:
@@ -151,7 +151,7 @@ def retry( session: postgres_session, task_id: int ) -> bool:
     return False
 
 
-def delete( session: postgres_session, task_id: int, force=False , remove=False) -> bool:
+def delete( session: Session, task_id: int, force=False , remove=False) -> bool:
 
   try:
     # Get task by id
