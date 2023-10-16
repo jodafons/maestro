@@ -258,9 +258,8 @@ class Transition:
 
 class Schedule(threading.Thread):
 
-  def __init__(self, db, extended_states : bool=False, level: str='INFO'):
+  def __init__(self, db, extended_states : bool=False):
     threading.Thread.__init__(self)
-    logger.level(level)
     logger.info("Creating schedule...")
     self.extended_states = extended_states
     self.db              = db

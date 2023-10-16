@@ -4,6 +4,7 @@ __all__ = ["Pilot"]
 import traceback, os, threading
 from time import time, sleep
 from maestro.servers.control.schedule import Schedule
+from maestro import schemas
 from loguru import logger
 
 
@@ -11,15 +12,12 @@ from loguru import logger
 class Pilot( threading.Thread ):
 
 
-  def __init__(self , host : str, schedule : Schedule, level: str="INFO", max_retry : int=5, binds : str="{}", partitions='cpu'):
+  def __init__(self , host : str, schedule : Schedule, max_retry : int=5):
 
     threading.Thread.__init__(self)
-    logger.level(level)
-    self.localhost = host
-    self.nodes = {}
+    self.host      = host
+    self.nodes     = {}
     self.schedule  = schedule
-    self.binds     = binds
-    self.partitions= partitions.split(',')
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set()
@@ -43,56 +41,58 @@ class Pilot( threading.Thread ):
 
     start = time()
     # NOTE: only healthy nodes  
-    for host, executor in self.nodes.items():
+    for host in self.nodes.keys():
 
       node = schemas.client(host, "executor")
-
 
       # get all information about the executor
       if not node.ping():
           logger.info( f"node with host name {host} is not alive...")
-          executor.retry += 1
+          self.nodes[host] += 1
           continue
 
       # NOTE: get all information from the current executor
-      res = executor.describe()
-
-      if res:
-        # if is full, skip...
-        if res.full :
-          logger.debug("executor is full...")
+      answer = node.try_request("system_info" , method="get")
+      if answer.status:
+        consumer = answer.metadata['consumer']
+        if consumer['full'] :
+          logger.debug("node is full...")
           continue
-
         # how many jobs to complete the queue?
-        n = res.size - res.allocated
-        partition = res.partition
+        n = consumer['size'] - consumer['allocated']
+        partition = consumer['partition']
 
         logger.debug(f"getting {n} jobs from {partition} partition...")
         
         for job_id in self.schedule.get_jobs( partition, n ):
-          executor.start(job_id)
-      
+          if node.try_request(f'start_job/{job_id}', method='post').status:
+            logger.debug(f'job {job_id} submitted')
+
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")
+
     # NOTE: remove nodes with max number of retries exceeded
-    self.nodes = {host:executor for host, executor in self.nodes.items() if not executor.to_close()}
+    self.nodes = {host:retry for host, retry in self.nodes.items() if retry < self.max_retry}
       
 
 
   def stop(self):
     self.__stop.set()
     self.schedule.stop()
-    for executor in self.nodes.values():
-      executor().stop()
+    for host in self.nodes.keys():
+      node = schemas.client(host, "executor")
+      res = node.try_request('stop', method='get')
+      if res:
+        logger.info(f"stopping node {node}...")
 
 
   def join_as( self, host ) -> bool:
 
     if host not in self.nodes.keys():
-      logger.debug("join a new executor into the pilot.")
+      logger.info(f"join node {host} into the pilot.")
       self.__lock.wait()
       self.__lock.clear()
-      self.nodes[host] = executor(host, max_retry=self.max_retry)
+      self.nodes[host] = 0
       self.__lock.set()
       return True
 

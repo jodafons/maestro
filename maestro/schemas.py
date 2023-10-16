@@ -7,11 +7,24 @@ from pydantic import BaseModel
 from loguru import logger
 
 
-class HandShake(BaseModel):
+#
+# Communication between servers
+#
+
+class Request(BaseModel):
     host      : str=""
-    status    : bool=False
     metadata  : Dict={}
 
+class Answer(BaseModel):
+    host      : str=""
+    status    : bool=True
+    message   : str=""
+    metadata  : Dict={}
+
+
+#
+# Special forms
+#
 
 class Job(BaseModel):  
   id          : int = -1
@@ -33,7 +46,9 @@ class Task(BaseModel):
   status      : str = "Unknown"
 
 
-
+#
+# client connection
+#
 
 class client:
 
@@ -47,7 +62,7 @@ class client:
                      params: Dict = {},
                      body: str = "",
                      stream: bool = False,
-                    ) -> Any:
+                    ) -> Answer:
 
         function = {
             "get" : requests.get,
@@ -56,13 +71,13 @@ class client:
         try:
             request = function(f"{self.host}/{self.service}/{endpoint}", params=params, data=body)
         except:
-            logger.error("Failed to establish a new connection.")
-            return None
+            logger.error("failed to establish the connection...")
+            return Answer(status=False)
         if request.status_code != 200:
-            logger.error(f"Request failed. Got {request.status_code}")
-            return None
-        return request.json()
-
+            logger.error(f"request failed. got {request.status_code}")
+            return Answer(status=False)
+        return Answer( **request.json() )
+        
 
     def ping(self):
         return False if self.try_request('ping', method="get") is None else True

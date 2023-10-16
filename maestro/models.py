@@ -239,7 +239,7 @@ class Session:
   def get_environ( self, key : str):
     try:
       env = self.__session.query(Env).filter(Env.key==key).first()
-      return env
+      return env.value if env else None
     except Exception as e:
       traceback.print_exc()
       logger.error(e)

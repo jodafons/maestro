@@ -20,7 +20,7 @@ from loguru import logger
 
 
 
-port        = int(os.environ.get("PILOT_SERVER_PORT", 5000 ))
+port        = int(os.environ.get("PILOT_SERVER_PORT", 6000 ))
 hostname    = os.environ.get("PILOT_SERVER_HOSTNAME", f"http://{socket.getfqdn()}")
 host        = f"{hostname}:{port}"
 
@@ -44,10 +44,8 @@ with db as session:
     session.set_environ( "PILOT_SERVER_PORT" , port)
 
 
-
-
-schedule = Schedule(db, level=os.environ.get("SCHEDULE_LOGGER_LEVEL","INFO"))
-pilot    = Pilot(schedule, level=os.environ.get("PILOT_LOGGER_LEVEL","INFO"))
+schedule = Schedule(db)
+pilot    = Pilot(host, schedule)
 
 
 
@@ -57,32 +55,29 @@ async def shutdown_event():
     pilot.stop()
 
 
+
 @app.on_event("startup")
 async def startup_event():
     schedule.start()
     pilot.start()
 
 
+
 @app.get("/pilot/ping")
-async def ping():
-    return {"message": "pong"}
+async def ping() -> schemas.Answer:
+    return schemas.Answer( host=pilot.host, message="pong")
 
 
-
-    
 
 @app.post("/pilot/join")
-async def join( handshake : schemas.HandShake ) -> schemas.HandShake:
-    pilot.join_as( handshake.host )
-    return schemas.HandShake( host = pilot.localhost metadata = {"binds" : str(pilot.binds)})
+async def join( req : schemas.Request ) -> schemas.Answer:
+    pilot.join_as( req.host )
+    return schemas.Answer( host = pilot.host, message="joined" )
     
-#
-# database manipulation
-#
 
 
 @app.post("/pilot/create") 
-async def create( task : schemas.Task ) :
+async def create( task : schemas.Task )  -> schemas.Answer:
 
     with db as session:
         #if not verify_token(session , task):
@@ -106,11 +101,12 @@ async def create( task : schemas.Task ) :
             task_db+=job_db
         session().add(task_db)
         session.commit()
-        return {"message", f"task created with id {task_db.id}"}
+        return schemas.Answer( host=pilot.host, message=f"task created with id {task_db.id}" )
+
 
 
 @app.post("/pilot/kill") 
-async def kill( task : schemas.Task ) :
+async def kill( task : schemas.Task )  -> schemas.Answer:
 
     with db as session:
         #if not verify_token(session , task):
@@ -122,13 +118,12 @@ async def kill( task : schemas.Task ) :
         task_db.kill()
         session.commit()
         logger.info(f"Sending kill signal to task {task_db.id}")
-        return {"message", f"kill signal sent to task {task_db.id}"}
-
+        return schemas.Answer( host=pilot.host, message=f"kill signal sent to task {task_db.id}" )
 
 
 
 @app.post("/pilot/retry") 
-async def retry( task : schemas.Task ) :
+async def retry( task : schemas.Task )  -> schemas.Answer:
 
     with db as session:
         if not verify_token(session , task):
@@ -141,12 +136,12 @@ async def retry( task : schemas.Task ) :
         task_db.retry()
         session.commit()
         logger.info(f"Sending retry signal to task {task_db.id}")
-        return {"message", f"retry signal sent to task {task_db.id}"}
+        return schemas.Answer( host=pilot.host, message=f"retry signal sent to task {task_db.id}" )
 
 
 
 @app.post("/pilot/delete") 
-async def delete( task : schemas.Task ) :
+async def delete( task : schemas.Task )  -> schemas.Answer:
 
     with db as session:
         if not verify_token(session , task):
@@ -154,13 +149,11 @@ async def delete( task : schemas.Task ) :
         task_db = session.get_task(task.id)
         if not task_db:
             raise HTTPException(status_code=418, detail=f"task not exist into database.")
-  
         task_db.delete()
         session.commit()
-        return {"message", f"task deleted into the database"}
-
+        return schemas.Answer( host=pilot.host, message=f"task deleted into the database" )
 
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=80, reload=True)
+    uvicorn.run("main:app", host='0.0.0.0', port=port, reload=True)

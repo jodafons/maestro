@@ -173,20 +173,18 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, localhost     : str,
+  def __init__(self, host          : str,
                      device        : int=-1, 
                      binds         : dict={}, 
                      timeout       : int=60, 
                      max_retry     : int=5, 
                      slot_size     : int=1, 
-                     level         : str="INFO", 
                      partition     : str='cpu',
                      db            : Database=None,
                      ):
             
     threading.Thread.__init__(self)
-    logger.level(level)
-    self.localhost = localhost
+    self.host      = host
     self.partition = partition
     self.jobs      = {}
     self.binds     = binds
@@ -213,26 +211,25 @@ class Consumer(threading.Thread):
   #
   def run(self):
 
-    logger.debug("Connecting to the server...")
 
     # get the server host location from the database
     hostname = self.db().get_environ( "PILOT_SERVER_HOSTNAME" )
     port     = self.db().get_environ( "PILOT_SERVER_PORT" )
     host     = f"{hostname}:{port}"
+    logger.debug(f"connecting to the server as {host}...")
+
     server   = schemas.client( host, 'pilot')
 
-    while (not self.__stop.isSet()) and (server.ping()):
-      sleep(2)
+    while (not self.__stop.isSet()):
+      sleep()
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()      
 
-      handshake = schemas.HandShake( host=self.localhost )
-      res = server.try_request(f'join', method="post", body=handshake.json())
-      if res:
-        handshake = schemas.HandShake(**res)
-        logger.debug(f"connected with {handshake.host}")
+      answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host ).json())
+      if answer.status:
+        logger.debug(f"connected with {answer.host}")
         self.loop()
       else:
         logger.error("not possible to connect with the server...")
@@ -241,6 +238,14 @@ class Consumer(threading.Thread):
       self.__lock.set()
 
 
+  def update(self , size : int, partition : str, device : int=-1):
+
+    self.__lock.wait()
+    self.__lock.clear()
+    self.size = size
+    self.partition = partition
+    self.device = device
+    self.__lock.set()
 
 
 
@@ -347,6 +352,7 @@ class Consumer(threading.Thread):
     return len(self.jobs.keys())>=self.size
 
 
+
   def system_info(self):
 
     uname = platform.uname()
@@ -363,26 +369,45 @@ class Consumer(threading.Thread):
       }
       devices.append(device)
 
-    info = {
-      'system'     : uname.system,
-      'node'       : uname.node,
-      'release'    : uname.release,
-      'version'    : uname.version,
-      'machine'    : uname.machine,
-      'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
-      'ip_address' : socket.gethostbyname(socket.gethostname()),
-      'cpu'        : psutil.cpu_count(logical=True),
-      'cpu_usage'  : psutil.cpu_percent(),
-      # memory
+    memory_info = {
       'memory_total' : svmem.total,
       'memory_avail' : svmem.available,
       'memory_used'  : svmem.used,
       'memory_usage' : svmem.percent,
-      'gpus'         : devices,
     }
 
-    return info
+    cpu_info = {
+      'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
+      'cpu'        : psutil.cpu_count(logical=True),
+      'cpu_usage'  : psutil.cpu_percent(),
+    }
 
+    consumer_info = {
+      'partition' : self.partition,
+      'device'    : self.device,
+      'size'      : self.size,
+      'allocated' : len(self.jobs.keys()),
+      'full'      : self.full()
+    }
+
+    system_info = {
+      'system'     : uname.system,
+      'version'    : uname.version,
+      'machine'    : uname.machine,
+      'release'    : uname.release,
+    }
+
+    return { # return the node information
+      'node'       : uname.node,
+      'ip_address' : socket.gethostbyname(socket.gethostname()),
+      'system'     : system_info,
+      'memory'     : memory_info,
+      'cpu'        : cpu_info,
+      'gpu'        : devices,
+      'consumer'   : consumer_info,
+    }
+
+  
 
   
 

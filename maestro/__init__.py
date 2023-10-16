@@ -2,7 +2,6 @@
 __all__ = []
 
 
-
 from . import enumerations
 __all__.extend( enumerations.__all__ )
 from .enumerations import *
