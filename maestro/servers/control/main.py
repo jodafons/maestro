@@ -72,14 +72,9 @@ async def ping():
     
 
 @app.post("/pilot/join")
-async def join( executor : schemas.Executor ) -> schemas.Server:
-    pilot.join_as( executor.host )
-    return schemas.Server( 
-                           database  = db.host, 
-                           binds     = str(pilot.binds),
-                           partitions= pilot.partitions ,
-                           executors = [executor.describe() for executor in pilot.executors.values() if executor.ping()]
-                           )
+async def join( handshake : schemas.HandShake ) -> schemas.HandShake:
+    pilot.join_as( handshake.host )
+    return schemas.HandShake( host = pilot.localhost metadata = {"binds" : str(pilot.binds)})
     
 #
 # database manipulation

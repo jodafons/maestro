@@ -7,21 +7,10 @@ from pydantic import BaseModel
 from loguru import logger
 
 
-
-class Executor(BaseModel):
-    host      : str  = ""
-    device    : int  = -1
-    size      : int  = 0
-    allocated : int  = 0
-    full      : bool = False
-    partition : str  = ""
-
-class Server(BaseModel):
-    database      : str = ""
-    binds         : str = ""
-    partitions    : List[str] = []
-    executors     : List[Executor] = []
-
+class HandShake(BaseModel):
+    host      : str=""
+    status    : bool=False
+    metadata  : Dict={}
 
 
 class Job(BaseModel):  

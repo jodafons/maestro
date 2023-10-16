@@ -222,44 +222,22 @@ class Consumer(threading.Thread):
     host     = f"{hostname}:{port}"
     server   = schemas.client( host, 'pilot')
 
-    connected = False
-
-
-
-    while (not self.__stop.isSet()):
+    while (not self.__stop.isSet()) and (server.ping()):
       sleep(2)
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()      
 
-      answer = server.join( host      = self.localhost, 
-                            device    = self.device, 
-                            size      = self.size, 
-                            allocated = len(self), 
-                            full      = self.full(),
-                            partition = self.partition )
-
-
-      body = schemas.Executor(host=host,device=device,size=size,full=full, 
-                                partition=partition, allocated=allocated)
-      
-      res = server.try_request(f'join', method="post", body=body.json())
-      res = schemas.Server(**res) if res else None
-
-
-
-
-      if answer and not self.db:
-        logger.info(f"connecting to database host using {answer.database}")
-        self.db = postgres(answer.database)
-        self.binds = eval(answer.binds)
-      
-      if self.db:
+      handshake = schemas.HandShake( host=self.localhost )
+      res = server.try_request(f'join', method="post", body=handshake.json())
+      if res:
+        handshake = schemas.HandShake(**res)
+        logger.debug(f"connected with {handshake.host}")
         self.loop()
       else:
-        logger.error("database not connected. its not possible to run loop...")
-
+        logger.error("not possible to connect with the server...")
+ 
       # NOTE: allow external user to incluse executors into the list
       self.__lock.set()
 

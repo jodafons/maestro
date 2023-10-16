@@ -3,6 +3,7 @@ __all__ = ["Pilot"]
 
 import traceback, os, threading
 from time import time, sleep
+from maestro import Schedule
 from loguru import logger
 
 
@@ -10,11 +11,12 @@ from loguru import logger
 class Pilot( threading.Thread ):
 
 
-  def __init__(self , schedule, level: str="INFO", max_retry : int=5, binds : str="{}", partitions='cpu'):
+  def __init__(self , host : str, schedule : Schedule, level: str="INFO", max_retry : int=5, binds : str="{}", partitions='cpu'):
 
     threading.Thread.__init__(self)
     logger.level(level)
-    self.executors = {}
+    self.localhost = host
+    self.nodes = {}
     self.schedule  = schedule
     self.binds     = binds
     self.partitions= partitions.split(',')
@@ -33,19 +35,22 @@ class Pilot( threading.Thread ):
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()
       self.loop()
-      # NOTE: allow external user to incluse executors into the list
+      # NOTE: allow external user to incluse nodes into the list
       self.__lock.set()
 
 
   def loop(self):
 
     start = time()
-    # NOTE: only healthy executors  
-    for host, executor in self.executors.items():
+    # NOTE: only healthy nodes  
+    for host, executor in self.nodes.items():
+
+      node = schemas.client(host, "executor")
+
 
       # get all information about the executor
-      if not executor.ping():
-          logger.info( f"executor with host name {host} is not alive...")
+      if not not.ping():
+          logger.info( f"node with host name {host} is not alive...")
           executor.retry += 1
           continue
 
@@ -69,24 +74,25 @@ class Pilot( threading.Thread ):
       
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")
-    # NOTE: remove executors with max number of retries exceeded
-    self.executors = {host:executor for host, executor in self.executors.items() if not executor.to_close()}
+    # NOTE: remove nodes with max number of retries exceeded
+    self.nodes = {host:executor for host, executor in self.nodes.items() if not executor.to_close()}
       
 
 
   def stop(self):
     self.__stop.set()
     self.schedule.stop()
-    for executor in self.executors.values():
+    for executor in self.nodes.values():
       executor().stop()
 
 
   def join_as( self, host ) -> bool:
-    if host not in self.executors.keys():
+
+    if host not in self.nodes.keys():
       logger.debug("join a new executor into the pilot.")
       self.__lock.wait()
       self.__lock.clear()
-      self.executors[host] = executor(host, max_retry=self.max_retry)
+      self.nodes[host] = executor(host, max_retry=self.max_retry)
       self.__lock.set()
       return True
 
