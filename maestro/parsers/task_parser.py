@@ -20,6 +20,35 @@ def convert_string_to_range(s):
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
+def test_job( job_db ):
+
+    job = Job( job_id     = job_db.id, 
+               taskname   = job_db.task.name,
+               command    = job_db.command,
+               image      = job_db.image, 
+               workarea   = job_db.workarea,
+               device     = -1,
+               job_db     = job_db,
+               extra_envs = {"JOB_LOCAL_TEST":'1'},
+               binds      = {},
+               dry_run    = False)
+
+
+    while True:
+        if job.status() == JobStatus.PENDING:
+            if not job.run():
+              return False
+        elif job.status() == JobStatus.FAILED:
+            return False
+        elif job.status() == JobStatus.RUNNING:
+            continue
+        elif job.status() == JobStatus.COMPLETED:
+            job_db.status=JobStatus.REGISTERED
+            return True
+        else:
+            continue
+
+
 partitions = os.environ.get("EXECUTOR_AVAILABLE_PARTITIONS","").split(',')
 
 def create( session: Session, basepath: str, taskname: str, inputfile: str,

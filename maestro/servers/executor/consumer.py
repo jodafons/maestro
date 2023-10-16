@@ -351,26 +351,17 @@ class Consumer(threading.Thread):
 
     uname = platform.uname()
     svmem = psutil.virtual_memory()
-  
-    def get_size(bytes, suffix="B", factor=1024):
-        for unit in ["", "K", "M", "G", "T", "P"]:
-            if bytes < factor:
-                return f"{bytes:.2f}{unit}{suffix}"
-            bytes /= factor
-
-
     devices = []
     for gpu in gputil.getGPUs():
       device = {
         'name'         : gpu.name,
         'id'           : gpu.id,
         'memory_total' : gpu.memoryTotal,
-        'memory_used'  : gpu.memoryUsed.
+        'memory_used'  : gpu.memoryUsed,
         'memory_avail' : gpu.memoryFree,
         'memory_usage' : (gpu.memoryUsed/gpu.memoryTotal) * 100,
       }
       devices.append(device)
-
 
     info = {
       'system'     : uname.system,
@@ -378,15 +369,14 @@ class Consumer(threading.Thread):
       'release'    : uname.release,
       'version'    : uname.version,
       'machine'    : uname.machine,
-      #'processor'  : uname.processor,
       'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
       'ip_address' : socket.gethostbyname(socket.gethostname()),
       'cpu'        : psutil.cpu_count(logical=True),
       'cpu_usage'  : psutil.cpu_percent(),
       # memory
-      'memory_total' : get_size(svmem.total),
-      'memory_avail' : get_size(svmem.available),
-      'memory_used'  : get_size(svmem.used),
+      'memory_total' : svmem.total,
+      'memory_avail' : svmem.available,
+      'memory_used'  : svmem.used,
       'memory_usage' : svmem.percent,
       'gpus'         : devices,
     }

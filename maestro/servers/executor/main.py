@@ -7,7 +7,7 @@ from maestro import schemas, Consumer, Database
 
 
 port        = int(os.environ.get("EXECUTOR_SERVER_PORT", 6000 ))
-hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" ,  'http://0.0.0.0' ) #f"http://{socket.getfqdn()}")
+hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" , f"http://{socket.getfqdn()}")
 host        = f"{hostname}:{port}"
 
 
