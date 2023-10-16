@@ -19,9 +19,10 @@ cd $WORKDIR
 
 echo "clonning..."
 
-
-
 git clone https://github.com/jodafons/orchestra-server.git && cd orchestra-server
 source dev_envs.sh
-make start
+make build_local
+make start &> node.log &
+sleep 5
+make server
 

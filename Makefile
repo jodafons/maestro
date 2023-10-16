@@ -21,9 +21,10 @@ build_local:
 # Server
 #
 start:
-	make build_local
-	hostname=$(hostname).$(dnsdomainname)
-	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/executor/main.py &> ${MAESTRO_LOGPLACE}/${hostname}.executor.log
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/executor/main.py
+
+server:
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/control/main.py
 
 #
 # Docker
