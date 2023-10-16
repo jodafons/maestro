@@ -9,6 +9,8 @@
 #echo $SLURM_JOB_NODELIST
 #export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
+export MAESTRO_LOGPLACE=$pwd
+
 echo "creating workdir..."
 
 WORKDIR=$(mktemp -d)
