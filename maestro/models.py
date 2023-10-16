@@ -120,12 +120,6 @@ class Job (Base):
 
 
 
-
-
-
-
-
-
 class Database:
 
   def __init__(self, host):

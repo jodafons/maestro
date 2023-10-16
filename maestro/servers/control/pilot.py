@@ -3,7 +3,7 @@ __all__ = ["Pilot"]
 
 import traceback, os, threading
 from time import time, sleep
-from maestro import Schedule
+from maestro.servers.control.schedule import Schedule
 from loguru import logger
 
 
@@ -49,7 +49,7 @@ class Pilot( threading.Thread ):
 
 
       # get all information about the executor
-      if not not.ping():
+      if not node.ping():
           logger.info( f"node with host name {host} is not alive...")
           executor.retry += 1
           continue

@@ -2,13 +2,12 @@
 import uvicorn, os, socket
 
 from fastapi import FastAPI, HTTPException
-from maestro.servers.executor.consumer import Consumer
-from maestro import schemas
+from maestro import schemas, Consumer, Database
 
 
 
 port        = int(os.environ.get("EXECUTOR_SERVER_PORT", 6000 ))
-hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" ,  f"http://{socket.getfqdn()}")
+hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" ,  'http://0.0.0.0' ) #f"http://{socket.getfqdn()}")
 host        = f"{hostname}:{port}"
 
 
@@ -63,15 +62,13 @@ async def start_job(job_id: int):
     return {"message", f"Job {job_id} was included into the pipe."}
 
 
-
-
-#@app.get("/executor/system_info")
-#async def system_info() -> schemas.Executor:
-#    return schemas.Executor( **consumer.system_info() )
+@app.get("/executor/system_info")
+async def system_info() -> schemas.HandShake:
+    return schemas.HandShake( host=consumer.localhost, metadata=consumer.system_info(), status=True)
 
 
 
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

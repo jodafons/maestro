@@ -1,14 +1,14 @@
 
 __all__ = ["Job", "Consumer"]
 
-import os, subprocess, traceback, psutil, time, sys, threading, socket
-
+import os, subprocess, traceback, psutil, time, sys, threading, socket, platform, cpuinfo
+import GPUtil as gputil
 from time import time, sleep
 from loguru import logger
 from pprint import pprint
 from copy import copy
 from maestro.enumerations import JobStatus
-from maestro.models import Database
+from maestro import Database, schemas
 
 class Job:
 
@@ -174,7 +174,6 @@ class Job:
 class Consumer(threading.Thread):
 
   def __init__(self, localhost     : str,
-                     server_host   : str, 
                      device        : int=-1, 
                      binds         : dict={}, 
                      timeout       : int=60, 
@@ -217,8 +216,8 @@ class Consumer(threading.Thread):
     logger.debug("Connecting to the server...")
 
     # get the server host location from the database
-    hostname = self.db().get_env( "PILOT_SERVER_HOSTNAME" )
-    port     = self.db().get_env( "PILOT_SERVER_PORT" )
+    hostname = self.db().get_environ( "PILOT_SERVER_HOSTNAME" )
+    port     = self.db().get_environ( "PILOT_SERVER_PORT" )
     host     = f"{hostname}:{port}"
     server   = schemas.client( host, 'pilot')
 
@@ -348,8 +347,57 @@ class Consumer(threading.Thread):
     return len(self.jobs.keys())>=self.size
 
 
-  #def system_info(self):
-  # pass
+  def system_info(self):
+
+    uname = platform.uname()
+    svmem = psutil.virtual_memory()
+  
+    def get_size(bytes, suffix="B", factor=1024):
+        for unit in ["", "K", "M", "G", "T", "P"]:
+            if bytes < factor:
+                return f"{bytes:.2f}{unit}{suffix}"
+            bytes /= factor
+
+
+    devices = []
+    for gpu in gputil.getGPUs():
+      device = {
+        'name'         : gpu.name,
+        'id'           : gpu.id,
+        'memory_total' : gpu.memoryTotal,
+        'memory_used'  : gpu.memoryUsed.
+        'memory_avail' : gpu.memoryFree,
+        'memory_usage' : (gpu.memoryUsed/gpu.memoryTotal) * 100,
+      }
+      devices.append(device)
+
+
+    info = {
+      'system'     : uname.system,
+      'node'       : uname.node,
+      'release'    : uname.release,
+      'version'    : uname.version,
+      'machine'    : uname.machine,
+      #'processor'  : uname.processor,
+      'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
+      'ip_address' : socket.gethostbyname(socket.gethostname()),
+      'cpu'        : psutil.cpu_count(logical=True),
+      'cpu_usage'  : psutil.cpu_percent(),
+      # memory
+      'memory_total' : get_size(svmem.total),
+      'memory_avail' : get_size(svmem.available),
+      'memory_used'  : get_size(svmem.used),
+      'memory_usage' : svmem.percent,
+      'gpus'         : devices,
+    }
+
+    return info
+
+
+  
+
+
+
 
    
 
