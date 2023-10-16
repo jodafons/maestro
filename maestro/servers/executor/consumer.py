@@ -221,7 +221,7 @@ class Consumer(threading.Thread):
     server   = schemas.client( host, 'pilot')
 
     while (not self.__stop.isSet()):
-      sleep()
+      sleep(5)
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read

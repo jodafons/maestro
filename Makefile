@@ -20,7 +20,9 @@ build_local:
 #
 # Server
 #
-
+start_node:
+	make build_local
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/executor/main.py
 
 #
 # Docker

@@ -9,9 +9,17 @@
 #echo $SLURM_JOB_NODELIST
 #export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
-MASTER=$1
-CPU=$2
-GPU=$3
+echo "creating workdir..."
 
-srun ./run_maestro.sh $MASTER $CPU $GPU
-wait
+WORKDIR=$(mktemp -d)
+echo $WORKDIR
+cd $WORKDIR
+
+echo "clonning..."
+
+
+
+git clone https://github.com/jodafons/orchestra-server.git && cd orchestra-server
+source dev_envs.sh
+make start_node
+
