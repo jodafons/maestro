@@ -23,5 +23,5 @@ echo "clonning..."
 
 git clone https://github.com/jodafons/orchestra-server.git && cd orchestra-server
 source dev_envs.sh
-make start_node
+make start
 
