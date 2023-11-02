@@ -1,6 +1,50 @@
 
 
 
+version: '3.5'
 
-
+services:
   
+  database_server:
+    container_name: database-server
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${HOME}/.postgresql/data:/var/lib/postgresql/data
+      
+  pilot_server:
+    container_name: pilot-server
+    image: ${DOCKER_NAMESPACE}/maestro
+    command: "python maestro/servers/control/main.py"
+    environment:
+      DATABASE_SERVER_HOST: ${DATABASE_SERVER_HOST}
+      POSTMAN_SERVER_EMAIL_FROM: ${POSTMAN_SERVER_EMAIL_FROM}
+      POSTMAN_SERVER_EMAIL_PASSWORD: ${POSTMAN_SERVER_EMAIL_PASSWORD}
+      DATABASE_SERVER_RECREATE: "recreate"
+      LOGURU_LEVEL: ${LOGURU_LEVEL}
+    ports:
+      - "6000:6000"
+    depends_on:
+      - database_server
+
+  executor_server:
+    container_name: executor-server
+    image: ${DOCKER_NAMESPACE}/maestro
+    command: "python maestro/servers/executor/main.py"
+    environment:
+      EXECUTOR_SERVER_DEVICE: "-1"
+      EXECUTOR_SERVER_MAX_RETRY: "5"
+      EXECUTOR_SERVER_TIMEOUT: "60" # seconds
+      EXECUTOR_SERVER_SLOTS_SIZE: "1"
+      EXECUTOR_PARTITION: "cpu-test"
+      DATABASE_SERVER_HOST: ${DATABASE_SERVER_HOST}
+      LOGURU_LEVEL: ${LOGURU_LEVEL}
+    ports:
+      - "5000:5000"
+    depends_on:
+      - pilot_server  

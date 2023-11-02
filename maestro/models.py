@@ -3,9 +3,9 @@ __all__ = ["Database", "Task", "Job", "Env"]
 
 
 import datetime, traceback, os
-
+import numpy as np
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
-from sqlalchemy import create_engine, Column, Boolean, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Boolean, Float, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from loguru import logger
 
@@ -40,8 +40,7 @@ class Task (Base):
   trigger   = Column(String, default=TaskTrigger.WAITING )
   # Foreign 
   jobs      = relationship("Job", order_by="Job.id", back_populates="task")
-  user      = Column(String)
-
+  
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
 
@@ -78,6 +77,26 @@ class Task (Base):
       d[job.status]+=1
     return d
 
+  def count(self):
+    total = { str(key):0 for key in job_status }
+    for job in self.jobs:
+      for s in job_status:
+        if job.status==s: total[s]+=1
+    return total
+
+  def sys_used_memory(self):
+    used_memory = [job.sys_used_memory for job in self.jobs if job.sys_used_memory >= 0]
+    return int(np.mean(used_memory) if len(used_memory) > 0 else -1)
+   
+  def gpu_used_memory(self):
+    used_memory = [job.gpu_used_memory for job in self.jobs if job.gpu_used_memory >= 0]
+    return int(np.mean(used_memory) if len(used_memory) > 0 else -1)
+
+  def cpu_percent(self):
+    cpu_percent = [job.cpu_percent for job in self.jobs if job.cpu_percent >= 0]
+    return int(np.mean(cpu_percent) if len(cpu_percent) > 0 else -1)
+ 
+
 
 
 #
@@ -99,6 +118,13 @@ class Job (Base):
   envs      = Column(String, default="{}")
   binds     = Column(String, default="{}")
   partition = Column(String, default='cpu')
+
+
+  # job telemetry
+  sys_used_memory     = Column(Float, default=-1)
+  gpu_used_memory     = Column(Float, default=-1)
+  cpu_percent         = Column(Float, default=-1)
+
 
 
   # Foreign
@@ -156,18 +182,23 @@ class Session:
   def __init__( self, session):
     self.__session = session
 
+
   def __del__(self):
     self.commit()
     self.close()
 
+
   def __call__(self):
     return self.__session
+
 
   def commit(self):
     self.__session.commit()
 
+
   def close(self):
     self.__session.close()
+
 
   def generate_id( self, model  ):
     if self.__session.query(model).all():
@@ -175,12 +206,13 @@ class Session:
     else:
       return 0
 
+
   def get_task( self, task, with_for_update=False ):
     try:
       if type(task) is int:
-        task = self.__session.query(models.Task).filter(models.Task.id==task)
+        task = self.__session.query(Task).filter(Task.id==task)
       elif type(task) is str:
-        task = self.__session.query(models.Task).filter(models.Task.name==task)
+        task = self.__session.query(Task).filter(Task.name==task)
       else:
         raise ValueError("task name or id should be passed to task retrievel...")
       return task.with_for_update().first() if with_for_update else task.first()
@@ -189,23 +221,10 @@ class Session:
       logger.error(e)
       return None
 
-  def get_user( self, user, with_for_update=False ):
-    try:
-      if type(user) is int:
-        user = self.__session.query(models.User).filter(models.User.id==user)
-      elif type(user) is str:
-        user = self.__session.query(models.User).filter(models.User.name==user)
-      else:
-        raise ValueError("user name or id should be passed to user retrievel...")
-      return user.with_for_update().first() if with_for_update else user.first()
-    except Exception as e:
-      traceback.print_exc()
-      logger.error(e)
-      return None
 
   def get_n_jobs(self, njobs, status=JobStatus.ASSIGNED, with_for_update=False):
     try:
-      jobs = self.__session.query(models.Job).filter(  models.Job.status==status  ).order_by(models.Job.id).limit(njobs)
+      jobs = self.__session.query(Job).filter(  Job.status==status  ).order_by(Job.id).limit(njobs)
       jobs = jobs.with_for_update().all() if with_for_update else jobs.all()
       jobs.reverse()
       return jobs
@@ -214,9 +233,10 @@ class Session:
       traceback.print_exc()
       return []
 
+
   def get_job( self, job_id,  with_for_update=False):
     try:
-      job = self.__session.query(models.Job).filter(models.Job.id==job_id)
+      job = self.__session.query(Job).filter(Job.id==job_id)
       return job.with_for_update().first() if with_for_update else job.first()
     except Exception as e:
       traceback.print_exc()
@@ -225,7 +245,7 @@ class Session:
 
 
   def set_environ( self, key : str, value : str):
-    env = self.get_environ(key)
+    env = self.__session.query(Env).filter(Env.key==key).first()
     if not env:
       id = self.generate_id(Env)
       logger.info(f"setting new environ ({id}) as {key}:{value}")
@@ -246,3 +266,4 @@ class Session:
       return None
 
     
+

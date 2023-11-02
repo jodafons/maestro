@@ -41,6 +41,10 @@ class Pilot( threading.Thread ):
 
     start = time()
     # NOTE: only healthy nodes  
+
+    self.schedule.loop()
+
+
     for host in self.nodes.keys():
 
       node = schemas.client(host, "executor")
@@ -55,15 +59,8 @@ class Pilot( threading.Thread ):
       answer = node.try_request("system_info" , method="get")
       if answer.status:
         consumer = answer.metadata['consumer']
-        if consumer['full'] :
-          logger.debug("node is full...")
-          continue
-        # how many jobs to complete the queue?
-        n = consumer['size'] - consumer['allocated']
-        partition = consumer['partition']
-
+        partition = consumer['partition']; n = 10
         logger.debug(f"getting {n} jobs from {partition} partition...")
-        
         for job_id in self.schedule.get_jobs( partition, n ):
           if node.try_request(f'start_job/{job_id}', method='post').status:
             logger.debug(f'job {job_id} submitted')
@@ -75,8 +72,8 @@ class Pilot( threading.Thread ):
     self.nodes = {host:retry for host, retry in self.nodes.items() if retry < self.max_retry}
       
 
-
   def stop(self):
+
     self.__stop.set()
     self.schedule.stop()
     for host in self.nodes.keys():
@@ -99,6 +96,12 @@ class Pilot( threading.Thread ):
     return False
     
   
+  def system_info(self):
 
-
-  
+    info = {}
+    for host in self.nodes.keys():
+      node = schemas.client(host, "executor")
+      answer = node.try_request("system_info" , method="get")
+      if answer.status:
+        info[host] = answer.metadata
+    return info

@@ -20,6 +20,7 @@ MoreFilesForYou-*
 .asetup.save
 build
 .python-version
+maestro-env
 orchestra-env
 .orchestra-env
 .venv

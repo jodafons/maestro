@@ -1,5 +1,56 @@
 
-__all__ = []
+__all__ = ["system_info"]
+
+import psutil, socket, platform, cpuinfo
+import GPUtil as gputil
+
+def system_info():
+
+    # NOTE: all memory values in MB
+    uname = platform.uname()
+    svmem = psutil.virtual_memory()
+    devices = []
+    for gpu in gputil.getGPUs():
+      device = {
+        'name'         : gpu.name,
+        'id'           : gpu.id,
+        'total' : gpu.memoryTotal,
+        'used'  : gpu.memoryUsed,
+        'avail' : gpu.memoryFree,
+        'usage' : (gpu.memoryUsed/gpu.memoryTotal) * 100,
+      }
+      devices.append(device)
+
+    memory_info = {
+      'total' : svmem.total/(1024**2),
+      'avail' : svmem.available/(1024**2),
+      'used'  : svmem.used/(1024**2),
+      'usage' : svmem.percent,
+    }
+
+    cpu_info = {
+      'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
+      'count'      : psutil.cpu_count(logical=True),
+      'usage'      : psutil.cpu_percent(),
+    }
+
+
+    system_info = {
+      'system'     : uname.system,
+      'version'    : uname.version,
+      'machine'    : uname.machine,
+      'release'    : uname.release,
+    }
+
+    return { # return the node information
+      'node'       : uname.node,
+      'ip_address' : socket.gethostbyname(socket.gethostname()),
+      'system'     : system_info,
+      'memory'     : memory_info,
+      'cpu'        : cpu_info,
+      'gpu'        : devices,
+    }
+
 
 
 from . import enumerations

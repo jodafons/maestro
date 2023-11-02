@@ -6,8 +6,6 @@
 # POSTMAN_SERVER_EMAIL_TO
 # DATABASE_SERVER_RECREATE
 # DATABASE_SERVER_HOST
-# SCHEDULE_LOGGER_LEVEL
-# PILOT_LOGGER_LEVEL
 # PILOT_SERVER_PORT
 #
 
@@ -20,7 +18,7 @@ from loguru import logger
 
 
 
-port        = int(os.environ.get("PILOT_SERVER_PORT", 6000 ))
+port        = int(os.environ.get("PILOT_SERVER_PORT", 5001 ))
 hostname    = os.environ.get("PILOT_SERVER_HOSTNAME", f"http://{socket.getfqdn()}")
 host        = f"{hostname}:{port}"
 
@@ -29,7 +27,7 @@ app      = FastAPI()
 db       = Database(os.environ["DATABASE_SERVER_HOST"])
 
 
-if bool(os.environ.get("DATABASE_SERVER_RECREATE"    , '1')):
+if os.environ.get("DATABASE_SERVER_RECREATE", '')=='recreate':
     logger.info("clean up the entire database and recreate it...")
     Base.metadata.drop_all(db.engine())
     Base.metadata.create_all(db.engine())
@@ -51,14 +49,14 @@ pilot    = Pilot(host, schedule)
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    schedule.stop()
+    #schedule.stop()
     pilot.stop()
 
 
 
 @app.on_event("startup")
 async def startup_event():
-    schedule.start()
+    #schedule.start()
     pilot.start()
 
 
@@ -154,6 +152,10 @@ async def delete( task : schemas.Task )  -> schemas.Answer:
         return schemas.Answer( host=pilot.host, message=f"task deleted into the database" )
 
 
+@app.get("/pilot/system_info") 
+async def system_info()  -> schemas.Answer:
+    return schemas.Answer( host=pilot.host, metadata=pilot.system_info() )
+
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host='0.0.0.0', port=port, reload=True)
+    uvicorn.run("main:app", host='0.0.0.0', port=port, reload=False)

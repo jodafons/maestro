@@ -3,14 +3,12 @@ __all__ = ["Schedule"]
 
 import traceback, time, os, threading
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from loguru import logger
 from tqdm import tqdm
 from time import sleep, time
 from maestro.models import Task, Job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
-#from maestro import Postman
-
 
 #
 # Transitions functions
@@ -52,7 +50,8 @@ def test_job_assigned( task: Task ) -> bool:
   """
     Assigned the fist job to test
   """
-  task.jobs[0].JobStatus =  JobStatus.ASSIGNED
+  logger.debug("test_job_assigned")
+  task.jobs[0].status =  JobStatus.ASSIGNED
   return True
 
 
@@ -60,6 +59,7 @@ def test_job_running( task: Task ) -> bool:
   """
     Check if the test job still running
   """
+  logger.debug(f"Job test with status {task.jobs[0].status}...")
   return task.jobs[0].status == JobStatus.RUNNING
 
 
@@ -258,7 +258,7 @@ class Transition:
 
 class Schedule(threading.Thread):
 
-  def __init__(self, db, extended_states : bool=False):
+  def __init__(self, db, extended_states : bool=True):
     threading.Thread.__init__(self)
     logger.info("Creating schedule...")
     self.extended_states = extended_states
@@ -286,7 +286,8 @@ class Schedule(threading.Thread):
       with self.db as session:
         logger.debug("Treat jobs with status running but not alive into the executor.")
         # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
-        jobs = session().query(Job).filter( Job.status==JobStatus.RUNNING ).with_for_update().all()
+        jobs = session().query(Job).filter( or_(Job.status==JobStatus.RUNNING, Job.status==JobStatus.PENDING) ).with_for_update().all()
+        print([job.status for job in jobs])
         for job in jobs:
           if not job.is_alive():
             job.status = JobStatus.ASSIGNED

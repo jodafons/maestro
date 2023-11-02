@@ -43,6 +43,6 @@ class TaskTrigger:
 
 
 
-job_status = [JobStatus.REGISTERED, JobStatus.ASSIGNED , JobStatus.TESTING, 
+job_status = [JobStatus.REGISTERED, JobStatus.ASSIGNED , JobStatus.PENDING, 
               JobStatus.RUNNING   , JobStatus.COMPLETED, JobStatus.FAILED, 
               JobStatus.KILL      , JobStatus.KILLED   , JobStatus.BROKEN]

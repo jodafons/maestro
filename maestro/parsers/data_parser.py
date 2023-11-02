@@ -3,11 +3,11 @@ __all__ = ["data_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
-from maestro.models import Base
-from maestro.api.clients import postgres
+from maestro.models import Base, Database
 
 
-def create( db: postgres ) -> bool:
+
+def create( db: Database ) -> bool:
 
   try:
     Base.metadata.create_all(db.engine())
@@ -21,7 +21,7 @@ def create( db: postgres ) -> bool:
 
 
 
-def delete( db: postgres ) -> bool:
+def delete( db: Database ) -> bool:
   try:
     Base.metadata.drop_all(db.engine())
     logger.info("Succefully deleted.")
@@ -33,7 +33,7 @@ def delete( db: postgres ) -> bool:
     return False
 
 
-def recreate( db: postgres) -> bool:
+def recreate( db: Database) -> bool:
 
   if (not delete(db)):
     return False
@@ -51,7 +51,7 @@ class data_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = postgres(host)
+    self.db = Database(host)
     if args:
 
       # Create Task

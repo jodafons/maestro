@@ -2,15 +2,17 @@ __all__ = ["task_parser"]
 
 
 import glob, traceback, os, argparse, re
+from time import sleep
 
+from expand_folders import expand_folders
+from tabulate import tabulate
 from tqdm import tqdm
 from loguru import logger
 
-#from maestro.standalone.job import test_job
-from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
-from maestro.models import Task, Job
-#from maestro.api.clients import postgres, Session
-#from maestro.expand_folders import expand_folders
+from maestro.servers.executor.consumer import Job as JobTest
+from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+from maestro.models import Task, Job, Database, Session
+
 
 def convert_string_to_range(s):
      """
@@ -20,9 +22,11 @@ def convert_string_to_range(s):
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
+
+
 def test_job( job_db ):
 
-    job = Job( job_id     = job_db.id, 
+    job = JobTest( job_id     = job_db.id, 
                taskname   = job_db.task.name,
                command    = job_db.command,
                image      = job_db.image, 
@@ -52,13 +56,13 @@ def test_job( job_db ):
 partitions = os.environ.get("EXECUTOR_AVAILABLE_PARTITIONS","").split(',')
 
 def create( session: Session, basepath: str, taskname: str, inputfile: str,
-            image: str, command: str, email: str, dry_run: bool=False, do_test=True,
+            image: str, command: str, dry_run: bool=False, do_test=True,
             extension='.json', binds="{}", partition="cpu") -> bool:
 
 
 
 
-  if session.task(taskname) is not None:
+  if session.get_task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
     return None
 
@@ -66,9 +70,9 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
     logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
     return None
 
-  if (not partition in partitions):
-    logger.error(f"Partition {partition} not available.")
-    return None
+  #if (not partition in partitions):
+  #  logger.error(f"Partition {partition} not available.")
+  #  return None
 
   # task volume
   volume = basepath + '/' + taskname
@@ -81,8 +85,7 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
                     name=taskname,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
-                    trigger=TaskTrigger.WAITING,
-                    contact=email)
+                    trigger=TaskTrigger.WAITING)
     # check if input file is json
     files = expand_folders( inputfile )
 
@@ -180,7 +183,7 @@ def retry( session: Session, task_id: int ) -> bool:
     return False
 
 
-def delete( session: Session, task_id: int, force=False , remove=False) -> bool:
+def delete( session: Session, task_id: int ) -> bool:
 
   try:
     # Get task by id
@@ -189,17 +192,11 @@ def delete( session: Session, task_id: int, force=False , remove=False) -> bool:
       logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
       return False
 
-
-    if not force:
-      task.delete()
-      session.commit()
-      while task.status != TaskStatus.REMOVED:
-        logger.info(f"Waiting for schedule... Task with status {task.status}")
-        sleep(2)
-    
-    session().query(Job).filter(Job.taskid==task_id).delete()
-    session().query(Task).filter(Task.id==task_id).delete()
+    task.delete()
     session.commit()
+    while task.status != TaskStatus.REMOVED:
+      logger.info(f"Waiting for schedule... Task with status {task.status}")
+      sleep(2)
     logger.info("Succefully deleted.")
     return True
  
@@ -210,15 +207,46 @@ def delete( session: Session, task_id: int, force=False , remove=False) -> bool:
     return False
 
 
+def list_tasks( session: Session ):
 
+  try:
 
+    tasks = session().query(Task).all()
+    table = []
+    for task in tasks:
+      values        = task.count()
+      row = [task.id, task.name]
+      row.extend([values[status] for status in job_status])
+      row.append(task.status)
+      table.append(row)
+
+    t = tabulate(table,  headers=[
+                  'ID'    ,
+                  'Task'  ,
+                  'Registered',
+                  'Assigned'  ,
+                  'Pending'   ,
+                  'Running'   ,
+                  'Completed' ,
+                  'Failed'    ,
+                  'kill'      ,
+                  'killed'    ,
+                  'Broken'    ,
+                  'Status'    ,
+                  ],tablefmt="heavy_outline")
+    return t
+
+  except Exception as e:
+    traceback.print_exc()
+    logger.error("Unknown error." )
+    return "Not possible to show the table."
 
 
 class task_parser:
 
   def __init__(self , host, args=None):
 
-    self.db = postgres(host)
+    self.db = Database(host)
     if args:
 
       # Create Task
@@ -241,8 +269,6 @@ class task_parser:
                           help = "Use this as debugger.")
       create_parser.add_argument('--do_test', action='store_true', dest='do_test', required=False, default=False,
                           help = "Do local test")
-      create_parser.add_argument('-e','--email', action='store', dest='email', required=True,
-                          help = "The user email contact.")
       create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
                           help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
       create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
@@ -281,31 +307,31 @@ class task_parser:
 
       if args.option == 'create':
         self.create(os.getcwd(), args.taskname, args.inputfile,
-                    args.image, args.command, args.email, dry_run=args.dry_run,
+                    args.image, args.command, dry_run=args.dry_run,
                     do_test=args.do_test, binds=args.binds, partition=args.partition)
 
       elif args.option == 'retry':
-        self.retry(convert_string_to_range(args.id))
+        self.retry(convert_string_to_range(args.id_list))
         
       elif args.option == 'delete':
-        self.delete(convert_string_to_range(args.id), force=args.force)
+        self.delete(convert_string_to_range(args.id_list), force=args.force)
         
       elif args.option == 'list':
         self.list()
         
       elif args.option == 'kill':
-        self.kill(convert_string_to_range(args.id))
+        self.kill(convert_string_to_range(args.id_list))
         
       else:
         logger.error("Option not available.")
 
 
   def create(self, basepath: str, taskname: str, inputfile: str,
-                   image: str, command: str, email: str, dry_run: bool=False, do_test=True,
+                   image: str, command: str, dry_run: bool=False, do_test=True,
                    extension='.json', binds="{}", partition='cpu' ):
 
     with self.db as session:
-      return create(session, basepath, taskname, inputfile, image, command, email, 
+      return create(session, basepath, taskname, inputfile, image, command, 
                     dry_run=dry_run, do_test=do_test, binds=binds, partition=partition)
 
   def kill(self, task_ids):
@@ -316,7 +342,7 @@ class task_parser:
   def delete(self, task_ids, force=False):
     with self.db as session:
       for task_id in task_ids:
-        delete(session, task_id, force=force)
+        delete(session, task_id)
 
   def retry(self, task_ids):
     with self.db as session:
@@ -324,9 +350,9 @@ class task_parser:
         retry(session, task_id)
 
   def list(self):
-    print('not implemented')
-  #  print(self.db.resume())
-
+    with self.db as session:
+      print(list_tasks(session))
+  
 
   
 
