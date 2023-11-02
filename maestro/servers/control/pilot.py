@@ -63,7 +63,7 @@ class Pilot( threading.Thread ):
         logger.debug(f"getting {n} jobs from {partition} partition...")
         for job_id in self.schedule.get_jobs( partition, n ):
           if node.try_request(f'start_job/{job_id}', method='post').status:
-            logger.debug(f'job {job_id} submitted')
+            logger.debug(f'start job sent well to the consumer node.')
 
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")

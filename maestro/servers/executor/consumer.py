@@ -1,5 +1,5 @@
 
-__all__ = ["Job", "Consumer"]
+__all__ = ["Job", "Consumer", "GB"]
 
 import os, subprocess, traceback, time, sys, threading, psutil, nvsmi
 from time import time, sleep
@@ -10,9 +10,9 @@ from maestro.enumerations import JobStatus, TaskStatus
 from maestro import Database, schemas, models, system_info
 
 
-SYS_MEMORY_FACTOR = 1.2
-GPU_MEMORY_FACTOR = 1.2
-
+SYS_MEMORY_FACTOR = 1.2 # not exactally the amount of memory. We should correct.
+GPU_MEMORY_FACTOR = 1.1 # usually the memory estimation is the real value used.
+GB                = 1024
 
 class Job:
 
@@ -178,14 +178,17 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, host          : str,
-                     device        : int=-1, 
-                     binds         : dict={}, 
-                     timeout       : int=60, 
-                     max_retry     : int=5, 
-                     slot_size     : int=1, 
-                     partition     : str='cpu',
-                     db            : Database=None,
+  def __init__(self, host                : str,
+                     device              : int=-1, 
+                     binds               : dict={}, 
+                     timeout             : int=60, 
+                     max_retry           : int=5, 
+                     slot_size           : int=1, 
+                     partition           : str='cpu',
+                     db                  : Database=None,
+                     cpu_limit           : float=80,
+                     reserved_memory     : float=4*GB,
+                     reserved_gpu_memory : float=2*GB,
                      ):
             
     threading.Thread.__init__(self)
@@ -199,8 +202,11 @@ class Consumer(threading.Thread):
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set() 
-    self.db = db
+    self.db = db 
 
+    self.cpu_limit = cpu_limit
+    self.reserved_memory = reserved_memory
+    self.reserved_gpu_memory = reserved_gpu_memory
  
 
   def stop(self):
@@ -251,14 +257,17 @@ class Consumer(threading.Thread):
 
     if job_id in self.jobs.keys():
       logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
+      self.__lock.set()
       return False
 
-
+    # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
+    # testing jobs must run alone since we dont know how much resouces will be used.
     blocked = any([job.testing for job in self.jobs.values()])
 
-    # check if we have a test job waiting to run or running...
+    # NOTE: check if we have a test job waiting to run or running...
     if blocked:
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
+      self.__lock.set()
       return False
 
 
@@ -266,10 +275,10 @@ class Consumer(threading.Thread):
       
       job_db = session.get_job(job_id, with_for_update=True)
    
-      testing = job_db.task.status == TaskStatus.TESTING
-
+      # NOTE: check if the consumer attend some resouces criteria to run the current job
       if (not self.check_resources(job_db)):
         logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
+        self.__lock.set()
         return False
 
       binds = copy(self.binds)
@@ -284,15 +293,15 @@ class Consumer(threading.Thread):
              device=self.device,
              extra_envs=envs,
              binds=binds,
-             testing=testing,
+             testing=job_db.task.status == TaskStatus.TESTING,
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()
       self.jobs[job_id] = job
       session.commit()
-
-    self.__lock.set()
+    
     logger.debug(f'Job with id {job.id} included into the consumer.')
+    self.__lock.set()
     return True
 
 
@@ -349,6 +358,7 @@ class Consumer(threading.Thread):
 
         elif job.status() is JobStatus.RUNNING:
           logger.debug(f'Job {job.id} is RUNNING.')
+          # NOTE: update peak values for the current job
           cpu_percent, sys_used_memory, gpu_used_memory = job.proc_stat()
           job_db.cpu_percent      = max(cpu_percent       , job_db.cpu_percent      )
           job_db.sys_used_memory  = max(sys_used_memory   , job_db.sys_used_memory  )
@@ -385,7 +395,10 @@ class Consumer(threading.Thread):
     }
     sys_avail_memory = d['memory']['avail']
     gpu_avail_memory = d['gpu'][self.device]['avail'] if self.device>=0 else 0
-    return d if detailed else (sys_avail_memory, gpu_avail_memory) 
+    cpu_usage        = d['cpu']['usage']
+    sys_total_memory = d['memory']['total']
+    gpu_total_memory = d['gpu'][self.device]['total'] if self.device>=0 else 0
+    return d if detailed else (cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory) 
 
 
 
@@ -393,25 +406,38 @@ class Consumer(threading.Thread):
   def check_resources(self, job_db : models.Job):
 
     # available memory into the system
-    sys_avail_memory, gpu_avail_memory = self.system_info()
+    cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
+
+    if cpu_usage > self.cpu_limit:
+      logger.warning("CPU node usage reached the limit stablished.")
+      return False
 
     # estimatate memory peak by mean for the current task
-    sys_used_memory = job_db.task.sys_used_memory()
-    gpu_used_memory = job_db.task.gpu_used_memory()
+    sys_used_memory = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
+    gpu_used_memory = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value
+    sys_avail_memory = sys_avail_memory - self.reserved_memory
+    gpu_avail_memory = gpu_avail_memory - self.reserved_gpu_memory
+
+    if sys_avail_memory < 0:
+      logger.warning("System memory node usage reached the limit stablished.")
+      return False
+
+    if gpu_avail_memory < 0:
+      logger.warning("GPU memory node usage reached the limit stablished.")
+      return False
 
     logger.debug(f"Job system used memory : {sys_used_memory} ({sys_avail_memory}) MB")
-    logger.debug(f"Job gpu used memory    : {gpu_used_memory} ({gpu_avail_memory}) MB")
-
     # check if we have memory to run this workload
-    if (sys_used_memory >= 0) and (sys_used_memory * SYS_MEMORY_FACTOR > sys_avail_memory):
+    if (sys_used_memory >= 0) and (sys_used_memory > sys_avail_memory):
       logger.warning("Not available memory to run this job into this consumer.")
       return False  
 
+    logger.debug(f"Job gpu used memory    : {gpu_used_memory} ({gpu_avail_memory}) MB")
     # check if we have gpu memory to run this workload
-    if (self.device >= 0) and (gpu_used_memory >= 0) and (gpu_used_memory * GPU_MEMORY_FACTOR > gpu_avail_memory):
+    if (self.device >= 0) and (gpu_used_memory >= 0) and (gpu_used_memory > gpu_avail_memory):
       logger.warning("Not available GPU memory to run this job into this consumer.")
       return False
-   
+
     # if here, all resources available for this workload
     return True
 

@@ -25,6 +25,7 @@ consumer = Consumer(host,
                     timeout       = int(os.environ.get("EXECUTOR_SERVER_TIMEOUT"  , '5')), 
                     slot_size     = int(os.environ.get("EXECUTOR_SERVER_SLOT_SIZE", '1')),
                     partition     = os.environ.get("EXECUTOR_PARTITION", "gpu"          ),
+                    cpu_limit     = float(os.environ.get("EXECUTOR_CPU_LIMIT", "80")    )
                     )
 
 
@@ -61,9 +62,8 @@ async def shutdown_event():
 
 @app.post("/executor/start_job/{job_id}") 
 async def start_job(job_id: int) -> schemas.Answer:
-    if not consumer.start_job( job_id ):
-        raise HTTPException(status_code=404, detail=f"Not possible to include {job_id} into the pipe.")
-    return schemas.Answer( host=consumer.host, message=f"Job {job_id} was included into the pipe." )
+    submitted = consumer.start_job( job_id )
+    return schemas.Answer( host=consumer.host, message=f"Job {job_id} was included into the pipe.", metadata={'submitted':submitted})
 
 
 @app.get("/executor/system_info")
