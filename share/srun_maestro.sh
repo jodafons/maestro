@@ -25,8 +25,5 @@ echo "building..."
 make build_local
 
 
-export LOGURO_LEVEL="DEBUG"
-make start &> node.log &
-sleep 5
-make server
-
+export LOGURO_LEVEL="INFO"
+make node 

@@ -1,5 +1,5 @@
 import os, json
-NUMBER_OF_JOBS=10
+NUMBER_OF_JOBS=50
 basepath = os.getcwd()
 os.makedirs(basepath+'/jobs', exist_ok=True)
 for sort in range(NUMBER_OF_JOBS):
