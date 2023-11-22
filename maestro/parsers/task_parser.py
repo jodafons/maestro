@@ -2,8 +2,10 @@ __all__ = ["task_parser"]
 
 
 import glob, traceback, os, argparse, re
-from time import sleep
 
+from datetime import datetime
+from time import sleep
+from mlflow.tracking import MlflowClient
 from expand_folders import expand_folders
 from tabulate import tabulate
 from tqdm import tqdm
@@ -23,10 +25,20 @@ def convert_string_to_range(s):
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
 
 
+def create_run( client, experiment_id , run_name ):
+  run = client.create_run(experiment_id=experiment_id, run_name=run_name)
+  return run.info.run_id
+
+def create_experiment( client, experiment_name ):
+  return  client.create_experiment( experiment_name )
+
+
+
+
 
 def test_job( job_db ):
 
-    job = JobTest( job_id     = job_db.id, 
+    job = JobTest( job_id = job_db.id, 
                taskname   = job_db.task.name,
                command    = job_db.command,
                image      = job_db.image, 
@@ -53,12 +65,21 @@ def test_job( job_db ):
             continue
 
 
-partitions = os.environ.get("EXECUTOR_AVAILABLE_PARTITIONS","").split(',')
+def create( session   : Session, 
+            basepath  : str, 
+            taskname  : str, 
+            inputfile : str,
+            image     : str, 
+            command   : str, 
+            dry_run   : bool=False, 
+            extension : str='.json', 
+            binds     : str="{}", 
+            partition : str="cpu",
+            repo      : str="",
+            local_test: bool=False ) -> bool:
+            
 
-def create( session: Session, basepath: str, taskname: str, inputfile: str,
-            image: str, command: str, dry_run: bool=False, do_test=True,
-            extension='.json', binds="{}", partition="cpu") -> bool:
-
+  # append random tag in the end of the task name
 
 
 
@@ -70,9 +91,13 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
     logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
     return None
 
-  #if (not partition in partitions):
-  #  logger.error(f"Partition {partition} not available.")
-  #  return None
+  # get tracking server
+  tracking_url = session.get_environ("TRACKING_SERVER_URL")
+  logger.info(f"tracking server from {tracking_url}")
+  tracking     = MlflowClient( tracking_url )
+
+  experiment_id = create_experiment( tracking, taskname )
+
 
   # task volume
   volume = basepath + '/' + taskname
@@ -85,7 +110,9 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
                     name=taskname,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
-                    trigger=TaskTrigger.WAITING)
+                    trigger=TaskTrigger.WAITING,
+                    experiment_id=experiment_id )
+                    
     # check if input file is json
     files = expand_folders( inputfile )
 
@@ -93,28 +120,40 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
       logger.error(f"It is not possible to find jobs into {inputfile}... Please check and try again...")
       return None
 
+
+
     offset = session.generate_id(Job)
     for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=50):
       
       extension = fpath.split('/')[-1].split('.')[-1]
-      workarea = volume +'/'+ fpath.split('/')[-1].replace('.'+extension, '')
-      envs = str({})
+      job_name = fpath.split('/')[-1].replace('.'+extension, '')
+      workarea = volume +'/'+ job_name
+      envs = {}
+
+      run_id = create_run( tracking, experiment_id, job_name )
+      tracking.set_tag(run_id, "Status", JobStatus.REGISTERED)
+
+
+
       job_db = Job(
                     id=offset+idx,
                     image=image,
                     command=command.replace('%IN',fpath),
                     workarea=workarea,
                     inputfile=fpath,
-                    envs=envs,
+                    envs=str(envs),
                     binds=binds,
                     status=JobStatus.REGISTERED,
-                    partition=partition
+                    partition=partition,
+                    run_id=run_id,
                   )
+
       task_db.jobs.append(job_db)
 
 
+
     # NOTE: Should we skip test here?
-    if not do_test:
+    if not local_test:
       logger.info("Skipping local test...")
       session().add(task_db)
       if not dry_run:
@@ -122,20 +161,21 @@ def create( session: Session, basepath: str, taskname: str, inputfile: str,
         session.commit()
       logger.info( "Succefully created.")
       return task_db.id
-   
-
-    # NOTE: Test my job localy
-    logger.info("Applying local test...")
-    if test_job( task_db.jobs[0] ):
-      session().add(task_db)
-      if not dry_run:
-        logger.info("Commit task into the database.")
-        session.commit()  
-      logger.info("Succefully created.")
-      return task_db.id
     else:
-      logger.error("Local test failed.")
-      return None
+      # NOTE: Test my job localy
+      logger.info("Applying local test...")
+      if test_job( task_db.jobs[0] ):
+        session().add(task_db)
+        if not dry_run:
+          logger.info("Commit task into the database.")
+          session.commit()  
+        logger.info("Succefully created.")
+        return task_db.id
+      else:
+        logger.error("Local test failed.")
+        return None
+
+
 
   except Exception as e:
     traceback.print_exc()
@@ -267,13 +307,12 @@ class task_parser:
                           help = "The exec command")
       create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
                           help = "Use this as debugger.")
-      create_parser.add_argument('--do_test', action='store_true', dest='do_test', required=False, default=False,
-                          help = "Do local test")
       create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
                           help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
       create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
-                          help = f"The selected partitions. Availables: {partitions}")
-
+                          help = f"The selected partitions.")
+      create_parser.add_argument('--repo', action='store', dest='repo', required=False, default="",
+                          help = "The path of the local github repository (.git) for validation stage")
 
       delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                     help = "All task ids to be deleted", type=str)
@@ -306,9 +345,7 @@ class task_parser:
     if args.mode == 'task':
 
       if args.option == 'create':
-        self.create(os.getcwd(), args.taskname, args.inputfile,
-                    args.image, args.command, dry_run=args.dry_run,
-                    do_test=args.do_test, binds=args.binds, partition=args.partition)
+        self.create(os.getcwd(), args)
 
       elif args.option == 'retry':
         self.retry(convert_string_to_range(args.id_list))
@@ -326,13 +363,19 @@ class task_parser:
         logger.error("Option not available.")
 
 
-  def create(self, basepath: str, taskname: str, inputfile: str,
-                   image: str, command: str, dry_run: bool=False, do_test=True,
-                   extension='.json', binds="{}", partition='cpu' ):
+  def create(self, basepath: str, args ):
 
     with self.db as session:
-      return create(session, basepath, taskname, inputfile, image, command, 
-                    dry_run=dry_run, do_test=do_test, binds=binds, partition=partition)
+      return create(session, basepath, 
+                    args.taskname, 
+                    args.inputfile, 
+                    args.image, 
+                    args.command, 
+                    dry_run=args.dry_run, 
+                    binds=args.binds, 
+                    partition=args.partition,
+                    repo=args.repo)
+
 
   def kill(self, task_ids):
     with self.db as session:

@@ -44,6 +44,8 @@ class Task (Base):
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
 
+  # NOTE: mlflow id param
+  experiment_id    = Column(String)
 
   #
   # Method that adds jobs into task
@@ -119,11 +121,14 @@ class Job (Base):
   binds     = Column(String, default="{}")
   partition = Column(String, default='cpu')
 
+  # NOTE: mlflow id param
+  run_id    = Column(String)
 
-  # job telemetry
+  # NOTE: extra info, can be removed in future
   sys_used_memory     = Column(Float, default=-1)
   gpu_used_memory     = Column(Float, default=-1)
   cpu_percent         = Column(Float, default=-1)
+  decorator           = Column(String, default="{}")
 
 
 
@@ -144,6 +149,14 @@ class Job (Base):
     return True  if (self.timer and ((datetime.datetime.now() - self.timer).total_seconds() < 30)) else False
 
 
+  def set_decorator(self, key, value):
+    decorator = eval(self.decorator)
+    decorator[key]=value
+    self.decorator = str(decorator)
+
+
+  def get_decorator(self, key):
+    return eval(self.decorator).get(key, "")
 
 
 class Database:

@@ -2,13 +2,19 @@
 __all__ = ["Schedule"]
 
 import traceback, time, os, threading
-
+from mlflow.tracking import MlflowClient
 from sqlalchemy import and_, or_
 from loguru import logger
 from tqdm import tqdm
 from time import sleep, time
 from maestro.models import Task, Job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
+
+
+def update_status(job):
+  client = MlflowClient( os.environ["TRACKING_SERVER_URL"] )
+  client.set_tag(job.run_id, "Status", job.status)
+      
 
 #
 # Transitions functions
@@ -52,6 +58,7 @@ def test_job_assigned( task: Task ) -> bool:
   """
   logger.debug("test_job_assigned")
   task.jobs[0].status =  JobStatus.ASSIGNED
+  update_status(task.jobs[0])   
   return True
 
 
@@ -90,6 +97,7 @@ def task_assigned( task: Task ) -> bool:
   logger.debug("task_assigned")
   for job in task.jobs:
       job.status =  JobStatus.ASSIGNED
+      update_status(job)
   return True
 
 
@@ -147,6 +155,8 @@ def task_retry( task: Task ) -> bool:
         job.status = JobStatus.ASSIGNED
         job.retry +=1
         retry_jobs +=1
+        update_status(job)
+
   # NOTE: If we have jobs to retry we must keep the current state and dont finalized the task
   return not retry_jobs>0
 
@@ -170,6 +180,8 @@ def task_kill( task: Task ):
       job.status = JobStatus.KILL
     else:
       job.status = JobStatus.KILLED
+    update_status(job)
+
   return True
 
 
@@ -202,9 +214,13 @@ def trigger_task_retry( task: Task ) -> bool:
         if (job.status != JobStatus.COMPLETED):
           job.status = JobStatus.ASSIGNED
           job.retry  = 0 
+          update_status(job)
+
     elif (task.status == TaskStatus.KILLED) or (task.status == TaskStatus.BROKEN):
       for job in task.jobs:
         job.status = JobStatus.REGISTERED
+        update_status(job)
+
     else:
       logger.error(f"Not expected task status ({task.status})into the task retry. Please check this!")
       return False
@@ -265,7 +281,7 @@ class Schedule(threading.Thread):
     self.db              = db
     self.compile()
     self.__stop    = threading.Event()
-
+    
 
   def stop(self):
     self.__stop.set()
@@ -287,10 +303,11 @@ class Schedule(threading.Thread):
         logger.debug("Treat jobs with status running but not alive into the executor.")
         # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
         jobs = session().query(Job).filter( or_(Job.status==JobStatus.RUNNING, Job.status==JobStatus.PENDING) ).with_for_update().all()
-        print([job.status for job in jobs])
         for job in jobs:
           if not job.is_alive():
             job.status = JobStatus.ASSIGNED
+            update_status(job)
+
         session.commit()
     except Exception as e:
       traceback.print_exc()
@@ -304,8 +321,6 @@ class Schedule(threading.Thread):
 
       # NOTE: All tasks assigned to remove should not be returned by the database.
       tasks = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
-
-      #print([t.status for t in tasks])
 
       for task in tasks:
 

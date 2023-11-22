@@ -3,15 +3,21 @@ export VIRTUALENV_NAMESPACE='maestro-env'
 export MAESTRO_PATH=$PWD
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH
+export LOGURU_LEVEL="DEBUG"
+
+
 
 
 # pilot
-export LOGURU_LEVEL="DEBUG"
 export PILOT_SERVER_PORT=5000
+
+# tracking
+export TRACKING_SERVER_PORT=4000
+export TRACKING_SERVER_PATH=$PWD/tracking
 
 # Database
 export DATABASE_SERVER_RECREATE="recreate"
-export DATABASE_SERVER_HOST=$POSTGRES_SERVER_HOST
+export DATABASE_SERVER_URL=$POSTGRES_SERVER_URL
 
 
 # mail
@@ -25,15 +31,11 @@ export EXECUTOR_SERVER_BINDS="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data
 export EXECUTOR_SERVER_DEVICE="0"
 export EXECUTOR_SERVER_MAX_RETRY="5"
 export EXECUTOR_SERVER_TIMEOUT="60" # seconds
-export EXECUTOR_SERVER_SLOTS_SIZE="1"
 export EXECUTOR_PARTITION="gpu"
 
 
-export EXECUTOR_SERVER_WANDB_TOKEN="c58957e71528fbacfebec5e6e14a7fca8c35bffb"
-
-
 echo "=================================================================================="
-echo "DATABASE_SERVER_HOST    = ${DATABASE_SERVER_HOST}"
+echo "DATABASE_SERVER_URL     = ${DATABASE_SERVER_URL}"
 echo "EXECUTOR_SERVER_BINDS   = ${EXECUTOR_SERVER_BINDS}"
 echo "=================================================================================="
 

@@ -12,7 +12,11 @@ from loguru import logger
 class Pilot( threading.Thread ):
 
 
-  def __init__(self , host : str, schedule : Schedule, max_retry : int=5):
+  def __init__(self, 
+               host               : str, 
+               schedule           : Schedule, 
+               max_retry          : int=5 
+              ):
 
     threading.Thread.__init__(self)
     self.host      = host
@@ -22,6 +26,9 @@ class Pilot( threading.Thread ):
     self.__lock    = threading.Event()
     self.__lock.set()
     self.max_retry = max_retry
+
+
+
 
 
   def run(self):
@@ -43,7 +50,6 @@ class Pilot( threading.Thread ):
     # NOTE: only healthy nodes  
 
     self.schedule.loop()
-
 
     for host in self.nodes.keys():
 
@@ -73,14 +79,9 @@ class Pilot( threading.Thread ):
       
 
   def stop(self):
-
     self.__stop.set()
+    logger.info("stopping schedule service...")
     self.schedule.stop()
-    for host in self.nodes.keys():
-      node = schemas.client(host, "executor")
-      res = node.try_request('stop', method='get')
-      if res:
-        logger.info(f"stopping node {node}...")
 
 
   def join_as( self, host ) -> bool:

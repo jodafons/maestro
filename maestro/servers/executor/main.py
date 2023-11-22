@@ -1,29 +1,30 @@
 
-import uvicorn, os, socket, wandb
+import uvicorn, os, socket
 from fastapi import FastAPI, HTTPException
-from maestro import schemas, Consumer, Database
+from maestro import schemas, Consumer, Database, system_info
 from loguru import logger
+import mlflow
 
 
-port        = int(os.environ.get("EXECUTOR_SERVER_PORT", 5000 ))
-hostname    = os.environ.get("EXECUTOR_SERVER_HOSTNAME" , f"http://{socket.getfqdn()}")
-host        = f"{hostname}:{port}"
+# node information
+sys_info = system_info()
 
 
-# wandb login
-token = os.environ.get("EXECUTOR_SERVER_WANDB_TOKEN","")
-if token!="":
-    logger.info("create wandb connection...")
-    wandb.login(key=token, relogin=True)
+# executor endpoint
+port     = int(os.environ.get("EXECUTOR_SERVER_PORT", 5000 ))
+host     = sys_info['network']['ip_address']
+url      = f"http://{host}:{port}"
+
+# database endpoint
+database_url = os.environ["DATABASE_SERVER_URL"]
 
 
-consumer = Consumer(host, 
-                    db            = Database(os.environ["DATABASE_SERVER_HOST"]),
+consumer = Consumer(url, 
+                    db            = Database(database_url),
                     device        = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'0')), 
                     binds         = eval(os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}")), 
                     max_retry     = int(os.environ.get("EXECUTOR_SERVER_MAX_RETRY", '5')), 
                     timeout       = int(os.environ.get("EXECUTOR_SERVER_TIMEOUT"  , '5')), 
-                    slot_size     = int(os.environ.get("EXECUTOR_SERVER_SLOT_SIZE", '1')),
                     partition     = os.environ.get("EXECUTOR_PARTITION", "gpu"          ),
                     cpu_limit     = float(os.environ.get("EXECUTOR_CPU_LIMIT", "80")    )
                     )
@@ -41,18 +42,18 @@ async def startup_event():
 @app.get("/executor/start") 
 async def start() -> schemas.Answer:
     consumer.start()
-    return schemas.Answer( host=consumer.host, message="executor was started by external signal." )
+    return schemas.Answer( host=consumer.url, message="executor was started by external signal." )
 
 
 @app.get("/executor/ping")
 async def ping() -> schemas.Answer:
-    return schemas.Answer( host=consumer.host, message="pong" )
+    return schemas.Answer( host=consumer.url, message="pong" )
 
 
 @app.get("/executor/stop") 
 async def stop() -> schemas.Answer:
     consumer.stop()
-    return schemas.Answer( host=consumer.host, message="executor was stopped by external signal." )
+    return schemas.Answer( host=consumer.url, message="executor was stopped by external signal." )
 
 
 @app.on_event("shutdown")
@@ -63,14 +64,14 @@ async def shutdown_event():
 @app.post("/executor/start_job/{job_id}") 
 async def start_job(job_id: int) -> schemas.Answer:
     submitted = consumer.start_job( job_id )
-    return schemas.Answer( host=consumer.host, message=f"Job {job_id} was included into the pipe.", metadata={'submitted':submitted})
+    return schemas.Answer( host=consumer.url, message=f"Job {job_id} was included into the pipe.", metadata={'submitted':submitted})
 
 
 @app.get("/executor/system_info")
 async def system_info() -> schemas.Answer:
-    return schemas.Answer( host=consumer.host, metadata=consumer.system_info(detailed=True) )
+    return schemas.Answer( host=consumer.url, metadata=consumer.system_info(detailed=True) )
 
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("main:app", host=host, port=port, reload=False)

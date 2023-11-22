@@ -2,36 +2,45 @@
 __all__ = ["Job", "Consumer", "GB"]
 
 import os, subprocess, traceback, time, sys, threading, psutil, nvsmi
+import mlflow
 from time import time, sleep
 from loguru import logger
 from pprint import pprint
 from copy import copy
 from maestro.enumerations import JobStatus, TaskStatus
 from maestro import Database, schemas, models, system_info
-
+from mlflow.tracking import MlflowClient
 
 SYS_MEMORY_FACTOR = 1.2 # not exactally the amount of memory. We should correct.
 GPU_MEMORY_FACTOR = 1.1 # usually the memory estimation is the real value used.
 GB                = 1024
 
+
+
+
 class Job:
 
   def __init__(self, 
-               job_id: int, 
-               taskname: str,
-               command: str,
-               workarea: str,
-               device: int = -1,
-               image: str = '', 
-               extra_envs: dict={},
-               binds = {},
-               testing = False
+               job_id        : int, 
+               taskname      : str,
+               command       : str,
+               workarea      : str,
+               # others parameters
+               device        : int=-1,
+               image         : str="", 
+               extra_envs    : dict={},
+               binds         : dict= {},
+               testing       : bool=False,
+               run_id        : str="",
+               tracking_url  : str="",
                ):
 
     self.id         = job_id
     self.image      = image
     self.workarea   = workarea
     self.command    = command
+    self.run_id     = run_id
+
     self.pending    = True
     self.broken     = False
     self.__to_close = False
@@ -39,24 +48,28 @@ class Job:
     self.env        = os.environ.copy()
     self.binds      = binds
     self.device     = device
-
     self.testing    = testing
 
-  
+
     logger.info(f"Job will use {image} as image...")
     logger.info("Setting all environs into the singularity envs...")
     # Transfer all environ to singularity container
+    job_name  = self.workarea.split('/')[-1]
 
-    self.env["SINGULARITYENV_CUDA_DEVICE_ORDER"]= "PCI_BUS_ID"
-    self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]=str(device)
+
+    self.env["SINGULARITYENV_CUDA_DEVICE_ORDER"]         = "PCI_BUS_ID"
+    self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]      = str(device)
     self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
-    self.env["SINGULARITYENV_JOB_WORKAREA"] = self.workarea
-    self.env["SINGULARITYENV_JOB_IMAGE"] = self.image
-    self.env["SINGULARITYENV_JOB_TASKNAME"] = taskname
-    self.env["SINGULARITYENV_JOB_NAME"] = self.workarea.split('/')[-1]
-    self.env["SINGULARITYENV_JOB_ID"] = str(self.id)
-    self.env["SINGULARITYENV_JOB_TESTING"] = 'true' if testing else 'false'
+    self.env["SINGULARITYENV_JOB_WORKAREA"]              = self.workarea
+    self.env["SINGULARITYENV_JOB_IMAGE"]                 = self.image
+    self.env["SINGULARITYENV_JOB_TASKNAME"]              = taskname
+    self.env["SINGULARITYENV_JOB_NAME"]                  = job_name
+    self.env["SINGULARITYENV_JOB_ID"]                    = str(self.id)
+    self.env["SINGULARITYENV_JOB_TESTING"]               = 'true' if testing else 'false'
+    self.env["SINGULARITYENV_MLFLOW_RUN_ID"]             = self.run_id
+    self.env["SINGULARITYENV_MLFLOW_URL"]                = tracking_url 
 
+    self.logpath = self.workarea+'/output.log'
 
     # process
     self.__proc = None
@@ -64,13 +77,19 @@ class Job:
     self.entrypoint=self.workarea+'/entrypoint.sh'
 
 
-  def run(self):
+  def run(self, tracking=None):
+
+
 
     os.makedirs(self.workarea, exist_ok=True)
+
+    entrypoint = f"cd {self.workarea}\n"
+    entrypoint+=f"{self.command.replace('%','$')}\n"
+
     # build script command
     with open(self.entrypoint,'w') as f:
-      f.write(f"cd {self.workarea}\n")
-      f.write(f"{self.command.replace('%','$')}\n")
+      f.write(entrypoint)
+
 
     try:
       self.pending=False
@@ -90,13 +109,22 @@ class Job:
       command = command.replace('  ',' ') 
 
       print(command)
-      self.__log_file = open(self.workarea+'/output.log', 'w')
+      
+      self.__log_file = open(self.logpath, 'w')
       self.__proc = subprocess.Popen(command, env=self.env, shell=True, stdout=self.__log_file)
 
       sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
       broken = self.status() == JobStatus.FAILED
       self.broken = broken
+
+      # NOTE: mlflow trackinging
+      if tracking:
+        tracking.log_param(self.run_id, "command"   , command     )
+        tracking.log_param(self.run_id, "entrypoint", entrypoint  )
+        tracking.log_dict(self.run_id , self.env, "environ.json"  )
+
+
       return not broken # Lets considering the first seconds as broken
 
     except Exception as e:
@@ -112,6 +140,7 @@ class Job:
 
   def to_close(self):
     self.__to_close=True
+    self.__log_file.close()
 
 
   def closed(self):
@@ -178,12 +207,11 @@ class Job:
 #
 class Consumer(threading.Thread):
 
-  def __init__(self, host                : str,
+  def __init__(self, url                 : str,
                      device              : int=-1, 
                      binds               : dict={}, 
                      timeout             : int=60, 
                      max_retry           : int=5, 
-                     slot_size           : int=1, 
                      partition           : str='cpu',
                      db                  : Database=None,
                      cpu_limit           : float=80,
@@ -192,7 +220,7 @@ class Consumer(threading.Thread):
                      ):
             
     threading.Thread.__init__(self)
-    self.host      = host
+    self.url       = url
     self.partition = partition
     self.jobs      = {}
     self.binds     = binds
@@ -208,6 +236,15 @@ class Consumer(threading.Thread):
     self.reserved_memory = reserved_memory
     self.reserved_gpu_memory = reserved_gpu_memory
  
+    with db as session:
+      # get the server host location from the database everytime since this can change
+      self.server_url   = session.get_environ( "PILOT_SERVER_URL" )
+      # get the server host location from the database everytime since this can change
+      self.tracking_url = session.get_environ("TRACKING_SERVER_URL")
+      mlflow.set_tracking_uri(self.tracking_url)
+      logger.info(f"pilot url     : {self.server_url}"  )
+      logger.info(f"tracking url  : {self.tracking_url}")
+
 
   def stop(self):
     self.__stop.set()
@@ -223,22 +260,14 @@ class Consumer(threading.Thread):
 
       sleep(5)
 
-      # get the server host location from the database
-      hostname = self.db().get_environ( "PILOT_SERVER_HOSTNAME" )
-      if not hostname:
-        logger.debug("hostname not available yet into the database. waiting...")
-        continue
-      port     = self.db().get_environ( "PILOT_SERVER_PORT" )
-      host     = f"{hostname}:{port}"
-      logger.debug(f"connecting to the server as {host}...")
-      server   = schemas.client( host, 'pilot')
+      server = schemas.client( self.server_url, 'pilot')
 
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
       self.__lock.clear()      
 
-      answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host ).json())
+      answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.url ).json())
       if answer.status:
         logger.debug(f"connected with {answer.host}")
         self.loop()
@@ -269,12 +298,12 @@ class Consumer(threading.Thread):
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
       self.__lock.set()
       return False
-
-
+    
+    
     with self.db as session:
       
       job_db = session.get_job(job_id, with_for_update=True)
-   
+
       # NOTE: check if the consumer attend some resouces criteria to run the current job
       if (not self.check_resources(job_db)):
         logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
@@ -284,6 +313,7 @@ class Consumer(threading.Thread):
       binds = copy(self.binds)
       binds.update(job_db.get_binds())
       envs = job_db.get_envs()
+
       job = Job(  
              job_db.id,
              job_db.task.name,
@@ -294,6 +324,8 @@ class Consumer(threading.Thread):
              extra_envs=envs,
              binds=binds,
              testing=job_db.task.status == TaskStatus.TESTING,
+             run_id = job_db.run_id,
+             tracking_url  = self.tracking_url ,
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()
@@ -311,11 +343,14 @@ class Consumer(threading.Thread):
 
     with self.db as session:
 
+
       # Loop over all available consumers
       for key, job in self.jobs.items():
 
-        job_db = session.get_job(job.id, with_for_update=True)
-        task_db = job_db.task
+        logger.debug(f"checking job id {job.id}")
+        job_db   = session.get_job(job.id, with_for_update=True)
+        task_db  = job_db.task
+        tracking = MlflowClient( self.tracking_url  )
 
         # NOTE: kill job option only available with database by external trigger
         if job_db.status == JobStatus.KILL:
@@ -327,7 +362,8 @@ class Consumer(threading.Thread):
           if job.testing:
             logger.debug(f"Job {job.id} is a testing job...")
             if len(self.jobs)==1:
-              if job.run():
+              if job.run(tracking):
+                tracking.log_dict(job.run_id, self.system_info(pretty=True), "system.json")
                 logger.debug(f'Job {job.id} is RUNNING.')
                 job_db.status = JobStatus.RUNNING
               else:
@@ -338,7 +374,8 @@ class Consumer(threading.Thread):
               logger.debug(f"Consumer has {len(self.jobs)} jobs into the list. Waiting...")
           else:
             logger.debug(f"Job {job.id} is a single job...")
-            if job.run():
+            if job.run(tracking):
+              tracking.log_dict(job.run_id, self.system_info(pretty=True), "system.json")
               logger.debug(f'Job {job.id} is RUNNING.')
               job_db.status = JobStatus.RUNNING
             else:
@@ -358,6 +395,8 @@ class Consumer(threading.Thread):
 
         elif job.status() is JobStatus.RUNNING:
           logger.debug(f'Job {job.id} is RUNNING.')
+
+
           # NOTE: update peak values for the current job
           cpu_percent, sys_used_memory, gpu_used_memory = job.proc_stat()
           job_db.cpu_percent      = max(cpu_percent       , job_db.cpu_percent      )
@@ -366,15 +405,31 @@ class Consumer(threading.Thread):
           logger.debug(f"Job {job.id} consuming {job_db.sys_used_memory } MB of memory, {job_db.gpu_used_memory} "+ 
                        f"MB of GPU memory and {job_db.cpu_percent} of CPU.")
           job_db.ping()
+          
+          # NOTE: log metrics into mlflow database
+          tracking.log_metric(job.run_id, "sys_used_memory", job_db.sys_used_memory )
+          tracking.log_metric(job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
+          tracking.log_metric(job.run_id, "cpu_percent"    , job_db.cpu_percent     )
+
 
         elif job.status() is JobStatus.COMPLETED:
           logger.debug(f'Job {job.id} is COMPLETED.')
           job_db.status = JobStatus.COMPLETED
           job.to_close()
 
+
+        # update job status into the tracking server
+        tracking.set_tag(job.run_id, "Status", job_db.status)
+        # add job log as artifact into the tracking server
+        if job.closed():
+          tracking.log_artifact(job.run_id, job.logpath)
+
+        # update job into the database
+        logger.debug("commit all changes into the database...")
         session.commit()
 
     # Loop over all jobs
+
 
     self.jobs = { job_id:job for job_id, job in self.jobs.items() if not job.closed()}
 
@@ -385,21 +440,43 @@ class Consumer(threading.Thread):
 
 
 
-  def system_info(self, detailed=False):
-    d = system_info()
-    d['consumer'] = {
-      'host'      : self.host,
-      'partition' : self.partition,
-      'device'    : self.device,
-      'allocated' : len(self.jobs.keys()),
-    }
-    sys_avail_memory = d['memory']['avail']
-    gpu_avail_memory = d['gpu'][self.device]['avail'] if self.device>=0 else 0
-    cpu_usage        = d['cpu']['usage']
-    sys_total_memory = d['memory']['total']
-    gpu_total_memory = d['gpu'][self.device]['total'] if self.device>=0 else 0
-    return d if detailed else (cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory) 
+  def system_info(self, detailed=False, pretty=False):
 
+    d = system_info(pretty=pretty)
+
+    if pretty:
+      gpu = d['gpu'][self.device]
+      cpu = d['cpu']
+      memory = d['memory']
+      network = d['network']
+      return {  
+                "hostname"   : d['hostname'],
+                "ip_address" : network['ip_address'],
+                "system"     : d['system']['system'],
+                "version"    : d['system']['version'],
+                "release"    : d['system']['release'],
+                "cpu_name"   : cpu['processor'],
+                "cpu_count"  : cpu['count'],
+                "memory"     : memory['total'],
+                "gpu_name"   : gpu['name'],
+                "gpu_memory" : gpu['total'],
+                "gpu_id"     : self.device,
+              }
+    else:
+
+      d['consumer'] = {
+        'url'       : self.url,
+        'partition' : self.partition,
+        'device'    : self.device,
+        'allocated' : len(self.jobs.keys()),
+      }
+
+      sys_avail_memory = d['memory']['avail']
+      gpu_avail_memory = d['gpu'][self.device]['avail'] if self.device>=0 else 0
+      cpu_usage        = d['cpu']['usage']
+      sys_total_memory = d['memory']['total']
+      gpu_total_memory = d['gpu'][self.device]['total'] if self.device>=0 else 0
+      return d if detailed else (cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory) 
 
 
 
