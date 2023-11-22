@@ -61,7 +61,7 @@ with db as session:
     os.environ["TRACKING_SERVER_URL"] = tracking_url
 
 # create MLFlow tracking server by cli 
-tracking = Server( f"mlflow ui --port {tracking_port} --backend-store-uri {tracking_location} --host {tracking_host}" )
+tracking = Server( f"mlflow ui --port {tracking_port} --backend-store-uri {tracking_location}/mlflow --host {tracking_host} --artifacts-destination {tracking_location}/artifacts" )
 schedule = Schedule(db)
 pilot    = Pilot(url, schedule)
 

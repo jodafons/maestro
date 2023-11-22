@@ -2,6 +2,7 @@ __all__ = ["task_parser"]
 
 
 import glob, traceback, os, argparse, re
+import mlflow
 
 from datetime import datetime
 from time import sleep
@@ -23,15 +24,6 @@ def convert_string_to_range(s):
      return sum((i if len(i) == 1 else list(range(i[0], i[1]+1))
                 for i in ([int(j) for j in i if j] for i in
                 re.findall(r'(\d+),?(?:-(\d+))?', s))), [])
-
-
-def create_run( client, experiment_id , run_name ):
-  run = client.create_run(experiment_id=experiment_id, run_name=run_name)
-  return run.info.run_id
-
-def create_experiment( client, experiment_name ):
-  return  client.create_experiment( experiment_name )
-
 
 
 
@@ -92,11 +84,11 @@ def create( session   : Session,
     return None
 
   # get tracking server
-  tracking_url = session.get_environ("TRACKING_SERVER_URL")
+  tracking_url  = session.get_environ("TRACKING_SERVER_URL")
   logger.info(f"tracking server from {tracking_url}")
-  tracking     = MlflowClient( tracking_url )
-
-  experiment_id = create_experiment( tracking, taskname )
+  tracking      = MlflowClient( tracking_url )
+  experiment_id = tracking.create_experiment( taskname )
+  mlflow.set_tracking_uri(tracking_url)
 
 
   # task volume
@@ -130,10 +122,8 @@ def create( session   : Session,
       workarea = volume +'/'+ job_name
       envs = {}
 
-      run_id = create_run( tracking, experiment_id, job_name )
-      tracking.set_tag(run_id, "Status", JobStatus.REGISTERED)
-
-
+      run_id = tracking.create_run(experiment_id=experiment_id, run_name=job_name).info.run_id
+      tracking.log_artifact(run_id, fpath)
 
       job_db = Job(
                     id=offset+idx,
@@ -174,8 +164,6 @@ def create( session   : Session,
       else:
         logger.error("Local test failed.")
         return None
-
-
 
   except Exception as e:
     traceback.print_exc()

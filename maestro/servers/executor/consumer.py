@@ -65,7 +65,7 @@ class Job:
     self.env["SINGULARITYENV_JOB_TASKNAME"]              = taskname
     self.env["SINGULARITYENV_JOB_NAME"]                  = job_name
     self.env["SINGULARITYENV_JOB_ID"]                    = str(self.id)
-    self.env["SINGULARITYENV_JOB_TESTING"]               = 'true' if testing else 'false'
+    self.env["SINGULARITYENV_JOB_DRY_RUN"]               = 'true' if testing else 'false'
     self.env["SINGULARITYENV_MLFLOW_RUN_ID"]             = self.run_id
     self.env["SINGULARITYENV_MLFLOW_URL"]                = tracking_url 
 
@@ -232,10 +232,13 @@ class Consumer(threading.Thread):
     self.__lock.set() 
     self.db = db 
 
-    self.cpu_limit = cpu_limit
-    self.reserved_memory = reserved_memory
-    self.reserved_gpu_memory = reserved_gpu_memory
- 
+
+    # getting system values
+    cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
+    self.cpu_limit           = cpu_limit
+    self.reserved_memory     = sys_avail_memory - reserved_memory
+    self.reserved_gpu_memory = gpu_avail_memory - reserved_gpu_memory
+
     with db as session:
       # get the server host location from the database everytime since this can change
       self.server_url   = session.get_environ( "PILOT_SERVER_URL" )
@@ -291,7 +294,7 @@ class Consumer(threading.Thread):
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
     # testing jobs must run alone since we dont know how much resouces will be used.
-    blocked = any([job.testing for job in self.jobs.values()])
+    blocked = any([slot.job.testing for slot in self.jobs.values()])
 
     # NOTE: check if we have a test job waiting to run or running...
     if blocked:
@@ -329,7 +332,14 @@ class Consumer(threading.Thread):
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()
-      self.jobs[job_id] = job
+
+      class Slot:
+        def __init__(self, job, sys_memory, gpu_memory):
+          self.job = job; self.sys_memory=sys_memory; self.gpu_memory=gpu_memory
+
+      sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
+      gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
+      self.jobs[job_id] = Slot(job, sys_used_memory, gpu_used_memory)
       session.commit()
     
     logger.debug(f'Job with id {job.id} included into the consumer.')
@@ -345,8 +355,9 @@ class Consumer(threading.Thread):
 
 
       # Loop over all available consumers
-      for key, job in self.jobs.items():
+      for key, slot in self.jobs.items():
 
+        job = slot.job
         logger.debug(f"checking job id {job.id}")
         job_db   = session.get_job(job.id, with_for_update=True)
         task_db  = job_db.task
@@ -431,7 +442,8 @@ class Consumer(threading.Thread):
     # Loop over all jobs
 
 
-    self.jobs = { job_id:job for job_id, job in self.jobs.items() if not job.closed()}
+
+    self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
 
     end = time()
     current_in = len(self.jobs.keys())
@@ -490,10 +502,18 @@ class Consumer(threading.Thread):
       return False
 
     # estimatate memory peak by mean for the current task
-    sys_used_memory = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
-    gpu_used_memory = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value
-    sys_avail_memory = sys_avail_memory - self.reserved_memory
-    gpu_avail_memory = gpu_avail_memory - self.reserved_gpu_memory
+    sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
+    gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value
+    sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
+    gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
+
+    logger.debug(f"task:")
+    logger.debug(f"      system used memory  : {sys_used_memory} MB")
+    logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
+    logger.debug("system now:")
+    logger.debug(f"      system avail memory : {sys_avail_memory} MB")
+    logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
+
 
     if sys_avail_memory < 0:
       logger.warning("System memory node usage reached the limit stablished.")
@@ -517,5 +537,3 @@ class Consumer(threading.Thread):
 
     # if here, all resources available for this workload
     return True
-
-  

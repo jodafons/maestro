@@ -14,7 +14,6 @@ from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 def update_status(job):
   client = MlflowClient( os.environ["TRACKING_SERVER_URL"] )
   client.set_tag(job.run_id, "Status", job.status)
-      
 
 #
 # Transitions functions
