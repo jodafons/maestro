@@ -5,9 +5,6 @@ import glob, traceback, os, argparse, re
 from loguru import logger
 from maestro.models import Base, Database
 
-# import executor server contructor
-from maestro.servers.executor.main import executor
-
 
 class run_parser:
 
@@ -18,61 +15,61 @@ class run_parser:
 
     executor_parser.add_argument('--device', action='store', dest='device', type=int,
                                  required=False, default = -1,
-                                 help = "gpu device number.")
+                                 help = "gpu device number, if not used, default will be cpu as device.")
 
     executor_parser.add_argument('--binds', action='store', dest='binds', type=str,
                                  required=False, default = os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}"),
-                                 help = "binds")
+                                 help = "necessary binds to append into the singularity --binds param. e.g., '{'/mnt/cern_data':'path/to/cern/storage'}'. Default can be passed as environ in EXECUTOR_SERVER_BINDS")
 
     executor_parser.add_argument('--port', action='store', dest='port', type=int,
                                  required=False , default=5000,
-                                 help = "port number")                           
+                                 help = "the consumer port number")                           
                                     
     executor_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
                                  required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                 help = "database url")
+                                 help = "the database url used to store all tasks and jobs. default can be passed as environ in DATABASE_SERVER_URL")
                                  
     executor_parser.add_argument('--partition', action='store', dest='partition', type=str,
                                  required=False, default='cpu',
-                                 help = "partition name")
+                                 help = "the partition name")
                                               
 
 
 
-    control_parser = argparse.ArgumentParser(description = '', add_help = False)
+    pilot_parser = argparse.ArgumentParser(description = '', add_help = False)
 
 
-    control_parser.add_argument('--port', action='store', dest='port', type=int,
+    pilot_parser.add_argument('--port', action='store', dest='port', type=int,
                                  required=False , default=5001,
-                                 help = "port number")                           
+                                 help = "the pilot port number")                           
 
-    control_parser.add_argument('--tracking-port', action='store', dest='tracking_port', type=int,
+    pilot_parser.add_argument('--tracking-port', action='store', dest='tracking_port', type=int,
                                  required=False , default=4000,
-                                 help = "tracking port number")                           
+                                 help = "the tracking port number")                           
     
-    control_parser.add_argument('--tracking-location', action='store', dest='tracking_location', type=str,
+    pilot_parser.add_argument('--tracking-location', action='store', dest='tracking_location', type=str,
                                  required=False , default= os.getcwd()+"/tracking",
-                                 help = "tracking location path")     
+                                 help = "the tracking location path into the storage")     
 
-    control_parser.add_argument('--database-recreate', action='store_true', dest='database_recreate', 
+    pilot_parser.add_argument('--database-recreate', action='store_true', dest='database_recreate', 
                                  required=False , 
-                                 help = "recreate the postgres SQL database")     
+                                 help = "recreate the postgres SQL database and erase the tracking location")     
 
-    control_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+    pilot_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
                                  required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                 help = "database url")
+                                 help = "the database url used to store all tasks and jobs. default can be passed as environ in DATABASE_SERVER_URL")
                                  
-    control_parser.add_argument('--email-to', action='store', dest='email_to', type=str,
+    pilot_parser.add_argument('--email-to', action='store', dest='email_to', type=str,
                                  required=False, default =  os.environ.get("POSTMAN_SERVER_EMAIL_TO","") ,
                                  help = "send email to...")
 
-    control_parser.add_argument('--email-from', action='store', dest='email_from', type=str,
+    pilot_parser.add_argument('--email-from', action='store', dest='email_from', type=str,
                                  required=False, default =  os.environ.get("POSTMAN_SERVER_EMAIL_FROM","") ,
-                                 help = "send email from...")
+                                 help = "the email server")
                                  
-    control_parser.add_argument('--email-password', action='store', dest='email_password', type=str,
+    pilot_parser.add_argument('--email-password', action='store', dest='email_password', type=str,
                                  required=False, default =  os.environ.get("POSTMAN_SERVER_EMAIL_PASSWORD","") ,
-                                 help = "send email password...")
+                                 help = "the email server password")
                                  
 
 
@@ -81,7 +78,7 @@ class run_parser:
     parent    = argparse.ArgumentParser(description = '', add_help = False)
     subparser = parent.add_subparsers(dest='option')
     subparser.add_parser('executor', parents=[executor_parser])
-    subparser.add_parser('control' , parents=[control_parser])
+    subparser.add_parser('pilot' , parents=[pilot_parser])
     args.add_parser( 'run', parents=[parent] )
 
 
@@ -89,15 +86,14 @@ class run_parser:
     if args.mode == 'run':
       if args.option == 'executor':
         self.executor(args)
-      if args.option == 'control':
-        self.control(args)
+      if args.option == 'pilot':
+        self.pilot(args)
       else:
         logger.error("Option not available.")
 
 
   def executor(self, args):
     from maestro.servers.executor.main import run
-
     run( args.database_url, 
          port        = args.port,
          device      = args.device,
@@ -105,7 +101,7 @@ class run_parser:
          partition   = args.partition,
         )
 
-  def control(self, args):
+  def pilot(self, args):
     from maestro.servers.control.main import run
     run( args.database_url, 
          port               = args.port,

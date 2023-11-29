@@ -11,14 +11,14 @@ from loguru import logger
 
 
 
-def executor(
-                database_url: str,             
-                port        : int   = 5000,
-                device      : int   = -1,
-                binds       : dict  = {}, 
-                partition   : str   = "cpu",
-                cpu_limit   : int   = 80,
-            ):
+def run(
+        database_url: str,             
+        port        : int   = 5000,
+        device      : int   = -1,
+        binds       : dict  = {}, 
+        partition   : str   = "cpu",
+        cpu_limit   : int   = 80,
+        ):
 
 
     # node information
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     #
     # launch server locally using environs
     #
-    executor(
+    run(
                 database_url = os.environ["DATABASE_SERVER_URL"],             
                 port         = int(os.environ.get("EXECUTOR_SERVER_PORT", 5000 )   ),
                 device       = int(os.environ.get("EXECUTOR_SERVER_DEVICE"   ,'0') ),
