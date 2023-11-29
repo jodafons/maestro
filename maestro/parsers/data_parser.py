@@ -49,15 +49,26 @@ def recreate( db: Database) -> bool:
 
 class data_parser:
 
-  def __init__(self , host, args=None):
-
-    self.db = Database(host)
-    if args:
+  def __init__(self, args):
 
       # Create Task
       create_parser   = argparse.ArgumentParser(description = '', add_help = False)
       recreate_parser = argparse.ArgumentParser(description = '', add_help = False)
       delete_parser   = argparse.ArgumentParser(description = '', add_help = False)
+
+
+      create_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                                   help = "database url")
+
+      recreate_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                                   help = "database url")
+
+      delete_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                                   help = "database url")
+                                 
 
       parent    = argparse.ArgumentParser(description = '', add_help = False)
       subparser = parent.add_subparsers(dest='option')
@@ -85,13 +96,16 @@ class data_parser:
 
 
   def create(self):
-    return create(self.db)
+    db = Database(args.database_url)
+    return create(db)
 
   def delete(self):
-    return delete(self.db)
+    db = Database(args.database_url)
+    return delete(db)
    
   def recreate(self):
-    return recreate(self.db)
+    db = Database(args.database_url)
+    return recreate(db)
     
   
 

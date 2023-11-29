@@ -30,17 +30,16 @@ def convert_string_to_range(s):
 
 def test_job( job_db ):
 
-    job = JobTest( job_id = job_db.id, 
-               taskname   = job_db.task.name,
-               command    = job_db.command,
-               image      = job_db.image, 
-               workarea   = job_db.workarea,
-               device     = -1,
-               job_db     = job_db,
-               extra_envs = {"JOB_LOCAL_TEST":'1'},
-               binds      = {},
-               dry_run    = False)
-
+    job = JobTest( job_id       = job_db.id, 
+                   taskname     = job_db.task.name,
+                   command      = job_db.command,
+                   image        = job_db.image, 
+                   workarea     = job_db.workarea,
+                   device       = -1,
+                   binds        = {},
+                   testing      = True,
+                   run_id       = "",
+                   tracking_url = "" )
 
     while True:
         if job.status() == JobStatus.PENDING:
@@ -57,6 +56,21 @@ def test_job( job_db ):
             continue
 
 
+def create_tracking( tracking_url : str, task : Task ):
+
+  # get tracking server
+  logger.info(f"tracking server from {tracking_url}")
+  tracking      = MlflowClient( tracking_url )
+  experiment_id = tracking.create_experiment( task.name )
+  mlflow.set_tracking_uri(tracking_url)
+  for job in task.jobs:
+    run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
+    tracking.log_artifact(run_id, job.inputfile)
+  return experiment_id
+
+
+
+
 def create( session   : Session, 
             basepath  : str, 
             taskname  : str, 
@@ -67,12 +81,8 @@ def create( session   : Session,
             extension : str='.json', 
             binds     : str="{}", 
             partition : str="cpu",
-            repo      : str="",
-            local_test: bool=False ) -> bool:
+          ) -> bool:
             
-
-  # append random tag in the end of the task name
-
 
 
   if session.get_task(taskname) is not None:
@@ -83,12 +93,6 @@ def create( session   : Session,
     logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
     return None
 
-  # get tracking server
-  tracking_url  = session.get_environ("TRACKING_SERVER_URL")
-  logger.info(f"tracking server from {tracking_url}")
-  tracking      = MlflowClient( tracking_url )
-  experiment_id = tracking.create_experiment( taskname )
-  mlflow.set_tracking_uri(tracking_url)
 
 
   # task volume
@@ -112,20 +116,16 @@ def create( session   : Session,
       logger.error(f"It is not possible to find jobs into {inputfile}... Please check and try again...")
       return None
 
-
-
     offset = session.generate_id(Job)
     for idx, fpath in tqdm( enumerate(files) ,  desc= 'Creating... ', ncols=50):
       
       extension = fpath.split('/')[-1].split('.')[-1]
-      job_name = fpath.split('/')[-1].replace('.'+extension, '')
-      workarea = volume +'/'+ job_name
-      envs = {}
-
-      run_id = tracking.create_run(experiment_id=experiment_id, run_name=job_name).info.run_id
-      tracking.log_artifact(run_id, fpath)
+      job_name  = fpath.split('/')[-1].replace('.'+extension, '')
+      workarea  = volume +'/'+ job_name
+      envs      = {}
 
       job_db = Job(
+                    name=job_name,
                     id=offset+idx,
                     image=image,
                     command=command.replace('%IN',fpath),
@@ -141,29 +141,19 @@ def create( session   : Session,
       task_db.jobs.append(job_db)
 
 
-
-    # NOTE: Should we skip test here?
-    if not local_test:
-      logger.info("Skipping local test...")
-      session().add(task_db)
-      if not dry_run:
-        logger.info("Commit task into the database.")
-        session.commit()
-      logger.info( "Succefully created.")
+    if dry_run:
+      if not test_job( task_db.jobs[0] ):
+        logger.fatal("local test fail...")
+        return None
+      logger.info("local test done but not stored into the database. remove dry_run to launch into the orchestrator.")
       return task_db.id
     else:
-      # NOTE: Test my job localy
-      logger.info("Applying local test...")
-      if test_job( task_db.jobs[0] ):
-        session().add(task_db)
-        if not dry_run:
-          logger.info("Commit task into the database.")
-          session.commit()  
-        logger.info("Succefully created.")
-        return task_db.id
-      else:
-        logger.error("Local test failed.")
-        return None
+      session().add(task_db)
+      tracking_url = os.environ["TRACKING_SERVER_URL"]
+      create_tracking( tracking_url, task_db)
+      session.commit()
+      return task_db.id
+
 
   except Exception as e:
     traceback.print_exc()
@@ -270,90 +260,98 @@ def list_tasks( session: Session ):
     return "Not possible to show the table."
 
 
+
 class task_parser:
 
-  def __init__(self , host, args=None):
-
-    self.db = Database(host)
-    if args:
-
-      # Create Task
-      create_parser = argparse.ArgumentParser(description = '', add_help = False)
-      delete_parser = argparse.ArgumentParser(description = '', add_help = False)
-      retry_parser  = argparse.ArgumentParser(description = '', add_help = False)
-      list_parser   = argparse.ArgumentParser(description = '', add_help = False)
+  def __init__(self, args):
 
 
-      create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
-                          help = "The task name to be append into the db.")
-      create_parser.add_argument('-i','--inputfile', action='store',
-                          dest='inputfile', required = True,
-                          help = "The input config file that will be used to configure the job (sort and init).")
-      create_parser.add_argument('--image', action='store', dest='image', required=False, default="",
-                          help = "The singularity sif image path.")
-      create_parser.add_argument('--exec', action='store', dest='command', required=True,
-                          help = "The exec command")
-      create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
-                          help = "Use this as debugger.")
-      create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
-                          help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
-      create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
-                          help = f"The selected partitions.")
-      create_parser.add_argument('--repo', action='store', dest='repo', required=False, default="",
-                          help = "The path of the local github repository (.git) for validation stage")
-
-      delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
-                    help = "All task ids to be deleted", type=str)
-      delete_parser.add_argument('--force', action='store_true', dest='force', required=False,
-                    help = "Force delete.")
-
-      retry_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
-                    help = "All task ids to be retried", type=str)
-
-      kill_parser = argparse.ArgumentParser(description = '', add_help = False)
-      kill_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
-                    help = "All task ids to be killed", type=str)
+    # Create Task
+    create_parser = argparse.ArgumentParser(description = '', add_help = False)
+    delete_parser = argparse.ArgumentParser(description = '', add_help = False)
+    retry_parser  = argparse.ArgumentParser(description = '', add_help = False)
+    list_parser   = argparse.ArgumentParser(description = '', add_help = False)
+    kill_parser   = argparse.ArgumentParser(description = '', add_help = False)
 
 
-      parent = argparse.ArgumentParser(description = '', add_help = False)
-      subparser = parent.add_subparsers(dest='option')
+    create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
+                        help = "The task name to be append into the db.")
+    create_parser.add_argument('-i','--inputfile', action='store',
+                        dest='inputfile', required = True,
+                        help = "The input config file that will be used to configure the job (sort and init).")
+    create_parser.add_argument('--image', action='store', dest='image', required=False, default="",
+                        help = "The singularity sif image path.")
+    create_parser.add_argument('--exec', action='store', dest='command', required=True,
+                        help = "The exec command")
+    create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
+                        help = "Use this as debugger.")
+    create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
+                        help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
+    create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
+                        help = f"The selected partitions.")
+    create_parser.add_argument('--repo', action='store', dest='repo', required=False, default="",
+                        help = "The path of the local github repository (.git) for validation stage")
+    create_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                                 required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                                 help = "database url")
+                                 
 
-      # Datasets
-      subparser.add_parser('create', parents=[create_parser])
-      subparser.add_parser('retry' , parents=[retry_parser])
-      subparser.add_parser('delete', parents=[delete_parser])
-      subparser.add_parser('list'  , parents=[list_parser])
-      subparser.add_parser('kill'  , parents=[kill_parser])
-      args.add_parser( 'task', parents=[parent] )
+    delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
+                  help = "All task ids to be deleted", type=str)
+    delete_parser.add_argument('--force', action='store_true', dest='force', required=False,
+                  help = "Force delete.")
+    delete_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                  required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                  help = "database url")
+                              
+
+    retry_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
+                              help = "All task ids to be retried", type=str)
+    retry_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                              required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                              help = "database url")
+                                 
+
+    kill_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
+                             help = "All task ids to be killed", type=str)
+    kill_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                             required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                             help = "database url")
+                                 
+
+
+    parent = argparse.ArgumentParser(description = '', add_help = False)
+    subparser = parent.add_subparsers(dest='option')
+    # Datasets
+    subparser.add_parser('create', parents=[create_parser])
+    subparser.add_parser('retry' , parents=[retry_parser])
+    subparser.add_parser('delete', parents=[delete_parser])
+    subparser.add_parser('list'  , parents=[list_parser])
+    subparser.add_parser('kill'  , parents=[kill_parser])
+    args.add_parser( 'task', parents=[parent] )
 
   
 
   def parser( self, args ):
 
     if args.mode == 'task':
-
       if args.option == 'create':
         self.create(os.getcwd(), args)
-
       elif args.option == 'retry':
         self.retry(convert_string_to_range(args.id_list))
-        
       elif args.option == 'delete':
-        self.delete(convert_string_to_range(args.id_list), force=args.force)
-        
+        self.delete(convert_string_to_range(args.id_list), force=args.force)   
       elif args.option == 'list':
-        self.list()
-        
+        self.list()   
       elif args.option == 'kill':
-        self.kill(convert_string_to_range(args.id_list))
-        
+        self.kill(convert_string_to_range(args.id_list))   
       else:
         logger.error("Option not available.")
 
 
   def create(self, basepath: str, args ):
-
-    with self.db as session:
+    db = Database(args.database_url)
+    with db as session:
       return create(session, basepath, 
                     args.taskname, 
                     args.inputfile, 
@@ -366,22 +364,26 @@ class task_parser:
 
 
   def kill(self, task_ids):
-    with self.db as session:
+    db = Database(args.database_url)
+    with db as session:
       for task_id in task_ids:
         kill(session, task_id)
 
   def delete(self, task_ids, force=False):
-    with self.db as session:
+    db = Database(args.database_url)
+    with db as session:
       for task_id in task_ids:
         delete(session, task_id)
 
   def retry(self, task_ids):
-    with self.db as session:
+    db = Database(args.database_url)
+    with db as session:
       for task_id in task_ids:
         retry(session, task_id)
 
   def list(self):
-    with self.db as session:
+    db = Database(args.database_url)
+    with db as session:
       print(list_tasks(session))
   
 

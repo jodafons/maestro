@@ -1,104 +1,112 @@
-#
-# enviroments for configuration:
-#
-# POSTMAN_SERVER_EMAIL_FROM
-# POSTMAN_SERVER_EMAIL_PASSWORD
-# POSTMAN_SERVER_EMAIL_TO
-# DATABASE_SERVER_RECREATE
-# DATABASE_SERVER_HOST
-# PILOT_SERVER_PORT
-#
+
 
 import uvicorn, os, socket, shutil
 from time import sleep
 from fastapi import FastAPI, HTTPException
-from maestro import models, schemas, Database, Schedule, Pilot, Server, system_info
+from maestro import models, schemas, Database, Schedule, Pilot, Server
+from maestro import system_info as get_system_info
 from maestro.models import Base
 from loguru import logger
 
-# node information
-sys_info = system_info()
+
+def run( 
+            database_url        : str,
+            database_recreate   : bool = False,
+            port                : int = 5001 ,
+            # tracking server
+            tracking_location   : str = os.getcwd()+"/tracking",
+            tracking_port       : int = 4000,
+            # postman configuration
+            email_from          : str=os.environ.get("POSTMAN_SERVER_EMAIL_FROM"    , ""),
+            email_to            : str=os.environ.get("POSTMAN_SERVER_EMAIL_TO"      , ""),
+            email_password      : str=os.environ.get("POSTMAN_SERVER_EMAIL_PASSWORD", ""),
+        ):
 
 
-# pilot server endpoints
-port              = int(os.environ.get("PILOT_SERVER_PORT", 5001 ))
-hostname          = sys_info['hostname']
-ip_address        = sys_info['network']['ip_address']
-url               = f"http://{ip_address}:{port}"
+    # node information
+    sys_info = get_system_info()
 
-# mlflow server endpoints
-tracking_port     = int(os.environ.get("TRACKING_SERVER_PORT", 4000))
-tracking_location = os.environ.get("TRACKING_SERVER_PATH", os.getcwd()+'/tracking')
-tracking_host     = ip_address
-tracking_url      = f"http://{tracking_host}:{tracking_port}"
+    # pilot server endpoints
+    hostname  = sys_info['hostname']
+    host      = sys_info['network']['ip_address']
+    pilot_url = f"http://{host}:{port}"
 
-
-# database endpoint
-database_url     = os.environ["DATABASE_SERVER_URL"]
+    # mlflow server endpoints
+    tracking_host     = host
+    tracking_url      = f"http://{tracking_host}:{tracking_port}"
 
 
-app      = FastAPI()
-db       = Database(database_url)
+    db = Database(database_url)
+
+    if database_recreate:
+        logger.info("clean up the entire database and recreate it...")
+        Base.metadata.drop_all(db.engine())
+        Base.metadata.create_all(db.engine())
+        logger.info("Database created...")
+        if os.path.exists(tracking_location):
+            logger.info("clean up tracking directory...")
+            shutil.rmtree(tracking_location)
+    else:
+        logger.info("set the enviroment with the pilot current location at the network...")
 
 
-if os.environ.get("DATABASE_SERVER_RECREATE", '')=='recreate':
-    logger.info("clean up the entire database and recreate it...")
-    Base.metadata.drop_all(db.engine())
-    Base.metadata.create_all(db.engine())
-    logger.info("Database created...")
-    if os.path.exists(tracking_location):
-        logger.info("clean up tracking directory...")
-        shutil.rmtree(tracking_location)
-else:
-    logger.info("set the enviroment with the pilot current location at the network...")
+    with db as session:
+        # rewrite all environs into the database
+        session.set_environ( "PILOT_SERVER_URL"    , pilot_url    )
+        session.set_environ( "TRACKING_SERVER_URL" , tracking_url )
+        session.set_environ( "DATABASE_SERVER_URL" , database_url )
 
 
-with db as session:
-    # rewrite all environs into the database
-    session.set_environ( "PILOT_SERVER_URL"    , url          )
-    session.set_environ( "TRACKING_SERVER_URL" , tracking_url )
-    session.set_environ( "DATABASE_SERVER_URL" , database_url )
-    os.environ["TRACKING_SERVER_URL"] = tracking_url
-
-# create MLFlow tracking server by cli 
-tracking = Server( f"mlflow ui --port {tracking_port} --backend-store-uri {tracking_location}/mlflow --host {tracking_host} --artifacts-destination {tracking_location}/artifacts" )
-schedule = Schedule(db)
-pilot    = Pilot(url, schedule)
+    # overwrite schedule external configurations
+    from maestro.servers.control.schedule import schedule_args
+    schedule_args.tracking_url      = tracking_url
+    schedule_args.email_to          = email_to
+    schedule_args.email_to          = email_to
+    schedule_args.email_password    = email_password
+    schedule                        = Schedule(db)
 
 
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    tracking.stop()
-    pilot.stop()
-
-
-
-@app.on_event("startup")
-async def startup_event():
-    tracking.start()
-    pilot.start()
-
-
-
-@app.get("/pilot/ping")
-async def ping() -> schemas.Answer:
-    return schemas.Answer( host=pilot.host, message="pong")
-
-
-
-@app.post("/pilot/join")
-async def join( req : schemas.Request ) -> schemas.Answer:
-    pilot.join_as( req.host )
-    return schemas.Answer( host = pilot.host, message="joined" )
+    # create MLFlow tracking server by cli 
+    tracking = Server( f"mlflow ui --port {tracking_port} --backend-store-uri {tracking_location}/mlflow --host {tracking_host} --artifacts-destination {tracking_location}/artifacts" )
     
+    # create master
+    pilot    = Pilot(pilot_url, schedule)
 
 
-@app.get("/pilot/system_info") 
-async def system_info()  -> schemas.Answer:
+    app      = FastAPI()
 
-    return schemas.Answer( host=pilot.host, metadata=pilot.system_info() )
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        tracking.stop()
+        pilot.stop()
+
+
+    @app.on_event("startup")
+    async def startup_event():
+        tracking.start()
+        pilot.start()
+
+
+    @app.get("/pilot/ping")
+    async def ping() -> schemas.Answer:
+        return schemas.Answer( host=pilot.host, message="pong")
+
+
+    @app.post("/pilot/join")
+    async def join( req : schemas.Request ) -> schemas.Answer:
+        pilot.join_as( req.host )
+        return schemas.Answer( host = pilot.host, message="joined" )
+
+
+    @app.get("/pilot/system_info") 
+    async def system_info()  -> schemas.Answer:
+        return schemas.Answer( host=pilot.host, metadata=pilot.system_info() )
+        
+
+    uvicorn.run(app, host=host, port=port, reload=False)
+
+
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host='0.0.0.0', port=port, reload=False)
+    pass

@@ -9,6 +9,7 @@ from loguru import logger
 
 
 
+
 class Pilot( threading.Thread ):
 
 
@@ -26,9 +27,6 @@ class Pilot( threading.Thread ):
     self.__lock    = threading.Event()
     self.__lock.set()
     self.max_retry = max_retry
-
-
-
 
 
   def run(self):

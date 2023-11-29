@@ -1,5 +1,5 @@
 
-__all__ = ["Schedule"]
+__all__ = ["Schedule", "schedule_args"]
 
 import traceback, time, os, threading
 from mlflow.tracking import MlflowClient
@@ -11,8 +11,19 @@ from maestro.models import Task, Job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
+#
+# NOTE: Use this class to configure some parameters used in function
+#
+class schedule_args:
+  tracking_url  : str=""
+  from_email    : str=""
+  password      : str=""
+  to_email      : str=""
+
+
+
 def update_status(job):
-  client = MlflowClient( os.environ["TRACKING_SERVER_URL"] )
+  client = MlflowClient( schedule_args.tracking_url )
   client.set_tag(job.run_id, "Status", job.status)
 
 #
@@ -26,9 +37,9 @@ def send_email( task: Task ) -> bool:
   try:
     status = task.status
     taskname = task.name
-    from_email = os.environ['POSTMAN_SERVER_EMAIL_FROM']
-    password   = os.environ['POSTMAN_SERVER_EMAIL_PASSWORD']
-    to_email   = os.environ['POSTMAN_SERVER_EMAIL_TO']
+    from_email = schedule_args.email_from
+    password   = schedule_args.email_password
+    to_email   = schedule_args.email_to
     postman    = Postman(from_email, password)
     subject    = f"[LPS Cluster] Notification for task id {status}"
     message    = (f"The task with name {taskname} was assigned with {status} status.")
