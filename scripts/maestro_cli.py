@@ -7,11 +7,11 @@ parser = argparse.ArgumentParser()
 commands = parser.add_subparsers(dest='mode')
 
 
-url = os.environ['DATABASE_SERVER_URL']
 
 parsers = [
-            task_parser(url, commands ),
-            data_parser(url, commands ),
+            task_parser(commands),
+            data_parser(commands),
+            run_parser(commands),
           ]
 
 if len(sys.argv)==1:
