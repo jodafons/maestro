@@ -22,7 +22,7 @@ class run_parser:
                                  help = "necessary binds to append into the singularity --binds param. e.g., '{'/mnt/cern_data':'path/to/cern/storage'}'. Default can be passed as environ in EXECUTOR_SERVER_BINDS")
 
     executor_parser.add_argument('--port', action='store', dest='port', type=int,
-                                 required=False , default=5000,
+                                 required=False , default=6000,
                                  help = "the consumer port number")                           
                                     
     executor_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
@@ -40,7 +40,7 @@ class run_parser:
 
 
     pilot_parser.add_argument('--port', action='store', dest='port', type=int,
-                                 required=False , default=5001,
+                                 required=False , default=5000,
                                  help = "the pilot port number")                           
 
     pilot_parser.add_argument('--tracking-port', action='store', dest='tracking_port', type=int,

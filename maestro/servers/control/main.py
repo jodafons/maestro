@@ -12,7 +12,7 @@ from loguru import logger
 def run( 
             database_url        : str,
             database_recreate   : bool = False,
-            port                : int = 5001 ,
+            port                : int = 5000 ,
             # tracking server
             tracking_location   : str = os.getcwd()+"/tracking",
             tracking_port       : int = 4000,
@@ -109,4 +109,5 @@ def run(
 
 
 if __name__ == "__main__":
-    pass
+    
+    run(os.environ["DATABASE_SERVER_URL"], database_recreate=True)            
