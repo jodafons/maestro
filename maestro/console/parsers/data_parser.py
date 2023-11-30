@@ -86,24 +86,24 @@ class data_parser:
 
     if args.mode == 'data':
       if args.option == 'create':
-        self.create()
+        self.create(args)
       elif args.option == 'recreate':
-        self.recreate() 
+        self.recreate(args) 
       elif args.option == 'delete':
-        self.delete()
+        self.delete(args)
       else:
         logger.error("Option not available.")
 
 
-  def create(self):
+  def create(self,args):
     db = Database(args.database_url)
     return create(db)
 
-  def delete(self):
+  def delete(self,args):
     db = Database(args.database_url)
     return delete(db)
    
-  def recreate(self):
+  def recreate(self,args):
     db = Database(args.database_url)
     return recreate(db)
     

@@ -97,7 +97,7 @@ class run_parser:
 
 
   def executor(self, args):
-    from maestror.servers.executor.main import run
+    from maestro.servers.executor.main import run
     run( args.database_url, 
          port        = args.port,
          device      = args.device,
@@ -107,7 +107,7 @@ class run_parser:
         )
 
   def pilot(self, args):
-    from maestror.servers.control.main import run
+    from maestro.servers.control.main import run
     run( args.database_url, 
          port               = args.port,
          tracking_port      = args.tracking_port,

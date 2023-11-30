@@ -2,7 +2,7 @@
 import sys, os, argparse
 from maestro.console.parsers import *
 
-def main():
+def run():
 
   parser = argparse.ArgumentParser()
   commands = parser.add_subparsers(dest='mode')
@@ -24,7 +24,7 @@ def main():
     p.parser(args)
 
 if __name__ == "__main__":
-  main()
+  run()
 
 
 
