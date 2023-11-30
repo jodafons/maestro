@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-
-
 import uvicorn, os, socket, mlflow
 
 from fastapi import FastAPI, HTTPException
@@ -10,31 +8,22 @@ from maestro import system_info as get_system_info
 from loguru import logger
 
 
-
-def run(
-        database_url: str,             
-        port        : int   = 6000,
-        device      : int   = -1,
-        binds       : dict  = eval(os.environ.get("EXECUTOR_SERVER_BINDS", "{}")), 
-        partition   : str   = "cpu",
-        max_procs   : int   = os.cpu_count(),
-        ):
-
+def run( args ):
 
     # node information
     sys_info = get_system_info()
 
     # executor endpoint
     host     = sys_info['network']['ip_address']
-    host_url = f"http://{host}:{port}"
+    host_url = f"http://{host}:{args.executor_port}"
 
 
     consumer = Consumer(host_url, 
-                        db            = Database(database_url),
-                        device        = device,  
-                        binds         = binds, 
-                        partition     = partition,
-                        max_procs     = max_procs,
+                        db            = Database(args.database_url),
+                        device        = args.device,  
+                        binds         = args.binds, 
+                        partition     = args.partition,
+                        max_procs     = args.max_procs,
                         )
 
 
@@ -78,12 +67,9 @@ def run(
     async def system_info() -> schemas.Answer:
         return schemas.Answer( host=consumer.url, metadata=consumer.system_info(detailed=True) )
 
-    
-    uvicorn.run(app, host=host, port=port, reload=False)
+
+    uvicorn.run(app, host=host, port=args.executor_port, reload=False)
 
 
 
-if __name__ == "__main__":
-
-    run(os.environ["DATABASE_SERVER_URL"])            
-                
+         

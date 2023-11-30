@@ -81,6 +81,7 @@ def create( session   : Session,
             extension : str='.json', 
             binds     : str="{}", 
             partition : str="cpu",
+            email_to  : str="",
           ) -> bool:
             
 
@@ -107,7 +108,8 @@ def create( session   : Session,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
                     trigger=TaskTrigger.WAITING,
-                    experiment_id=experiment_id )
+                    experiment_id=experiment_id,
+                    email_to = email_to )
                     
     # check if input file is json
     files = expand_folders( inputfile )
@@ -274,6 +276,12 @@ class task_parser:
     kill_parser   = argparse.ArgumentParser(description = '', add_help = False)
 
 
+    database_parser   = argparse.ArgumentParser(description = '', add_help = False)
+    database_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                  required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                  help = "database url")
+
+
     create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
                         help = "The task name to be append into the db.")
     create_parser.add_argument('-i','--inputfile', action='store',
@@ -289,45 +297,34 @@ class task_parser:
                         help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
     create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
                         help = f"The selected partitions.")
-    create_parser.add_argument('--repo', action='store', dest='repo', required=False, default="",
-                        help = "The path of the local github repository (.git) for validation stage")
-    create_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                                 required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                 help = "database url")
-                                 
+    create_parser.add_argument('--email_to', action='store', dest='email_to', required=False, default="",
+                        help = "The email of the task responsible.")
+   
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                   help = "All task ids to be deleted", type=str)
     delete_parser.add_argument('--force', action='store_true', dest='force', required=False,
                   help = "Force delete.")
-    delete_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                  required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                  help = "database url")
+
                               
 
     retry_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                               help = "All task ids to be retried", type=str)
-    retry_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                              required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                              help = "database url")
-                                 
+
 
     kill_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                              help = "All task ids to be killed", type=str)
-    kill_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                             required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                             help = "database url")
-                                 
+                       
 
 
     parent = argparse.ArgumentParser(description = '', add_help = False)
     subparser = parent.add_subparsers(dest='option')
     # Datasets
-    subparser.add_parser('create', parents=[create_parser])
-    subparser.add_parser('retry' , parents=[retry_parser])
-    subparser.add_parser('delete', parents=[delete_parser])
-    subparser.add_parser('list'  , parents=[list_parser])
-    subparser.add_parser('kill'  , parents=[kill_parser])
+    subparser.add_parser('create', parents=[create_parser, database_parser])
+    subparser.add_parser('retry' , parents=[retry_parser, database_parser])
+    subparser.add_parser('delete', parents=[delete_parser, database_parser])
+    subparser.add_parser('list'  , parents=[list_parser, database_parser])
+    subparser.add_parser('kill'  , parents=[kill_parser, database_parser])
     args.add_parser( 'task', parents=[parent] )
 
   
@@ -360,7 +357,7 @@ class task_parser:
                     dry_run=args.dry_run, 
                     binds=args.binds, 
                     partition=args.partition,
-                    repo=args.repo)
+                    email_to=args.email_to)
 
 
   def kill(self, task_ids):

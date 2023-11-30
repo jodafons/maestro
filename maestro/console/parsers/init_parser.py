@@ -1,5 +1,5 @@
 
-__all__ = ["data_parser"]
+__all__ = ["init_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
@@ -47,44 +47,32 @@ def recreate( db: Database) -> bool:
 
 
 
-class data_parser:
+class init_parser:
 
   def __init__(self, args):
 
       # Create Task
-      create_parser   = argparse.ArgumentParser(description = '', add_help = False)
-      recreate_parser = argparse.ArgumentParser(description = '', add_help = False)
-      delete_parser   = argparse.ArgumentParser(description = '', add_help = False)
-
-
-      create_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                   help = "database url")
-
-      recreate_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                   help = "database url")
-
-      delete_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
-                                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                                   help = "database url")
-                                 
-
+      parser   = argparse.ArgumentParser(description = '', add_help = False)
+  
+      parser.add_argument('--database-url', action='store', dest='database_url', type=str,
+                          required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
+                          help = "database url")
+           
       parent    = argparse.ArgumentParser(description = '', add_help = False)
       subparser = parent.add_subparsers(dest='option')
 
       # Datasets
-      subparser.add_parser('create', parents=[create_parser])
-      subparser.add_parser('recreate' , parents=[recreate_parser])
-      subparser.add_parser('delete', parents=[delete_parser])
-      args.add_parser( 'data', parents=[parent] )
+      subparser.add_parser('create', parents=[parser])
+      subparser.add_parser('recreate' , parents=[parser])
+      subparser.add_parser('delete', parents=[parser])
+      args.add_parser( 'init', parents=[parent] )
 
 
 
 
   def parser( self, args ):
 
-    if args.mode == 'data':
+    if args.mode == 'init':
       if args.option == 'create':
         self.create(args)
       elif args.option == 'recreate':

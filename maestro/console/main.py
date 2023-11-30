@@ -8,8 +8,8 @@ def run():
   commands = parser.add_subparsers(dest='mode')
 
   parsers = [
+              init_parser(commands),
               task_parser(commands),
-              data_parser(commands),
               run_parser(commands),
             ]
 

@@ -22,29 +22,24 @@ class schedule_args:
 
 
 
-def update_status(job):
-  client = MlflowClient( schedule_args.tracking_url )
-  client.set_tag(job.run_id, "Status", job.status)
+def update_status(app, job):
+  app.set_tag(job.run_id, "Status", job.status)
 
 #
 # Transitions functions
 #
 
-def send_email( task: Task ) -> bool:
+def send_email( app, task: Task ) -> bool:
   """
   Send an email with the task status
   """
   try:
     status = task.status
     taskname = task.name
-    from_email = schedule_args.email_from
-    password   = schedule_args.email_password
-    to_email   = schedule_args.email_to
-    postman    = Postman(from_email, password)
     subject    = f"[LPS Cluster] Notification for task id {status}"
     message    = (f"The task with name {taskname} was assigned with {status} status.")
     logger.debug(f"Sending email to {email}") 
-    postman.send(to_email, subject, message)
+    app.postman.send(task.to_email, subject, message)
   except:
     logger.error("not possible to send email to the responsible.")
     
@@ -54,7 +49,7 @@ def send_email( task: Task ) -> bool:
 # Job test
 #
 
-def test_job_fail( task: Task ) -> bool:
+def test_job_fail( app, task: Task ) -> bool:
   """
     Check if the first job returns fail
   """
@@ -62,7 +57,7 @@ def test_job_fail( task: Task ) -> bool:
   return (job.status == JobStatus.FAILED) or (job.status == JobStatus.BROKEN)
     
  
-def test_job_assigned( task: Task ) -> bool:
+def test_job_assigned( app, task: Task ) -> bool:
   """
     Assigned the fist job to test
   """
@@ -72,7 +67,7 @@ def test_job_assigned( task: Task ) -> bool:
   return True
 
 
-def test_job_running( task: Task ) -> bool:
+def test_job_running( app, task: Task ) -> bool:
   """
     Check if the test job still running
   """
@@ -80,7 +75,7 @@ def test_job_running( task: Task ) -> bool:
   return task.jobs[0].status == JobStatus.RUNNING
 
 
-def test_job_completed( task: Task ) -> bool:
+def test_job_completed( app, task: Task ) -> bool:
   """
     Check if the test job is completed
   """
@@ -92,7 +87,7 @@ def test_job_completed( task: Task ) -> bool:
 #
 
 
-def task_registered( task: Task ) -> bool:
+def task_registered( app, task: Task ) -> bool:
   """
     Check if all jobs into the task are registered
   """
@@ -100,18 +95,18 @@ def task_registered( task: Task ) -> bool:
   return all([job.status==JobStatus.REGISTERED for job in task.jobs])
   
 
-def task_assigned( task: Task ) -> bool:
+def task_assigned( app, task: Task ) -> bool:
   """
   Force all jobs with ASSIGNED status
   """
   logger.debug("task_assigned")
   for job in task.jobs:
       job.status =  JobStatus.ASSIGNED
-      update_status(job)
+      update_status(app, job)
   return True
 
 
-def task_completed( task: Task ) -> bool:
+def task_completed( app, task: Task ) -> bool:
   """
     Check if all jobs into the task are completed
   """
@@ -119,7 +114,7 @@ def task_completed( task: Task ) -> bool:
   return all([job.status==JobStatus.COMPLETED for job in task.jobs])
   
 
-def task_running( task: Task ) -> bool:
+def task_running( app, task: Task ) -> bool:
   """
     Check if any jobs into the task is in assigned state
   """
@@ -127,7 +122,7 @@ def task_running( task: Task ) -> bool:
   return any([ ((job.status==JobStatus.ASSIGNED) or (job.status==JobStatus.RUNNING))  for job in task.jobs])
 
 
-def task_finalized( task: Task ) -> bool:
+def task_finalized( app, task: Task ) -> bool:
   """
     Check if all jobs into the task are completed or failed
   """
@@ -137,7 +132,7 @@ def task_finalized( task: Task ) -> bool:
 
 
 
-def task_killed( task: Task ) -> bool:
+def task_killed( app, task: Task ) -> bool:
   """
     Check if all jobs into the task are killed
   """
@@ -145,7 +140,7 @@ def task_killed( task: Task ) -> bool:
   return all([job.status==JobStatus.KILLED for job in task.jobs])
   
 
-def task_broken( task: Task ) -> bool:
+def task_broken( app, task: Task ) -> bool:
   """
     Broken all jobs inside of the task
   """
@@ -153,7 +148,7 @@ def task_broken( task: Task ) -> bool:
   return all([job.status==JobStatus.BROKEN for job in task.jobs])
 
 
-def task_retry( task: Task ) -> bool:
+def task_retry( app, task: Task ) -> bool:
   """
     Retry all jobs inside of the task with failed status
   """
@@ -165,14 +160,14 @@ def task_retry( task: Task ) -> bool:
         job.status = JobStatus.ASSIGNED
         job.retry +=1
         retry_jobs +=1
-        update_status(job)
+        update_status(app, job)
 
   # NOTE: If we have jobs to retry we must keep the current state and dont finalized the task
   return not retry_jobs>0
 
 
 
-def task_removed( task: Task ):
+def task_removed( app, task: Task ):
   """
     Check if task removed
   """
@@ -180,7 +175,7 @@ def task_removed( task: Task ):
   return task.to_remove
   
 
-def task_kill( task: Task ):
+def task_kill( app, task: Task ):
   """
     Kill all jobs
   """
@@ -190,7 +185,7 @@ def task_kill( task: Task ):
       job.status = JobStatus.KILL
     else:
       job.status = JobStatus.KILLED
-    update_status(job)
+    update_status(app, job)
 
   return True
 
@@ -200,7 +195,7 @@ def task_kill( task: Task ):
 #
 
 
-def trigger_task_kill( task: Task ) -> bool:
+def trigger_task_kill( app, task: Task ) -> bool:
   """
     Put all jobs to kill status when trigger
   """
@@ -212,7 +207,7 @@ def trigger_task_kill( task: Task ) -> bool:
     return False
 
 
-def trigger_task_retry( task: Task ) -> bool:
+def trigger_task_retry( app, task: Task ) -> bool:
   """
     Move all jobs to registered when trigger is retry given by external order
   """
@@ -224,12 +219,12 @@ def trigger_task_retry( task: Task ) -> bool:
         if (job.status != JobStatus.COMPLETED):
           job.status = JobStatus.ASSIGNED
           job.retry  = 0 
-          update_status(job)
+          update_status(app, job)
 
     elif (task.status == TaskStatus.KILLED) or (task.status == TaskStatus.BROKEN):
       for job in task.jobs:
         job.status = JobStatus.REGISTERED
-        update_status(job)
+        update_status(app, job)
 
     else:
       logger.error(f"Not expected task status ({task.status})into the task retry. Please check this!")
@@ -242,7 +237,7 @@ def trigger_task_retry( task: Task ) -> bool:
 
 
 
-def trigger_task_delete( task: Task ) -> bool:
+def trigger_task_delete( app, task: Task ) -> bool:
   """
     Put all jobs to kill status when trigger
   """
@@ -267,12 +262,12 @@ class Transition:
     self.target = target
     self.relationship = relationship
 
-  def __call__(self, task: Task) -> bool:   
+  def __call__(self, app, task: Task) -> bool:   
     """
       Apply the transition for each function
     """
     for func in self.relationship:
-      if not func(task):
+      if not func(app, task):
         return False
     return True
 
@@ -280,17 +275,21 @@ class Transition:
 #
 # Schedule implementation
 # 
-
-
 class Schedule(threading.Thread):
 
-  def __init__(self, db, extended_states : bool=True):
+  def __init__(self, db, postman, extended_states : bool=True):
     threading.Thread.__init__(self)
     logger.info("Creating schedule...")
     self.extended_states = extended_states
     self.db              = db
+    self.__stop   = threading.Event()
+    self.postman  = postman
+    with db as session:
+      tracking_url = session.get_environ( "TRACKING_SERVER_URL" )
+      self.tracking = MlflowClient( tracking_url )
+  
     self.compile()
-    self.__stop    = threading.Event()
+
     
 
   def stop(self):
@@ -316,7 +315,7 @@ class Schedule(threading.Thread):
         for job in jobs:
           if not job.is_alive():
             job.status = JobStatus.ASSIGNED
-            update_status(job)
+            update_status(self, job)
 
         session.commit()
     except Exception as e:
@@ -340,7 +339,7 @@ class Schedule(threading.Thread):
           # Check if the current JobStatus is equal than this JobStatus
           if state.source == task.status:
             try:
-              res = state(task)
+              res = state( self, task)
               if res:
                 logger.debug(f"Moving task from {state.source} to {state.target} state.")
                 task.status = state.target

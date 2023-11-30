@@ -7,6 +7,9 @@ import GPUtil as gputil
 from time import time, sleep
 import subprocess
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 def convert_bytes(size):
     for x in ['MB', 'GB', 'TB']:
@@ -82,6 +85,7 @@ class Server:
     self.command = command
 
   def start(self):
+    print(self.command)
     self.__proc = subprocess.Popen(self.command, shell=True)
     sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
     self.__proc_stat = psutil.Process(self.__proc.pid)
