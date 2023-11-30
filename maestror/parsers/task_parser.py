@@ -12,9 +12,9 @@ from tabulate import tabulate
 from tqdm import tqdm
 from loguru import logger
 
-from maestro.servers.executor.consumer import Job as JobTest
-from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
-from maestro.models import Task, Job, Database, Session
+from maestror.servers.executor.consumer import Job as JobTest
+from maestror.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+from maestror.models import Task, Job, Database, Session
 
 
 def convert_string_to_range(s):

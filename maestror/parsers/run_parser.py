@@ -3,7 +3,7 @@ __all__ = ["run_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
-from maestro.models import Base, Database
+from maestror.models import Base, Database
 
 
 class run_parser:
@@ -97,7 +97,7 @@ class run_parser:
 
 
   def executor(self, args):
-    from maestro.servers.executor.main import run
+    from maestror.servers.executor.main import run
     run( args.database_url, 
          port        = args.port,
          device      = args.device,
@@ -107,7 +107,7 @@ class run_parser:
         )
 
   def pilot(self, args):
-    from maestro.servers.control.main import run
+    from maestror.servers.control.main import run
     run( args.database_url, 
          port               = args.port,
          tracking_port      = args.tracking_port,

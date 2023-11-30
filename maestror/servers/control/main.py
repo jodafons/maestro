@@ -3,9 +3,9 @@
 import uvicorn, os, socket, shutil
 from time import sleep
 from fastapi import FastAPI, HTTPException
-from maestro import models, schemas, Database, Schedule, Pilot, Server
-from maestro import system_info as get_system_info
-from maestro.models import Base
+from maestror import models, schemas, Database, Schedule, Pilot, Server
+from maestror import system_info as get_system_info
+from maestror.models import Base
 from loguru import logger
 
 
@@ -58,7 +58,7 @@ def run(
 
 
     # overwrite schedule external configurations
-    from maestro.servers.control.schedule import schedule_args
+    from maestror.servers.control.schedule import schedule_args
     schedule_args.tracking_url      = tracking_url
     schedule_args.email_to          = email_to
     schedule_args.email_to          = email_to

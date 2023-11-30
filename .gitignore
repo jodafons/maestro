@@ -20,6 +20,7 @@ MoreFilesForYou-*
 .asetup.save
 build
 .python-version
+maestror-env
 maestro-env
 orchestra-env
 .orchestra-env
@@ -29,11 +30,3 @@ orchestra-env
 .pytest_cache
 
 
-
-# server
-servers/schedule/api
-servers/pilot/api
-servers/mailing/api
-servers/executor/api
-servers/*/models.py
-servers/*/enumerations.py

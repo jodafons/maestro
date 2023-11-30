@@ -1,5 +1,5 @@
-export DOCKER_NAMESPACE='maestro'
-export VIRTUALENV_NAMESPACE='maestro-env'
+export DOCKER_NAMESPACE='maestror'
+export VIRTUALENV_NAMESPACE='maestror-env'
 export MAESTRO_PATH=$PWD
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH

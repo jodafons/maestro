@@ -5,8 +5,8 @@
 import uvicorn, os, socket, mlflow
 
 from fastapi import FastAPI, HTTPException
-from maestro import schemas, Consumer, Database
-from maestro import system_info as get_system_info
+from maestror import schemas, Consumer, Database
+from maestror import system_info as get_system_info
 from loguru import logger
 
 

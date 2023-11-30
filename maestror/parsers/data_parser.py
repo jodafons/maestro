@@ -3,7 +3,7 @@ __all__ = ["data_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
-from maestro.models import Base, Database
+from maestror.models import Base, Database
 
 
 

@@ -3,8 +3,8 @@ __all__ = ["Pilot"]
 
 import traceback, os, threading
 from time import time, sleep
-from maestro.servers.control.schedule import Schedule
-from maestro import schemas
+from maestror.servers.control.schedule import Schedule
+from maestror import schemas
 from loguru import logger
 
 

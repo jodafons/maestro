@@ -4,7 +4,7 @@ __all__ = ["Database", "Task", "Job", "Env"]
 
 import datetime, traceback, os
 import numpy as np
-from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
+from maestror.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from sqlalchemy import create_engine, Column, Boolean, Float, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from loguru import logger

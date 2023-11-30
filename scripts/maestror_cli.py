@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, os, argparse
-from maestro.parsers import *
+from maestror.parsers import *
 
 
 parser = argparse.ArgumentParser()
