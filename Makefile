@@ -14,7 +14,7 @@ build_base:
 	
 build_local:
 	virtualenv -p python ${VIRTUALENV_NAMESPACE}
-	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && pip install poetry && poetry install && which python
+	source ${VIRTUALENV_NAMESPACE}/bin/activate && pip install poetry && poetry install && which python
 
 #
 # Server
