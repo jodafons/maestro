@@ -41,7 +41,7 @@ mlflow = "^2.8.0"
 netifaces = "^0.11.0"
 
 [tool.poetry.scripts]
-maestro = "scripts.maestro:main"
+maestro = "maestro.console.maestro:main"
 
 [build-system]
 requires = ["poetry-core"]
