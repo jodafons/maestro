@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "maestror"
+name = "maestro"
 version = "0.1.0"
 description = ""
 authors = ["jodafons <jodafons@lps.ufrj.br>"]

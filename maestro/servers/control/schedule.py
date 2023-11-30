@@ -7,8 +7,8 @@ from sqlalchemy import and_, or_
 from loguru import logger
 from tqdm import tqdm
 from time import sleep, time
-from maestror.models import Task, Job
-from maestror.enumerations import JobStatus, TaskStatus, TaskTrigger
+from maestro.models import Task, Job
+from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
 #

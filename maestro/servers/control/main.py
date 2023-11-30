@@ -3,9 +3,9 @@
 import uvicorn, os, socket, shutil
 from time import sleep
 from fastapi import FastAPI, HTTPException
-from maestror import models, schemas, Database, Schedule, Pilot, Server
-from maestror import system_info as get_system_info
-from maestror.models import Base
+from maestro import models, schemas, Database, Schedule, Pilot, Server
+from maestro import system_info as get_system_info
+from maestro.models import Base
 from loguru import logger
 
 

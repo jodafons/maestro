@@ -3,7 +3,7 @@ __all__ = ["run_parser"]
 
 import glob, traceback, os, argparse, re
 from loguru import logger
-from maestror.models import Base, Database
+from maestro.models import Base, Database
 
 
 class run_parser:

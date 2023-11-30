@@ -7,8 +7,8 @@ from time import time, sleep
 from loguru import logger
 from pprint import pprint
 from copy import copy
-from maestror.enumerations import JobStatus, TaskStatus
-from maestror import Database, schemas, models, system_info
+from maestro.enumerations import JobStatus, TaskStatus
+from maestro import Database, schemas, models, system_info
 from mlflow.tracking import MlflowClient
 
 SYS_MEMORY_FACTOR = 1.2 # not exactally the amount of memory. We should correct.
