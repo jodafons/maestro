@@ -214,7 +214,7 @@ class Consumer(threading.Thread):
                      max_retry           : int=5, 
                      partition           : str='cpu',
                      db                  : Database=None,
-                     cpu_limit           : float=80,
+                     max_procs           : int=os.cpu_count(),
                      reserved_memory     : float=4*GB,
                      reserved_gpu_memory : float=2*GB,
                      ):
@@ -235,7 +235,7 @@ class Consumer(threading.Thread):
 
     # getting system values
     cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
-    self.cpu_limit           = cpu_limit
+    self.max_procs           = max_procs
     self.reserved_memory     = sys_avail_memory - reserved_memory
     self.reserved_gpu_memory = gpu_avail_memory - reserved_gpu_memory
 
@@ -497,8 +497,10 @@ class Consumer(threading.Thread):
     # available memory into the system
     cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
 
-    if cpu_usage > self.cpu_limit:
-      logger.warning("CPU node usage reached the limit stablished.")
+    nprocs = len(self.jobs)
+
+    if  nprocs > self.max_procs:
+      logger.warning("Number of procs reached the limit stablished.")
       return False
 
     # estimatate memory peak by mean for the current task

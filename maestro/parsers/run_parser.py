@@ -33,6 +33,10 @@ class run_parser:
                                  required=False, default='cpu',
                                  help = "the partition name")
                                               
+    executor_parser.add_argument('--max_procs', action='store', dest='max_procs', type=int,
+                                 required=False, default=os.cpu_count(),
+                                 help = "the max number of processors in the partition.")
+                                              
 
 
 
@@ -99,6 +103,7 @@ class run_parser:
          device      = args.device,
          binds       = eval(args.binds), 
          partition   = args.partition,
+         max_procs   = args.max_procs,
         )
 
   def pilot(self, args):

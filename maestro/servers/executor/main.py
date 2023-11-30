@@ -17,7 +17,7 @@ def run(
         device      : int   = -1,
         binds       : dict  = eval(os.environ.get("EXECUTOR_SERVER_BINDS", "{}")), 
         partition   : str   = "cpu",
-        cpu_limit   : int   = 80,
+        max_procs   : int   = os.cpu_count(),
         ):
 
 
@@ -34,7 +34,7 @@ def run(
                         device        = device,  
                         binds         = binds, 
                         partition     = partition,
-                        cpu_limit     = cpu_limit,
+                        max_procs     = max_procs,
                         )
 
 
