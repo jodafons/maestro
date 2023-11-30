@@ -114,9 +114,9 @@ from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
 
-from . import parsers
-__all__.extend( parsers.__all__ )
-from .parsers import *
+from . import console
+__all__.extend( console.__all__ )
+from .console import *
 
 #from . import standalone
 #__all__.extend( standalone.__all__ )

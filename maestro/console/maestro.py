@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import sys, os, argparse
-from maestro.parsers import *
+from maestro.console.parsers import *
 
 def main():
 
@@ -22,8 +22,6 @@ def main():
   # Run!
   for p in parsers:
     p.parser(args)
-
-
 
 if __name__ == "__main__":
   main()

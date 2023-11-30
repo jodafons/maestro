@@ -1,6 +1,5 @@
 export DOCKER_NAMESPACE='maestro'
 export VIRTUALENV_NAMESPACE='maestro-env'
-export MAESTRO_PATH=$PWD
 export PYTHONPATH=`pwd`:$PYTHONPATH
 export PATH=`pwd`/scripts:$PATH
 export LOGURU_LEVEL="DEBUG"

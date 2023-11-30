@@ -9,7 +9,8 @@ from email.mime.text import MIMEText
 from jinja2 import Environment, FileSystemLoader
 import traceback, os
 
-templates = os.environ["MAESTRO_PATH"]+'/maestro/servers/control-plane/postman/templates'
+import maestro
+templates = maestro.__path__[0]+'/servers/control/postman/templates'
 
 class Postman:
 
