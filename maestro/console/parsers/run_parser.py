@@ -23,10 +23,6 @@ class run_parser:
                                  required=False, default = -1,
                                  help = "gpu device number, if not used, default will be cpu as device.")
 
-    executor_parser.add_argument('--binds', action='store', dest='binds', type=str,
-                                 required=False, default = os.environ.get("EXECUTOR_SERVER_BINDS"   ,"{}"),
-                                 help = "necessary binds to append into the singularity --binds param. e.g., '{'/mnt/cern_data':'path/to/cern/storage'}'. Default can be passed as environ in EXECUTOR_SERVER_BINDS")
-
     executor_parser.add_argument('--executor-port', action='store', dest='executor_port', type=int,
                                  required=False , default=6000,
                                  help = "the consumer port number")                           

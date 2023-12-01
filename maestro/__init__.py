@@ -18,6 +18,11 @@ def convert_bytes(size):
         size /= 1024.0
     return size
 
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+
 def system_info(pretty=False):
 
     hostname = socket.gethostname()
@@ -62,8 +67,7 @@ def system_info(pretty=False):
     iname = [ name for name in ni.interfaces() if 'enp' in name][0]
 
     network_info = {
-      'interface'  : iname,
-      'ip_address' : ni.ifaddresses(iname)[ni.AF_INET][0]['addr'],
+      'ip_address' : get_ip_address(),
     }
 
     return { # return the node information

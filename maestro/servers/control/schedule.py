@@ -1,5 +1,5 @@
 
-__all__ = ["Schedule", "schedule_args"]
+__all__ = ["Schedule"]
 
 import traceback, time, os, threading
 from mlflow.tracking import MlflowClient
@@ -11,19 +11,8 @@ from maestro.models import Task, Job
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
-#
-# NOTE: Use this class to configure some parameters used in function
-#
-class schedule_args:
-  tracking_url  : str=""
-  from_email    : str=""
-  password      : str=""
-  to_email      : str=""
-
-
-
 def update_status(app, job):
-  app.set_tag(job.run_id, "Status", job.status)
+  app.tracking.set_tag(job.run_id, "Status", job.status)
 
 #
 # Transitions functions
@@ -40,7 +29,8 @@ def send_email( app, task: Task ) -> bool:
     message    = (f"The task with name {taskname} was assigned with {status} status.")
     logger.debug(f"Sending email to {email}") 
     app.postman.send(task.to_email, subject, message)
-  except:
+  except Exception as e:
+    traceback.print_exc()
     logger.error("not possible to send email to the responsible.")
     
   return True
@@ -63,7 +53,7 @@ def test_job_assigned( app, task: Task ) -> bool:
   """
   logger.debug("test_job_assigned")
   task.jobs[0].status =  JobStatus.ASSIGNED
-  update_status(task.jobs[0])   
+  update_status(app, task.jobs[0])   
   return True
 
 
@@ -94,6 +84,7 @@ def task_registered( app, task: Task ) -> bool:
   logger.debug("task_registered")
   return all([job.status==JobStatus.REGISTERED for job in task.jobs])
   
+
 
 def task_assigned( app, task: Task ) -> bool:
   """
@@ -128,7 +119,7 @@ def task_finalized( app, task: Task ) -> bool:
   """
   logger.debug("task_finalized")
   # NOTE: We have jobs waiting to be executed here. Task should be in running state  
-  return (not task_running(task)) and (not all([job.status==JobStatus.COMPLETED for job in task.jobs]) )
+  return (not task_running(app, task)) and (not all([job.status==JobStatus.COMPLETED for job in task.jobs]) )
 
 
 
@@ -277,10 +268,9 @@ class Transition:
 # 
 class Schedule(threading.Thread):
 
-  def __init__(self, db, postman, extended_states : bool=True):
+  def __init__(self, db, postman):
     threading.Thread.__init__(self)
     logger.info("Creating schedule...")
-    self.extended_states = extended_states
     self.db              = db
     self.__stop   = threading.Event()
     self.postman  = postman
@@ -388,6 +378,11 @@ class Schedule(threading.Thread):
     logger.info("Compiling all transitions...")
     self.states = [
 
+      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]   ),
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                                    ),
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]              ), 
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]                   ), 
+
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]               ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.BROKEN     , relationship=[task_broken, send_email]                  ),
@@ -404,7 +399,6 @@ class Schedule(threading.Thread):
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                             ),
       
-      
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
@@ -412,25 +406,8 @@ class Schedule(threading.Thread):
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
     ]
 
-    if self.extended_states:
-      logger.info("Adding test states into the graph.")
-
-      self.states.extend( [
-          Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]        ),
-          Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                          ),
-          Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]    ), 
-          Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]         ), 
-        ] )
+   
       
-    else:
-      logger.info("Bypassing the testing state in the graph")
-
-      self.states.extend( 
-        [
-          Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered]        ) ,
-          Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[task_assigned]          ) ,
-        ]
-      )
 
 
     logger.info(f"Schedule with a total of {len(self.states)} nodes into the graph.")

@@ -209,7 +209,6 @@ class Consumer(threading.Thread):
 
   def __init__(self, url                 : str,
                      device              : int=-1, 
-                     binds               : dict={}, 
                      timeout             : int=60, 
                      max_retry           : int=5, 
                      partition           : str='cpu',
@@ -223,7 +222,6 @@ class Consumer(threading.Thread):
     self.url       = url
     self.partition = partition
     self.jobs      = {}
-    self.binds     = binds
     self.timeout   = timeout
     self.max_retry = max_retry
     self.device    = device
@@ -313,9 +311,8 @@ class Consumer(threading.Thread):
         self.__lock.set()
         return False
 
-      binds = copy(self.binds)
-      binds.update(job_db.get_binds())
-      envs = job_db.get_envs()
+      binds = job_db.get_binds()
+      envs  = job_db.get_envs()
 
       job = Job(  
              job_db.id,
@@ -521,7 +518,7 @@ class Consumer(threading.Thread):
       logger.warning("System memory node usage reached the limit stablished.")
       return False
 
-    if gpu_avail_memory < 0:
+    if (self.device >= 0) and (gpu_avail_memory < 0):
       logger.warning("GPU memory node usage reached the limit stablished.")
       return False
 
