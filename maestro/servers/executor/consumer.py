@@ -273,7 +273,7 @@ class Consumer(threading.Thread):
 
     while (not self.__stop.isSet()):
 
-      sleep(5)
+      sleep(1)
 
       server = schemas.client( self.server_url, 'pilot')
 

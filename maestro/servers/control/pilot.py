@@ -32,7 +32,7 @@ class Pilot( threading.Thread ):
   def run(self):
 
     while not self.__stop.isSet():
-      sleep(10)
+      sleep(1)
       # NOTE wait to be set
       self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
