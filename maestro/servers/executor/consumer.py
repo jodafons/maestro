@@ -328,7 +328,7 @@ class Consumer(threading.Thread):
       binds = job_db.get_binds()
       envs  = job_db.get_envs()
 
-      task_db = job.task
+      task_db = job_db.task
 
       job = Job(  
              job_db.id,
