@@ -64,7 +64,7 @@ def create_tracking( tracking_url : str, task : Task ):
     tracking      = MlflowClient( tracking_url )
     experiment_id = tracking.create_experiment( task.name )
     mlflow.set_tracking_uri(tracking_url)
-    for job in task.jobs:
+    for job in tqdm( task.jobs, "create runs...."):
       run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
       #tracking.log_artifact(run_id, job.inputfile)
       job.run_id = run_id
@@ -117,6 +117,7 @@ def create( session   : Session,
     os.makedirs(volume, exist_ok=True)
 
   try:
+
     task_db = Task( id=session.generate_id(Task),
                     name=taskname,
                     volume=volume,
