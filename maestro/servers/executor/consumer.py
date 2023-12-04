@@ -33,7 +33,6 @@ class Job:
                testing       : bool=False,
                run_id        : str="",
                tracking_url  : str="",
-               local         : bool=False,
                ):
 
     self.id         = job_id

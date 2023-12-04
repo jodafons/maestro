@@ -66,7 +66,7 @@ def create_tracking( tracking_url : str, task : Task ):
     mlflow.set_tracking_uri(tracking_url)
     for job in task.jobs:
       run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
-      tracking.log_artifact(run_id, job.inputfile)
+      #tracking.log_artifact(run_id, job.inputfile)
       job.run_id = run_id
     task.experiment_id = experiment_id
     return True
