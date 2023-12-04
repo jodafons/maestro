@@ -152,6 +152,7 @@ def create( session   : Session,
                     binds=binds,
                     status=JobStatus.REGISTERED,
                     partition=partition,
+                    run_id="",
                   )
 
       task_db.jobs.append(job_db)
