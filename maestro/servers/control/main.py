@@ -51,10 +51,10 @@ def run( args , launch_executor : bool=False ):
     pilot      = Pilot(pilot_url, schedule)
 
     # mlflow tracking server
-    tracking   = Server( f"mlflow ui --port {args.tracking_port} --backend-store-uri {args.tracking_location}/mlflow --host {tracking_host} --artifacts-destination {args.tracking_location}/artifacts" )
+    tracking   = Server( f"mlflow ui --port {args.tracking_port} --host {host} --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )
     
     if launch_executor:
-        executor = Server(f"maestro run executor --binds '{args.binds}' --max_procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
+        executor = Server(f"maestro run executor --max_procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
 
 
     # create master

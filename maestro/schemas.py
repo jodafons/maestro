@@ -80,4 +80,4 @@ class client:
         
 
     def ping(self):
-        return False if self.try_request('ping', method="get") is None else True
+        return self.try_request('ping', method="get").status

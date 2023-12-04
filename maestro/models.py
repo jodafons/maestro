@@ -41,6 +41,9 @@ class Task (Base):
   # Foreign 
   jobs      = relationship("Job", order_by="Job.id", back_populates="task")
   
+
+  email_to  = Column(String)
+
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
 

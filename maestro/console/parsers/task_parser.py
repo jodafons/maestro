@@ -15,7 +15,7 @@ from loguru import logger
 from maestro.servers.executor.consumer import Job as JobTest
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from maestro.models import Task, Job, Database, Session
-
+from maestro import schemas
 
 def convert_string_to_range(s):
      """
@@ -59,15 +59,20 @@ def test_job( job_db ):
 def create_tracking( tracking_url : str, task : Task ):
 
   # get tracking server
-  logger.info(f"tracking server from {tracking_url}")
-  tracking      = MlflowClient( tracking_url )
-  experiment_id = tracking.create_experiment( task.name )
-  mlflow.set_tracking_uri(tracking_url)
-  for job in task.jobs:
-    run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
-    tracking.log_artifact(run_id, job.inputfile)
-  return experiment_id
-
+  try:
+    logger.info(f"tracking server from {tracking_url}")
+    tracking      = MlflowClient( tracking_url )
+    experiment_id = tracking.create_experiment( task.name )
+    mlflow.set_tracking_uri(tracking_url)
+    for job in task.jobs:
+      run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
+      tracking.log_artifact(run_id, job.inputfile)
+      job.run_id = run_id
+    task.experiment_id = experiment_id
+    return True
+  except Exception as e:
+    traceback.print_exc()
+    return False
 
 
 
@@ -84,7 +89,15 @@ def create( session   : Session,
             email_to  : str="",
           ) -> bool:
             
+  
 
+  server_url = session.get_environ("PILOT_SERVER_URL")
+  server = schemas.client( server_url, 'pilot')
+  if not server.ping():
+    logger.error("The server is not online. please setup the server before launch it... ")
+    return None
+    
+  tracking_url = session.get_environ("TRACKING_SERVER_URL")
 
   if session.get_task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
@@ -108,8 +121,7 @@ def create( session   : Session,
                     volume=volume,
                     status=TaskStatus.REGISTERED,
                     trigger=TaskTrigger.WAITING,
-                    experiment_id=experiment_id,
-                    email_to = email_to )
+                    email_to  = email_to )
                     
     # check if input file is json
     files = expand_folders( inputfile )
@@ -137,7 +149,6 @@ def create( session   : Session,
                     binds=binds,
                     status=JobStatus.REGISTERED,
                     partition=partition,
-                    run_id=run_id,
                   )
 
       task_db.jobs.append(job_db)
@@ -149,12 +160,14 @@ def create( session   : Session,
         return None
       logger.info("local test done but not stored into the database. remove dry_run to launch into the orchestrator.")
       return task_db.id
-    else:
+      
+    if create_tracking(tracking_url, task_db):
       session().add(task_db)
-      tracking_url = os.environ["TRACKING_SERVER_URL"]
-      create_tracking( tracking_url, task_db)
       session.commit()
       return task_db.id
+    else:
+      logger.error("some problem to create the experiment into the tracking server... abort")
+      return None
 
 
   except Exception as e:
@@ -293,7 +306,7 @@ class task_parser:
                         help = "The exec command")
     create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
                         help = "Use this as debugger.")
-    create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}",
+    create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}", type=str,
                         help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
     create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
                         help = f"The selected partitions.")
@@ -302,15 +315,10 @@ class task_parser:
    
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
-                  help = "All task ids to be deleted", type=str)
-    delete_parser.add_argument('--force', action='store_true', dest='force', required=False,
-                  help = "Force delete.")
-
-                              
+                  help = "All task ids to be deleted", type=str)                     
 
     retry_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                               help = "All task ids to be retried", type=str)
-
 
     kill_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                              help = "All task ids to be killed", type=str)
@@ -335,13 +343,13 @@ class task_parser:
       if args.option == 'create':
         self.create(os.getcwd(), args)
       elif args.option == 'retry':
-        self.retry(convert_string_to_range(args.id_list))
+        self.retry(convert_string_to_range(args.id_list), args)
       elif args.option == 'delete':
-        self.delete(convert_string_to_range(args.id_list), force=args.force)   
+        self.delete(convert_string_to_range(args.id_list), args)   
       elif args.option == 'list':
-        self.list()   
+        self.list(args)   
       elif args.option == 'kill':
-        self.kill(convert_string_to_range(args.id_list))   
+        self.kill(convert_string_to_range(args.id_list), args)   
       else:
         logger.error("Option not available.")
 
@@ -360,25 +368,25 @@ class task_parser:
                     email_to=args.email_to)
 
 
-  def kill(self, task_ids):
+  def kill(self, task_ids, args):
     db = Database(args.database_url)
     with db as session:
       for task_id in task_ids:
         kill(session, task_id)
 
-  def delete(self, task_ids, force=False):
+  def delete(self, task_ids, args):
     db = Database(args.database_url)
     with db as session:
       for task_id in task_ids:
         delete(session, task_id)
 
-  def retry(self, task_ids):
+  def retry(self, task_ids, args):
     db = Database(args.database_url)
     with db as session:
       for task_id in task_ids:
         retry(session, task_id)
 
-  def list(self):
+  def list(self, args):
     db = Database(args.database_url)
     with db as session:
       print(list_tasks(session))
