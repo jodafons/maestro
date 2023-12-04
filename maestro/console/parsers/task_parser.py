@@ -81,6 +81,7 @@ def create( session   : Session,
             taskname  : str, 
             inputfile : str,
             image     : str, 
+            virtualenv: str,
             command   : str, 
             dry_run   : bool=False, 
             extension : str='.json', 
@@ -142,6 +143,7 @@ def create( session   : Session,
                     name=job_name,
                     id=offset+idx,
                     image=image,
+                    virtualenv=virtualenv,
                     command=command.replace('%IN',fpath),
                     workarea=workarea,
                     inputfile=fpath,
@@ -302,6 +304,8 @@ class task_parser:
                         help = "The input config file that will be used to configure the job (sort and init).")
     create_parser.add_argument('--image', action='store', dest='image', required=False, default="",
                         help = "The singularity sif image path.")
+    create_parser.add_argument('--virtualenv', action='store', dest='virtualenv', required=False, default="",
+                        help = "The virtualenv path.")
     create_parser.add_argument('--exec', action='store', dest='command', required=True,
                         help = "The exec command")
     create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
@@ -361,6 +365,7 @@ class task_parser:
                     args.taskname, 
                     args.inputfile, 
                     args.image, 
+                    args.virtualenv,
                     args.command, 
                     dry_run=args.dry_run, 
                     binds=args.binds, 

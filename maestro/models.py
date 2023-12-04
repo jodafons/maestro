@@ -114,6 +114,8 @@ class Job (Base):
   id        = Column(Integer, primary_key = True)
   name      = Column(String)
   image     = Column(String , default="")
+  virtualenv= Column(String , default="")
+
   command   = Column(String , default="")
   status    = Column(String , default=JobStatus.REGISTERED)
   retry     = Column(Integer, default=0)

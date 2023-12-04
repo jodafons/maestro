@@ -28,11 +28,12 @@ class Job:
                # others parameters
                device        : int=-1,
                image         : str="", 
-               extra_envs    : dict={},
+               virtualenv    : str="",
                binds         : dict= {},
                testing       : bool=False,
                run_id        : str="",
                tracking_url  : str="",
+               local         : bool=False,
                ):
 
     self.id         = job_id
@@ -50,6 +51,8 @@ class Job:
     self.device     = device
     self.testing    = testing
 
+    self.virtualenv = virtualenv
+
 
     logger.info(f"Job will use {image} as image...")
     logger.info("Setting all environs into the singularity envs...")
@@ -57,17 +60,18 @@ class Job:
     job_name  = self.workarea.split('/')[-1]
 
 
-    self.env["SINGULARITYENV_CUDA_DEVICE_ORDER"]         = "PCI_BUS_ID"
-    self.env["SINGULARITYENV_CUDA_VISIBLE_DEVICES"]      = str(device)
-    self.env["SINGULARITYENV_TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
-    self.env["SINGULARITYENV_JOB_WORKAREA"]              = self.workarea
-    self.env["SINGULARITYENV_JOB_IMAGE"]                 = self.image
-    self.env["SINGULARITYENV_JOB_TASKNAME"]              = taskname
-    self.env["SINGULARITYENV_JOB_NAME"]                  = job_name
-    self.env["SINGULARITYENV_JOB_ID"]                    = str(self.id)
-    self.env["SINGULARITYENV_JOB_DRY_RUN"]               = 'true' if testing else 'false'
-    self.env["SINGULARITYENV_MLFLOW_RUN_ID"]             = self.run_id
-    self.env["SINGULARITYENV_MLFLOW_URL"]                = tracking_url 
+
+    self.env[("" if image=="" else "SINGULARITYENV_") + "CUDA_DEVICE_ORDER"]         = "PCI_BUS_ID"
+    self.env[("" if image=="" else "SINGULARITYENV_") + "CUDA_VISIBLE_DEVICES"]      = str(device)
+    self.env[("" if image=="" else "SINGULARITYENV_") + "TF_FORCE_GPU_ALLOW_GROWTH"] = 'true'
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_WORKAREA"]              = self.workarea
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_IMAGE"]                 = self.image
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_TASKNAME"]              = taskname
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_NAME"]                  = job_name
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_ID"]                    = str(self.id)
+    self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_DRY_RUN"]               = 'true' if testing else 'false'
+    self.env[("" if image=="" else "SINGULARITYENV_") + "MLFLOW_RUN_ID"]             = self.run_id
+    self.env[("" if image=="" else "SINGULARITYENV_") + "MLFLOW_URL"]                = tracking_url 
 
     self.logpath = self.workarea+'/output.log'
 
@@ -76,14 +80,22 @@ class Job:
     self.__proc_stat = None
     self.entrypoint=self.workarea+'/entrypoint.sh'
 
+    if image!="":
+      logger.info(f"running job using singularity engine... {image}")
+    else:
+      logger.info(f"running without singularity...")
+
+    if virtualenv!="":
+      logger.info(f"setup virtualenv to {virtualenv}")
+
 
   def run(self, tracking=None):
-
-
 
     os.makedirs(self.workarea, exist_ok=True)
 
     entrypoint = f"cd {self.workarea}\n"
+    if self.virtualenv!="":
+      entrypoint+=f"source {self.virtualenv}/bin/activate\n"
     entrypoint+=f"{self.command.replace('%','$')}\n"
 
     # build script command
@@ -101,12 +113,15 @@ class Job:
         for line in f.readlines():
           logger.info(line)
    
-    
-      binds=""
-      for storage, volume in self.binds.items():
-        binds += f'--bind {storage}:{volume} '
-      command = f"singularity exec --nv --writable-tmpfs {binds} {self.image} bash {self.entrypoint}"
-      command = command.replace('  ',' ') 
+      if self.image!="":
+        binds=""
+        for storage, volume in self.binds.items():
+          binds += f'--bind {storage}:{volume} '
+        command = f"singularity exec --nv --writable-tmpfs {binds} {self.image} bash {self.entrypoint}"
+        command = command.replace('  ',' ') 
+      else:
+        command = f"bash {self.entrypoint}"
+
 
       print(command)
       
@@ -320,8 +335,8 @@ class Consumer(threading.Thread):
              job_db.command,
              job_db.workarea,
              image=job_db.image,
+             virtualenv=job_db.virtualenv,
              device=self.device,
-             extra_envs=envs,
              binds=binds,
              testing=job_db.task.status == TaskStatus.TESTING,
              run_id = job_db.run_id,
