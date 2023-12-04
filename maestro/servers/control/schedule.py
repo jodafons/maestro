@@ -12,7 +12,8 @@ from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
 def update_status(app, job):
-  app.tracking.set_tag(job.run_id, "Status", job.status)
+  if job.run_id != "":
+    app.tracking.set_tag(job.run_id, "Status", job.status)
 
 #
 # Transitions functions
