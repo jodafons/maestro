@@ -328,6 +328,8 @@ class Consumer(threading.Thread):
       binds = job_db.get_binds()
       envs  = job_db.get_envs()
 
+      task_db = job.task
+
       job = Job(  
              job_db.id,
              job_db.task.name,
@@ -343,6 +345,14 @@ class Consumer(threading.Thread):
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()
+
+
+      tracking = MlflowClient( self.tracking_url  )
+      run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
+                                   run_name=job_db.name).info.run_id
+      tracking.log_artifact(run_id, job_db.inputfile)
+      job.run_id = run_id
+    
 
       class Slot:
         def __init__(self, job, sys_memory, gpu_memory):
@@ -371,7 +381,6 @@ class Consumer(threading.Thread):
         job = slot.job
         logger.debug(f"checking job id {job.id}")
         job_db   = session.get_job(job.id, with_for_update=True)
-        task_db  = job_db.task
         tracking = MlflowClient( self.tracking_url  )
 
         # NOTE: kill job option only available with database by external trigger
