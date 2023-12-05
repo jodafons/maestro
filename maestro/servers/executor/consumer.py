@@ -300,6 +300,8 @@ class Consumer(threading.Thread):
 
     self.__lock.wait()
     self.__lock.clear()
+    lock_end = time()
+    logger.info(f"unlock toke {lock_end - start} seconds")
 
     if job_id in self.jobs.keys():
       logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
