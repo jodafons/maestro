@@ -534,7 +534,7 @@ class Consumer(threading.Thread):
     start = time()
 
     # available memory into the system
-    cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
+    #cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
 
     nprocs = len(self.jobs)
 
@@ -553,9 +553,9 @@ class Consumer(threading.Thread):
     logger.debug(f"task:")
     logger.debug(f"      system used memory  : {sys_used_memory} MB")
     logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
-    logger.debug("system now:")
-    logger.debug(f"      system avail memory : {sys_avail_memory} MB")
-    logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
+    #logger.debug("system now:")
+    #logger.debug(f"      system avail memory : {sys_avail_memory} MB")
+    #logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
 
 
     if sys_avail_memory < 0:
