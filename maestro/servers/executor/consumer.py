@@ -396,7 +396,7 @@ class Consumer(threading.Thread):
 
 
     while not self.queue.empty():
-      slot = self.queue.get()
+      slot = self.queue.pop()
       self.jobs[slot.job_id] = slot
 
     for slot in self.jobs.values():
@@ -414,6 +414,8 @@ class Consumer(threading.Thread):
         if not slot.lock:
           logger.info(f"starting job with if {slot.job.id}")
           slot.start()
+
+
 
 
     
