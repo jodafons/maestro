@@ -63,7 +63,7 @@ class Pilot( threading.Thread ):
       answer = node.try_request("system_info" , method="get")
       if answer.status:
         consumer = answer.metadata['consumer']
-        partition = consumer['partition']; n = 10
+        partition = consumer['partition']; n = consumer['max_procs']
         logger.debug(f"getting {n} jobs from {partition} partition...")
         for job_id in self.schedule.get_jobs( partition, n ):
           if node.try_request(f'start_job/{job_id}', method='post').status:
