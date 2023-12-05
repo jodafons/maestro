@@ -127,7 +127,7 @@ class Job:
       self.__log_file = open(self.logpath, 'w')
       self.__proc = subprocess.Popen(command, env=self.env, shell=True, stdout=self.__log_file)
 
-      sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
+      sleep(0.6) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
       broken = self.status() == JobStatus.FAILED
       self.broken = broken
