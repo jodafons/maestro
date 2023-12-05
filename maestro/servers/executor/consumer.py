@@ -273,7 +273,7 @@ class Consumer(threading.Thread):
 
     while (not self.__stop.isSet()):
 
-      sleep(1)
+      #sleep(1)
 
       server = schemas.client( self.server_url, 'pilot')
 
@@ -553,9 +553,9 @@ class Consumer(threading.Thread):
     logger.debug(f"task:")
     logger.debug(f"      system used memory  : {sys_used_memory} MB")
     logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
-    #logger.debug("system now:")
-    #logger.debug(f"      system avail memory : {sys_avail_memory} MB")
-    #logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
+    logger.debug("system now:")
+    logger.debug(f"      system avail memory : {sys_avail_memory} MB")
+    logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
 
 
     if sys_avail_memory < 0:
