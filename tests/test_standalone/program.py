@@ -149,6 +149,12 @@ def main():
     with mlflow.start_run(run_id):
         mlflow.pytorch.log_model(model, "model")
 
+
+
+    logger.info('Finish job...')
+    sys.exit(0)
+
+
 if __name__ == '__main__':
     main()
 
@@ -161,7 +167,3 @@ if __name__ == '__main__':
 
 
 
-
-
-logger.info('Finish job...')
-sys.exit(0)

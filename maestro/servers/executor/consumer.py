@@ -294,7 +294,7 @@ class Consumer(threading.Thread):
 
 
 
-  def start_job( self, job_id ):
+  def start_job( self, jobs ? list ):
 
     start = time()
 
@@ -303,12 +303,6 @@ class Consumer(threading.Thread):
     lock_end = time()
     logger.info(f"unlock toke {lock_end - start} seconds")
 
-    if job_id in self.jobs.keys():
-      logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
-      self.__lock.set()
-      end = time()
-      logger.info(f"start job toke {end-start} seconds")
-      return False
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
     # testing jobs must run alone since we dont know how much resouces will be used.
@@ -321,61 +315,67 @@ class Consumer(threading.Thread):
       end = time()
       logger.info(f"start job toke {end-start} seconds")
       return False
+
+    for job_id in jobs:
+
+      if job_id in self.jobs.keys():
+        logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
+        continue
+
+      with self.db as session:
+
+        job_db = session.get_job(job_id, with_for_update=True)
+
+        # NOTE: check if the consumer attend some resouces criteria to run the current job
+        if (not self.check_resources(job_db)):
+          logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
+          self.__lock.set()
+          end = time()
+          logger.info(f"start job toke {end-start} seconds")
+          return False
+
+        binds = job_db.get_binds()
+
+        task_db = job_db.task
+
+        job = Job(  
+               job_db.id,
+               job_db.task.name,
+               job_db.command,
+               job_db.workarea,
+               image=job_db.image,
+               virtualenv=job_db.virtualenv,
+               device=self.device,
+               binds=binds,
+               testing=job_db.task.status == TaskStatus.TESTING,
+               run_id = job_db.run_id,
+               tracking_url  = self.tracking_url ,
+               )
+        job_db.status = JobStatus.PENDING
+        job_db.ping()
+
+        tracking_start = time()
+        tracking = MlflowClient( self.tracking_url  )
+        run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
+                                     run_name=job_db.name).info.run_id
+        tracking.log_artifact(run_id, job_db.inputfile)
+        job.run_id = run_id
+        tracking_end = time()
+        logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
+
+        sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
+        gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
+        self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+        #self.jobs[job_id].start()
+        db_start = time()
+        session.commit()
+        db_end = time()
+        logger.info(f"database toke {db_end-db_start} seconds")
     
-    
-    with self.db as session:
-      
-      job_db = session.get_job(job_id, with_for_update=True)
 
-      # NOTE: check if the consumer attend some resouces criteria to run the current job
-      if (not self.check_resources(job_db)):
-        logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
-        self.__lock.set()
-        end = time()
-        logger.info(f"start job toke {end-start} seconds")
-        return False
 
-      binds = job_db.get_binds()
-
-      task_db = job_db.task
-
-      job = Job(  
-             job_db.id,
-             job_db.task.name,
-             job_db.command,
-             job_db.workarea,
-             image=job_db.image,
-             virtualenv=job_db.virtualenv,
-             device=self.device,
-             binds=binds,
-             testing=job_db.task.status == TaskStatus.TESTING,
-             run_id = job_db.run_id,
-             tracking_url  = self.tracking_url ,
-             )
-      job_db.status = JobStatus.PENDING
-      job_db.ping()
-
-      tracking_start = time()
-      tracking = MlflowClient( self.tracking_url  )
-      run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
-                                   run_name=job_db.name).info.run_id
-      tracking.log_artifact(run_id, job_db.inputfile)
-      job.run_id = run_id
-      tracking_end = time()
-      logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
-   
-      sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
-      gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
-      self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
-      #self.jobs[job_id].start()
-      db_start = time()
-      session.commit()
-      db_end = time()
-      logger.info(f"database toke {db_end-db_start} seconds")
-    
     logger.debug(f'Job with id {job.id} included into the consumer.')
     self.__lock.set()
-    
     end = time()
     logger.info(f"start job toke {end-start} seconds")
     return True

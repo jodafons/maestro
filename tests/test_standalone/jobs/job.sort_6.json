@@ -1,0 +1,1 @@
+{"sort": 6, "seed": 3584, "gamma": 0.7, "lr": 1.0, "epochs": 5, "batch_size": 64, "test_batch_size": 8}

@@ -63,11 +63,14 @@ class Pilot( threading.Thread ):
       answer = node.try_request("system_info" , method="get")
       if answer.status:
         consumer = answer.metadata['consumer']
-        partition = consumer['partition']; n = consumer['max_procs']
+        partition = consumer['partition']
+        n = consumer['max_procs'] - consumer['allocated']
+        
         logger.debug(f"getting {n} jobs from {partition} partition...")
-        for job_id in self.schedule.get_jobs( partition, n ):
-          if node.try_request(f'start_job/{job_id}', method='post').status:
-            logger.debug(f'start job sent well to the consumer node.')
+        jobs = self.schedule.get_jobs( partition, n )
+        body = schemas.Request( host=self.host, metadata={"jobs":jobs} ) 
+        if node.try_request(f'start_job', method='post', body=body.json()).status:
+          logger.debug(f'start job sent well to the consumer node.')
 
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")

@@ -57,9 +57,10 @@ def run( args ):
 
 
     @app.post("/executor/start_job/{job_id}") 
-    async def start_job(job_id: int) -> schemas.Answer:
-        submitted = consumer.start_job( job_id )
-        return schemas.Answer( host=consumer.url, message=f"Job {job_id} was included into the pipe.", metadata={'submitted':submitted})
+    async def start_job(req : schemas.Request) -> schemas.Answer:
+        jobs = req['metadata']['jobs']
+        submitted = consumer.start_job( jobs )
+        return schemas.Answer( host=consumer.url, message=f"jobs was included into the pipe.", metadata={'submitted':submitted})
 
 
     @app.get("/executor/system_info")
