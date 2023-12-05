@@ -437,7 +437,7 @@ class Consumer(threading.Thread):
         'partition' : self.partition,
         'device'    : self.device,
         'allocated' : len(self.jobs.keys()),
-        'max_procs' : d['cpu'],
+        'max_procs' : d['cpu']['count'],
       }
 
       sys_avail_memory = d['memory']['avail']
