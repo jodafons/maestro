@@ -529,8 +529,11 @@ class Slot(threading.Thread):
     self.lock = True
     while not self.__stop.isSet():
       sleep(0.5)
-      self.loop()
-
+      try:
+        self.loop()
+      except:
+        logger.error("problema aqui!")
+        traceback.print_exc()
 
   def loop(self):
 
