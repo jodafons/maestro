@@ -260,8 +260,8 @@ class Consumer(threading.Thread):
       logger.info(f"pilot url     : {self.server_url}"  )
       logger.info(f"tracking url  : {self.tracking_url}")
 
-
-    self.queue = collections.deque()
+    import queue
+    self.queue = queue.Queue()
 
 
 
@@ -372,7 +372,7 @@ class Consumer(threading.Thread):
         #self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
         
         slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
-        self.queue.append(slot)
+        self.queue.put(slot)
 
 
         #self.jobs[job_id].start()
@@ -396,7 +396,7 @@ class Consumer(threading.Thread):
 
 
     while not self.queue.empty():
-      slot = self.queue.pop()
+      slot = self.queue.get()
       self.jobs[slot.job_id] = slot
 
     for slot in self.jobs.values():
