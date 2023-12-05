@@ -387,7 +387,7 @@ class Consumer(threading.Thread):
     for slot in self.jobs.values():
       logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
-        if (not slot.is_alive()):
+        if (not slot.lock):
           if (len(self.jobs)==1):
             logger.info(f"starting testing job with id {slot.job.id}")
             slot.start()
@@ -395,7 +395,7 @@ class Consumer(threading.Thread):
             logger.info("job testing waining consumer to be cleaner...")
       
       else:
-        if not slot.is_alive():
+        if not slot.lock:
           logger.info(f"starting job with if {slot.job.id}")
           slot.start()
 
@@ -521,9 +521,11 @@ class Slot(threading.Thread):
     self.tracking_url = tracking_url
     self.db = db
     self.__stop = threading.Event()
+    self.lock = False
 
 
   def run(self):
+    self.lock = True
     while not self.__stop.isSet():
       sleep(0.5)
       self.loop()
