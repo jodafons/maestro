@@ -294,7 +294,7 @@ class Consumer(threading.Thread):
 
 
 
-  def start_job( self, jobs ? list ):
+  def start_job( self, jobs: list ):
 
     start = time()
 
