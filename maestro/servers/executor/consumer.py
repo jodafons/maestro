@@ -383,14 +383,21 @@ class Consumer(threading.Thread):
 
   def loop(self):
 
+    start = time()
     for slot in self.jobs.values():
+      logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
         if (not slot.is_alive()) and (len(self.jobs)==1):
+          logger.info(f"starting testing job with id {slot.job.id}")
           slot.start()
       else:
         if not slot.is_alive():
+          logger.info(f"starting job with if {slot.job.id}")
           slot.start()
+
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if slot.job.closed()}
+    end = time()
+    logger.info(f"loop job toke {end-start} seconds")
 
 
 
