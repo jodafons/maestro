@@ -261,7 +261,7 @@ class Consumer(threading.Thread):
       logger.info(f"tracking url  : {self.tracking_url}")
 
     import queue
-    self.queue = queue.Queue()
+    self.queue = queue.Queue(maxsize=max_procs)
 
 
 
