@@ -353,12 +353,14 @@ class Consumer(threading.Thread):
       job_db.status = JobStatus.PENDING
       job_db.ping()
 
-
+      tracking_start = time()
       tracking = MlflowClient( self.tracking_url  )
       run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
                                    run_name=job_db.name).info.run_id
       tracking.log_artifact(run_id, job_db.inputfile)
       job.run_id = run_id
+      tracking_end = time()
+      logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
     
 
       class Slot:
@@ -368,7 +370,10 @@ class Consumer(threading.Thread):
       sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
       gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
       self.jobs[job_id] = Slot(job, sys_used_memory, gpu_used_memory)
+      db_start = time()
       session.commit()
+      db_end = time()
+      logger.info(f"database toke {db_end-db_start} seconds")
     
     logger.debug(f'Job with id {job.id} included into the consumer.')
     self.__lock.set()
@@ -524,6 +529,8 @@ class Consumer(threading.Thread):
 
   def check_resources(self, job_db : models.Job):
 
+    start = time()
+
     # available memory into the system
     cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
 
@@ -531,6 +538,8 @@ class Consumer(threading.Thread):
 
     if  nprocs > self.max_procs:
       logger.warning("Number of procs reached the limit stablished.")
+      end = time()
+      logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     # estimatate memory peak by mean for the current task
@@ -549,23 +558,33 @@ class Consumer(threading.Thread):
 
     if sys_avail_memory < 0:
       logger.warning("System memory node usage reached the limit stablished.")
+      end = start()
+      logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     if (self.device >= 0) and (gpu_avail_memory < 0):
       logger.warning("GPU memory node usage reached the limit stablished.")
+      end = start()
+      logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     logger.debug(f"Job system used memory : {sys_used_memory} ({sys_avail_memory}) MB")
     # check if we have memory to run this workload
     if (sys_used_memory >= 0) and (sys_used_memory > sys_avail_memory):
       logger.warning("Not available memory to run this job into this consumer.")
+      end = start()
+      logger.info(f"check_resources toke {end-start} seconds")
       return False  
 
     logger.debug(f"Job gpu used memory    : {gpu_used_memory} ({gpu_avail_memory}) MB")
     # check if we have gpu memory to run this workload
     if (self.device >= 0) and (gpu_used_memory >= 0) and (gpu_used_memory > gpu_avail_memory):
       logger.warning("Not available GPU memory to run this job into this consumer.")
+      end = start()
+      logger.info(f"check_resources toke {end-start} seconds")
       return False
 
+    end = start()
+    logger.info(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
     return True
