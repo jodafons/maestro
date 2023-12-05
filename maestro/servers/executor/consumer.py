@@ -523,11 +523,10 @@ class Slot(threading.Thread):
     self.__stop = threading.Event()
 
 
-  def start(self):
+  def run(self):
     while not self.__stop.isSet():
-      sleep(1)
+      sleep(0.5)
       self.loop()
-
 
 
   def loop(self):
