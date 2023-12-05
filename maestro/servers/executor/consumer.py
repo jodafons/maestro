@@ -296,12 +296,16 @@ class Consumer(threading.Thread):
 
   def start_job( self, job_id ):
 
+    start = time()
+
     self.__lock.wait()
     self.__lock.clear()
 
     if job_id in self.jobs.keys():
       logger.error(f"Job {job_id} exist into the consumer. Not possible to include here.")
       self.__lock.set()
+      end = time()
+      logger.info(f"start job toke {end-start} seconds")
       return False
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
@@ -312,6 +316,8 @@ class Consumer(threading.Thread):
     if blocked:
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
       self.__lock.set()
+      end = time()
+      logger.info(f"start job toke {end-start} seconds")
       return False
     
     
@@ -323,10 +329,11 @@ class Consumer(threading.Thread):
       if (not self.check_resources(job_db)):
         logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
         self.__lock.set()
+        end = time()
+        logger.info(f"start job toke {end-start} seconds")
         return False
 
       binds = job_db.get_binds()
-      envs  = job_db.get_envs()
 
       task_db = job_db.task
 
@@ -365,6 +372,9 @@ class Consumer(threading.Thread):
     
     logger.debug(f'Job with id {job.id} included into the consumer.')
     self.__lock.set()
+    
+    end = time()
+    logger.info(f"start job toke {end-start} seconds")
     return True
 
 
