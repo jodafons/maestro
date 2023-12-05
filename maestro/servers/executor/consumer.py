@@ -558,13 +558,13 @@ class Consumer(threading.Thread):
 
     if sys_avail_memory < 0:
       logger.warning("System memory node usage reached the limit stablished.")
-      end = start()
+      end = time()
       logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     if (self.device >= 0) and (gpu_avail_memory < 0):
       logger.warning("GPU memory node usage reached the limit stablished.")
-      end = start()
+      end = time()
       logger.info(f"check_resources toke {end-start} seconds")
       return False
 
@@ -572,7 +572,7 @@ class Consumer(threading.Thread):
     # check if we have memory to run this workload
     if (sys_used_memory >= 0) and (sys_used_memory > sys_avail_memory):
       logger.warning("Not available memory to run this job into this consumer.")
-      end = start()
+      end = time()
       logger.info(f"check_resources toke {end-start} seconds")
       return False  
 
@@ -580,11 +580,11 @@ class Consumer(threading.Thread):
     # check if we have gpu memory to run this workload
     if (self.device >= 0) and (gpu_used_memory >= 0) and (gpu_used_memory > gpu_avail_memory):
       logger.warning("Not available GPU memory to run this job into this consumer.")
-      end = start()
+      end = time()
       logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-    end = start()
+    end = time()
     logger.info(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
     return True
