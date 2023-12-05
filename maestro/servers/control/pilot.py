@@ -68,9 +68,11 @@ class Pilot( threading.Thread ):
         
         logger.debug(f"getting {n} jobs from {partition} partition...")
         jobs = self.schedule.get_jobs( partition, n )
+        print(jobs)
         body = schemas.Request( host=self.host, metadata={"jobs":jobs} ) 
-        if node.try_request(f'start_job', method='post', body=body.json()).status:
-          logger.debug(f'start job sent well to the consumer node.')
+        if len(jobs)>0:
+          if node.try_request(f'start_job', method='post', body=body.json()).status:
+            logger.debug(f'start job sent well to the consumer node.')
 
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")
