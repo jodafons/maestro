@@ -396,8 +396,11 @@ class Consumer(threading.Thread):
 
 
     while not self.queue.empty():
-      slot = self.queue.pop()
-      self.jobs[slot.job_id] = slot
+      try:
+        slot = self.queue.get_nowait()
+        self.jobs[slot.job_id] = slot
+      except:
+        continue
 
     for slot in self.jobs.values():
 
