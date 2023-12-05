@@ -520,7 +520,7 @@ class Slot(threading.Thread):
     self.sys_memory = sys_memory
     self.gpu_memory = gpu_memory
     self.tracking_url = tracking_url
-    self.db = db
+    self.db = models.Database(db.host)
     self.__stop = threading.Event()
     self.lock = False
 
@@ -595,12 +595,15 @@ class Slot(threading.Thread):
 
       # update job status into the tracking server
       tracking.set_tag(self.job.run_id, "Status", job_db.status)
+
       # add job log as artifact into the tracking server
       if self.job.closed():
         tracking.log_artifact(self.job.run_id, self.job.logpath)
+      
       # update job into the database
       logger.debug("commit all changes into the database...")
       session.commit()
+
 
     if self.job.closed():
       self.stop()
