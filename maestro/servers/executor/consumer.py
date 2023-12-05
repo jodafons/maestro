@@ -387,14 +387,21 @@ class Consumer(threading.Thread):
     for slot in self.jobs.values():
       logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
-        if (not slot.is_alive()) and (len(self.jobs)==1):
-          logger.info(f"starting testing job with id {slot.job.id}")
-          slot.start()
+        if (not slot.is_alive()):
+          if (len(self.jobs)==1):
+            logger.info(f"starting testing job with id {slot.job.id}")
+            slot.start()
+          else:
+            logger.info("job testing waining consumer to be cleaner...")
+        else:
+          logger.info(f"job testing with id {slot.job.id} is alive...")
+      
       else:
         if not slot.is_alive():
           logger.info(f"starting job with if {slot.job.id}")
           slot.start()
 
+          
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if slot.job.closed()}
     end = time()
     logger.info(f"loop job toke {end-start} seconds")
@@ -542,37 +549,26 @@ class Slot(threading.Thread):
 
       if self.job.status() == JobStatus.PENDING:
         job_db.ping()
-        if self.job.testing:
-          logger.debug(f"Job {self.job.id} is a testing job...")
-          if len(self.jobs)==1:
-            if self.job.run(tracking):
-              #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
-              logger.debug(f'Job {self.job.id} is RUNNING.')
-              job_db.status = JobStatus.RUNNING
-            else:
-              logger.debug(f'Job {self.job.id} is BROKEN.')
-              job_db.status = JobStatus.BROKEN
-              self.job.to_close()
-          else:
-            logger.debug(f"Consumer has {len(self.jobs)} jobs into the list. Waiting...")
+        logger.debug(f"Job {self.job.id} is a single job...")
+        if self.job.run(tracking):
+          #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
+          logger.debug(f'Job {self.job.id} is RUNNING.')
+          job_db.status = JobStatus.RUNNING
         else:
-          logger.debug(f"Job {self.job.id} is a single job...")
-          if self.job.run(tracking):
-            #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
-            logger.debug(f'Job {self.job.id} is RUNNING.')
-            job_db.status = JobStatus.RUNNING
-          else:
-            logger.debug(f'Job {self.job.id} is BROKEN.')
-            job_db.status = JobStatus.BROKEN
-            self.job.to_close()
+          logger.debug(f'Job {self.job.id} is BROKEN.')
+          job_db.status = JobStatus.BROKEN
+          self.job.to_close()
+
       elif self.job.status() is JobStatus.FAILED:
         logger.debug(f'Job {self.job.id} is FAILED.')
         job_db.status = JobStatus.FAILED
         self.job.to_close()
+
       elif self.job.status() is JobStatus.KILLED:
         logger.debug(f'Job {self.job.id} is KILLED.')
         job_db.status = JobStatus.KILLED
         self.job.to_close()
+        
       elif self.job.status() is JobStatus.RUNNING:
         logger.debug(f'Job {self.job.id} is RUNNING.')
         # NOTE: update peak values for the current job
@@ -588,10 +584,12 @@ class Slot(threading.Thread):
         tracking.log_metric(self.job.run_id, "sys_used_memory", job_db.sys_used_memory )
         tracking.log_metric(self.job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
         tracking.log_metric(self.job.run_id, "cpu_percent"    , job_db.cpu_percent     )
+
       elif self.job.status() is JobStatus.COMPLETED:
         logger.debug(f'Job {self.job.id} is COMPLETED.')
         job_db.status = JobStatus.COMPLETED
         self.job.to_close()
+
       # update job status into the tracking server
       tracking.set_tag(self.job.run_id, "Status", job_db.status)
       # add job log as artifact into the tracking server
@@ -603,6 +601,7 @@ class Slot(threading.Thread):
 
     if self.job.closed():
       self.stop()
+
     end = time()
     logger.debug(f"Run stage toke {round(end-start,4)} seconds")
 
