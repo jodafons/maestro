@@ -1,7 +1,7 @@
 
 __all__ = ["Job", "Consumer", "GB"]
 
-import os, subprocess, traceback, time, sys, threading, psutil, nvsmi
+import os, subprocess, traceback, time, sys, threading, psutil, nvsmi, collections
 import mlflow
 from time import time, sleep
 from loguru import logger
@@ -127,7 +127,7 @@ class Job:
       self.__log_file = open(self.logpath, 'w')
       self.__proc = subprocess.Popen(command, env=self.env, shell=True, stdout=self.__log_file)
 
-      sleep(0.6) # NOTE: wait for 2 seconds to check if the proc really start.
+      sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
       broken = self.status() == JobStatus.FAILED
       self.broken = broken
@@ -261,6 +261,10 @@ class Consumer(threading.Thread):
       logger.info(f"tracking url  : {self.tracking_url}")
 
 
+    self.queue = collections.deque()
+
+
+
   def stop(self):
     self.__stop.set()
 
@@ -278,9 +282,9 @@ class Consumer(threading.Thread):
       server = schemas.client( self.server_url, 'pilot')
 
       # NOTE wait to be set
-      self.__lock.wait() 
+      #self.__lock.wait() 
       # NOTE: when set, we will need to wait to register until this loop is read
-      self.__lock.clear()      
+      #self.__lock.clear()      
 
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.url ).json())
       if answer.status:
@@ -290,7 +294,7 @@ class Consumer(threading.Thread):
         logger.error("not possible to connect with the server...")
  
       # NOTE: allow external user to incluse executors into the list
-      self.__lock.set()
+      #self.__lock.set()
 
 
 
@@ -298,8 +302,8 @@ class Consumer(threading.Thread):
 
     start = time()
 
-    self.__lock.wait()
-    self.__lock.clear()
+    #self.__lock.wait()
+    #self.__lock.clear()
     lock_end = time()
     logger.info(f"unlock toke {lock_end - start} seconds")
 
@@ -365,7 +369,12 @@ class Consumer(threading.Thread):
 
         sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
         gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
-        self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+        #self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+        
+        slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+        self.queue.append(slot)
+
+
         #self.jobs[job_id].start()
         db_start = time()
         session.commit()
@@ -375,7 +384,7 @@ class Consumer(threading.Thread):
 
 
     logger.debug(f'Job with id {job.id} included into the consumer.')
-    self.__lock.set()
+    #self.__lock.set()
     end = time()
     logger.info(f"start job toke {end-start} seconds")
     return True
@@ -384,7 +393,14 @@ class Consumer(threading.Thread):
   def loop(self):
 
     start = time()
+
+
+    while not self.queue.empty():
+      slot = self.queue.pop()
+      self.jobs[slot.job_id] = slot
+
     for slot in self.jobs.values():
+
       logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
         if (not slot.lock):
@@ -399,6 +415,8 @@ class Consumer(threading.Thread):
           logger.info(f"starting job with if {slot.job.id}")
           slot.start()
 
+
+    
 
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
     end = time()
@@ -514,8 +532,9 @@ class Consumer(threading.Thread):
 
 class Slot(threading.Thread):
 
-  def __init__(self, db, job, sys_memory, gpu_memory, tracking_url):
+  def __init__(self, job_id, db, job, sys_memory, gpu_memory, tracking_url):
     threading.Thread.__init__(self)
+    self.job_id = job_id
     self.job = job
     self.sys_memory = sys_memory
     self.gpu_memory = gpu_memory
