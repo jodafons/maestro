@@ -332,7 +332,7 @@ class Consumer(threading.Thread):
           self.__lock.set()
           end = time()
           logger.info(f"start job toke {end-start} seconds")
-          return False
+          return True
 
         binds = job_db.get_binds()
 
