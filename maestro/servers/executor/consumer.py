@@ -393,7 +393,7 @@ class Consumer(threading.Thread):
 
 
       # Loop over all available consumers
-      for key, slot in self.jobs.items():
+      for key, slot in self.jobs.copy().items():
 
         job = slot.job
         logger.debug(f"checking job id {job.id}")
