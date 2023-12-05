@@ -273,7 +273,7 @@ class Consumer(threading.Thread):
 
     while (not self.__stop.isSet()):
 
-      #sleep(1)
+      sleep(1)
 
       server = schemas.client( self.server_url, 'pilot')
 
@@ -363,15 +363,11 @@ class Consumer(threading.Thread):
       job.run_id = run_id
       tracking_end = time()
       logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
-    
-
-      class Slot:
-        def __init__(self, job, sys_memory, gpu_memory):
-          self.job = job; self.sys_memory=sys_memory; self.gpu_memory=gpu_memory
-
+   
       sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
       gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
-      self.jobs[job_id] = Slot(job, sys_used_memory, gpu_used_memory)
+      self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+      #self.jobs[job_id].start()
       db_start = time()
       session.commit()
       db_end = time()
@@ -387,105 +383,16 @@ class Consumer(threading.Thread):
 
   def loop(self):
 
-    start = time()
-
-    with self.db as session:
-
-
-      # Loop over all available consumers
-      for key, slot in self.jobs.copy().items():
-
-        job = slot.job
-        logger.debug(f"checking job id {job.id}")
-        job_db   = session.get_job(job.id, with_for_update=True)
-        tracking = MlflowClient( self.tracking_url  )
-
-        # NOTE: kill job option only available with database by external trigger
-        if job_db.status == JobStatus.KILL:
-          logger.debug("Kill job from database...")
-          job.kill()
-
-        if job.status() == JobStatus.PENDING:
-          job_db.ping()
-          if job.testing:
-            logger.debug(f"Job {job.id} is a testing job...")
-            if len(self.jobs)==1:
-              if job.run(tracking):
-                tracking.log_dict(job.run_id, self.system_info(pretty=True), "system.json")
-                logger.debug(f'Job {job.id} is RUNNING.')
-                job_db.status = JobStatus.RUNNING
-              else:
-                logger.debug(f'Job {job.id} is BROKEN.')
-                job_db.status = JobStatus.BROKEN
-                job.to_close()
-            else:
-              logger.debug(f"Consumer has {len(self.jobs)} jobs into the list. Waiting...")
-          else:
-            logger.debug(f"Job {job.id} is a single job...")
-            if job.run(tracking):
-              tracking.log_dict(job.run_id, self.system_info(pretty=True), "system.json")
-              logger.debug(f'Job {job.id} is RUNNING.')
-              job_db.status = JobStatus.RUNNING
-            else:
-              logger.debug(f'Job {job.id} is BROKEN.')
-              job_db.status = JobStatus.BROKEN
-              job.to_close()
-
-        elif job.status() is JobStatus.FAILED:
-          logger.debug(f'Job {job.id} is FAILED.')
-          job_db.status = JobStatus.FAILED
-          job.to_close()
-
-        elif job.status() is JobStatus.KILLED:
-          logger.debug(f'Job {job.id} is KILLED.')
-          job_db.status = JobStatus.KILLED
-          job.to_close()
-
-        elif job.status() is JobStatus.RUNNING:
-          logger.debug(f'Job {job.id} is RUNNING.')
+    for slot in self.jobs.values():
+      if slot.job.testing:
+        if (not slot.is_alive()) and (len(self.jobs)==1):
+          slot.start()
+      else:
+        if not slot.is_alive():
+          slot.start()
+    self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if slot.job.closed()}
 
 
-          # NOTE: update peak values for the current job
-          cpu_percent, sys_used_memory, gpu_used_memory = job.proc_stat()
-          job_db.cpu_percent      = max(cpu_percent       , job_db.cpu_percent      )
-          job_db.sys_used_memory  = max(sys_used_memory   , job_db.sys_used_memory  )
-          job_db.gpu_used_memory  = max(gpu_used_memory   , job_db.gpu_used_memory  )
-          logger.debug(f"Job {job.id} consuming {job_db.sys_used_memory } MB of memory, {job_db.gpu_used_memory} "+ 
-                       f"MB of GPU memory and {job_db.cpu_percent} of CPU.")
-          job_db.ping()
-          
-          # NOTE: log metrics into mlflow database
-          tracking.log_metric(job.run_id, "sys_used_memory", job_db.sys_used_memory )
-          tracking.log_metric(job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
-          tracking.log_metric(job.run_id, "cpu_percent"    , job_db.cpu_percent     )
-
-
-        elif job.status() is JobStatus.COMPLETED:
-          logger.debug(f'Job {job.id} is COMPLETED.')
-          job_db.status = JobStatus.COMPLETED
-          job.to_close()
-
-
-        # update job status into the tracking server
-        tracking.set_tag(job.run_id, "Status", job_db.status)
-        # add job log as artifact into the tracking server
-        if job.closed():
-          tracking.log_artifact(job.run_id, job.logpath)
-
-        # update job into the database
-        logger.debug("commit all changes into the database...")
-        session.commit()
-
-    # Loop over all jobs
-
-
-
-    self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
-
-    end = time()
-    current_in = len(self.jobs.keys())
-    logger.debug(f"Run stage toke {round(end-start,4)} seconds")
-    logger.debug(f"We have a total of {current_in} jobs into the consumer.")
 
 
 
@@ -532,10 +439,6 @@ class Consumer(threading.Thread):
   def check_resources(self, job_db : models.Job):
 
     start = time()
-
-    # available memory into the system
-    #cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory = self.system_info()
-
     nprocs = len(self.jobs)
 
     if  nprocs > self.max_procs:
@@ -590,3 +493,112 @@ class Consumer(threading.Thread):
     logger.info(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
     return True
+
+
+
+
+
+
+class Slot(threading.Thread):
+
+  def __init__(self, db, job, sys_memory, gpu_memory, tracking_url):
+    threading.Thread.__init__(self)
+    self.job = job
+    self.sys_memory = sys_memory
+    self.gpu_memory = gpu_memory
+    self.tracking_url = tracking_url
+    self.db = db
+    self.__stop = threading.Event()
+
+
+  def start(self):
+    while not self.__stop.isSet():
+      sleep(1)
+      self.loop()
+
+
+
+  def loop(self):
+
+    start = time()
+
+    with self.db as session:
+
+      logger.debug(f"checking job id {self.job.id}")
+      job_db   = session.get_job(self.job.id, with_for_update=True)
+      tracking = MlflowClient( self.tracking_url  )
+
+      # NOTE: kill job option only available with database by external trigger
+      if job_db.status == JobStatus.KILL:
+        logger.debug("Kill job from database...")
+        self.job.kill()
+
+      if self.job.status() == JobStatus.PENDING:
+        job_db.ping()
+        if self.job.testing:
+          logger.debug(f"Job {self.job.id} is a testing job...")
+          if len(self.jobs)==1:
+            if self.job.run(tracking):
+              #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
+              logger.debug(f'Job {self.job.id} is RUNNING.')
+              job_db.status = JobStatus.RUNNING
+            else:
+              logger.debug(f'Job {self.job.id} is BROKEN.')
+              job_db.status = JobStatus.BROKEN
+              self.job.to_close()
+          else:
+            logger.debug(f"Consumer has {len(self.jobs)} jobs into the list. Waiting...")
+        else:
+          logger.debug(f"Job {self.job.id} is a single job...")
+          if self.job.run(tracking):
+            #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
+            logger.debug(f'Job {self.job.id} is RUNNING.')
+            job_db.status = JobStatus.RUNNING
+          else:
+            logger.debug(f'Job {self.job.id} is BROKEN.')
+            job_db.status = JobStatus.BROKEN
+            self.job.to_close()
+      elif self.job.status() is JobStatus.FAILED:
+        logger.debug(f'Job {self.job.id} is FAILED.')
+        job_db.status = JobStatus.FAILED
+        self.job.to_close()
+      elif self.job.status() is JobStatus.KILLED:
+        logger.debug(f'Job {self.job.id} is KILLED.')
+        job_db.status = JobStatus.KILLED
+        self.job.to_close()
+      elif self.job.status() is JobStatus.RUNNING:
+        logger.debug(f'Job {self.job.id} is RUNNING.')
+        # NOTE: update peak values for the current job
+        cpu_percent, sys_used_memory, gpu_used_memory = self.job.proc_stat()
+        job_db.cpu_percent      = max(cpu_percent       , job_db.cpu_percent      )
+        job_db.sys_used_memory  = max(sys_used_memory   , job_db.sys_used_memory  )
+        job_db.gpu_used_memory  = max(gpu_used_memory   , job_db.gpu_used_memory  )
+        logger.debug(f"Job {self.job.id} consuming {job_db.sys_used_memory } MB of memory, {job_db.gpu_used_memory} "+ 
+                     f"MB of GPU memory and {job_db.cpu_percent} of CPU.")
+        job_db.ping()
+        
+        # NOTE: log metrics into mlflow database
+        tracking.log_metric(self.job.run_id, "sys_used_memory", job_db.sys_used_memory )
+        tracking.log_metric(self.job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
+        tracking.log_metric(self.job.run_id, "cpu_percent"    , job_db.cpu_percent     )
+      elif self.job.status() is JobStatus.COMPLETED:
+        logger.debug(f'Job {self.job.id} is COMPLETED.')
+        job_db.status = JobStatus.COMPLETED
+        self.job.to_close()
+      # update job status into the tracking server
+      tracking.set_tag(self.job.run_id, "Status", job_db.status)
+      # add job log as artifact into the tracking server
+      if self.job.closed():
+        tracking.log_artifact(self.job.run_id, self.job.logpath)
+      # update job into the database
+      logger.debug("commit all changes into the database...")
+      session.commit()
+
+    if self.job.closed():
+      self.stop()
+    end = time()
+    logger.debug(f"Run stage toke {round(end-start,4)} seconds")
+
+
+  def stop(self):
+    self.__stop.set()
