@@ -103,7 +103,6 @@ class Job:
 
 
     try:
-      self.pending=False
       self.killed=False
       self.broken=False
 
@@ -129,6 +128,8 @@ class Job:
 
       sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
+      self.pending=False
+
       broken = self.status() == JobStatus.FAILED
       self.broken = broken
 
@@ -184,7 +185,7 @@ class Job:
   # Kill the main process
   #
   def kill(self):
-    if self.is_alive():
+    if self.is_alive() and self.__proc:
       children = self.__proc_stat.children(recursive=True)
       for child in children:
         p=psutil.Process(child.pid)
