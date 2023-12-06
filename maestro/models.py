@@ -90,16 +90,13 @@ class Task (Base):
     return total
 
   def sys_used_memory(self):
-    used_memory = [job.sys_used_memory for job in self.jobs if job.sys_used_memory >= 0]
-    return int(np.mean(used_memory) if len(used_memory) > 0 else -1)
+    return int(max([job.sys_used_memory for job in self.jobs]))
    
   def gpu_used_memory(self):
-    used_memory = [job.gpu_used_memory for job in self.jobs if job.gpu_used_memory >= 0]
-    return int(np.mean(used_memory) if len(used_memory) > 0 else -1)
+    return int(max([job.gpu_used_memory for job in self.jobs]))
 
   def cpu_percent(self):
-    cpu_percent = [job.cpu_percent for job in self.jobs if job.cpu_percent >= 0]
-    return int(np.mean(cpu_percent) if len(cpu_percent) > 0 else -1)
+    return int(max([job.cpu_percent for job in self.jobs]))
  
 
 

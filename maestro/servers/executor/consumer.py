@@ -412,7 +412,6 @@ class Consumer(threading.Thread):
             slot.start()
           else:
             logger.info("job testing waining consumer to be cleaner...")
-      
       else:
         if not slot.lock:
           logger.info(f"starting job with if {slot.job.id}")
@@ -606,7 +605,8 @@ class Slot(threading.Thread):
         logger.debug(f"Job {self.job.id} consuming {job_db.sys_used_memory } MB of memory, {job_db.gpu_used_memory} "+ 
                      f"MB of GPU memory and {job_db.cpu_percent} of CPU.")
         job_db.ping()
-        
+  
+
         # NOTE: log metrics into mlflow database
         tracking.log_metric(self.job.run_id, "sys_used_memory", job_db.sys_used_memory )
         tracking.log_metric(self.job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
