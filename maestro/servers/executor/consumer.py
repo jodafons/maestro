@@ -278,14 +278,9 @@ class Consumer(threading.Thread):
 
     while (not self.__stop.isSet()):
 
-      sleep(1)
+      sleep(0.5)
 
       server = schemas.client( self.server_url, 'pilot')
-
-      # NOTE wait to be set
-      #self.__lock.wait() 
-      # NOTE: when set, we will need to wait to register until this loop is read
-      #self.__lock.clear()      
 
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.url ).json())
       if answer.status:
@@ -294,19 +289,11 @@ class Consumer(threading.Thread):
       else:
         logger.error("not possible to connect with the server...")
  
-      # NOTE: allow external user to incluse executors into the list
-      #self.__lock.set()
+
 
 
 
   def start_job( self, jobs: list ):
-
-    start = time()
-
-    #self.__lock.wait()
-    #self.__lock.clear()
-    lock_end = time()
-    logger.info(f"unlock toke {lock_end - start} seconds")
 
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
@@ -317,11 +304,12 @@ class Consumer(threading.Thread):
     if blocked:
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
       self.__lock.set()
-      end = time()
       logger.info(f"start job toke {end-start} seconds")
       return False
 
     for job_id in jobs:
+
+      start = time()
 
       if job_id in self.jobs.keys():
         logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
@@ -375,19 +363,16 @@ class Consumer(threading.Thread):
         slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
         self.queue.put(slot)
 
-
-        #self.jobs[job_id].start()
         db_start = time()
         session.commit()
         db_end = time()
         logger.info(f"database toke {db_end-db_start} seconds")
-    
+
+        end = time()
+        logger.info(f"start job toke {end-start} seconds")
 
 
     logger.debug(f'Job with id {job.id} included into the consumer.')
-    #self.__lock.set()
-    end = time()
-    logger.info(f"start job toke {end-start} seconds")
     return True
 
 
