@@ -1,12 +1,12 @@
 
 __all__ = ["Pilot"]
 
-import traceback, os, threading
+import threading
 from time import time, sleep
 from maestro.servers.control.schedule import Schedule
-from maestro import schemas
+from maestro.servers.control.consumer import Consumer
+from maestro import models
 from loguru import logger
-
 
 
 
@@ -15,22 +15,19 @@ class Pilot( threading.Thread ):
 
   def __init__(self, 
                host               : str, 
-               schedule           : Schedule, 
-               max_retry          : int=5 
+               db                 : models.Database,
               ):
 
     threading.Thread.__init__(self)
     self.host      = host
-    self.nodes     = {}
-    self.schedule  = schedule
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set()
-    self.max_retry = max_retry
-
+    self.db = models.Database(db.host)
+    self.tasks = {}
+    self.consumers = {}
 
   def run(self):
-
     while not self.__stop.isSet():
       sleep(1)
       # NOTE wait to be set
@@ -47,65 +44,62 @@ class Pilot( threading.Thread ):
     start = time()
     # NOTE: only healthy nodes  
 
-    self.schedule.loop()
+    # create a schedule for each new task
+    with self.db as session:
+      tasks = session().query(models.Task).all()
+      for task in tasks:
+        if task.id not in self.tasks.keys():
+          logger.info(f"creating a new schedule for task {task.id}")
+          schedule = Schedule(task.id, self.db)
+          schedule.start()
+          self.tasks[task.id] = schedule
 
-    for host in self.nodes.keys():
+        else:
+          schedule = self.tasks[task.id]
+          if not schedule.is_alive():
+            self.tasks.pop(task.id, schedule)
 
-      node = schemas.client(host, "executor")
-
-      # get all information about the executor
-      if not node.ping():
-          logger.info( f"node with host name {host} is not alive...")
-          self.nodes[host] += 1
-          continue
-
-      # NOTE: get all information from the current executor
-      answer = node.try_request("system_info" , method="get")
-      if answer.status:
-        consumer = answer.metadata['consumer']
-        partition = consumer['partition']
-        n = consumer['max_procs'] - consumer['allocated']
-        
-        logger.debug(f"getting {n} jobs from {partition} partition...")
-        jobs = self.schedule.get_jobs( partition, n )
-        print(jobs)
-        body = schemas.Request( host=self.host, metadata={"jobs":jobs} ) 
-        if len(jobs)>0:
-          if node.try_request(f'start_job', method='post', body=body.json()).status:
-            logger.debug(f'start job sent well to the consumer node.')
+    #
+    # TODO: control plane
+    #
+    for host, consumer in self.consumers.items():
+      if not consumer.is_alive():
+        logger.info("consumer from host {host} is not alive... removing...")
+        self.consumers.pop(host, consumer)
 
     end = time()
     logger.debug(f"the pilot run loop took {end-start} seconds.")
 
-    # NOTE: remove nodes with max number of retries exceeded
-    self.nodes = {host:retry for host, retry in self.nodes.items() if retry < self.max_retry}
-      
+  
 
   def stop(self):
+    
+    logger.info("stopping pilot main loop")
     self.__stop.set()
+
     logger.info("stopping schedule service...")
-    self.schedule.stop()
+    for schedule in self.tasks.values():
+      schedule.stop()
+    
+    logger.info("stopping consumer service...")
+    for consumer in self.consumers.values():
+      consumer.stop()
+
 
 
   def join_as( self, host ) -> bool:
 
-    if host not in self.nodes.keys():
+    if host not in self.consumers.keys():
       logger.info(f"join node {host} into the pilot.")
-      self.__lock.wait()
-      self.__lock.clear()
-      self.nodes[host] = 0
-      self.__lock.set()
-      return True
-
+      consumer = Consumer(host, self.db)
+      if consumer.configure():
+        self.__lock.wait()
+        self.__lock.clear()
+        consumer.start()
+        self.consumer[host] = consumer
+        self.__lock.set()
+        return True
+          
     return False
     
-  
-  def system_info(self):
-
-    info = {}
-    for host in self.nodes.keys():
-      node = schemas.client(host, "executor")
-      answer = node.try_request("system_info" , method="get")
-      if answer.status:
-        info[host] = answer.metadata
-    return info
+ 

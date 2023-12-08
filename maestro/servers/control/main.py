@@ -1,9 +1,8 @@
 
 
-import uvicorn, os, socket, shutil
-from time import sleep
-from fastapi import FastAPI, HTTPException
-from maestro import models, schemas, Database, Schedule, Pilot, Server, Postman
+import uvicorn, os, shutil
+from fastapi import FastAPI
+from maestro import schemas, Database, Pilot, Server
 from maestro import system_info as get_system_info
 from maestro.models import Base
 from loguru import logger
@@ -40,15 +39,16 @@ def run( args , launch_executor : bool=False ):
 
     with db as session:
         # rewrite all environs into the database
-        session.set_environ( "PILOT_SERVER_URL"    , pilot_url    )
-        session.set_environ( "TRACKING_SERVER_URL" , tracking_url )
-        session.set_environ( "DATABASE_SERVER_URL" , args.database_url )
+        session.set_environ( "PILOT_SERVER_URL"       , pilot_url           )
+        session.set_environ( "TRACKING_SERVER_URL"    , tracking_url        )
+        session.set_environ( "DATABASE_SERVER_URL"    , args.database_url   )
+        session.set_environ( "POSTMAN_EMAIL_FROM"     , args.email_from     )
+        session.set_environ( "POSTMAN_EMAIL_PASSWORD" , args.email_password )
 
 
     # services
-    postman    = Postman(args.email_from, args.email_password)
-    schedule   = Schedule(db, postman)
-    pilot      = Pilot(pilot_url, schedule)
+    #postman    = Postman(args.email_from, args.email_password)
+    pilot      = Pilot(pilot_url, db)
 
     # mlflow tracking server
     tracking   = Server( f"mlflow ui --port {args.tracking_port} --host 0.0.0.0 --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )

@@ -1,5 +1,5 @@
 
-__all__ = ["system_info", "Server"]
+__all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "Server"]
 
 import psutil, socket, platform, cpuinfo
 import netifaces as ni
@@ -22,6 +22,26 @@ def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
     return s.getsockname()[0]
+
+
+def get_memory_info(pretty=False):
+    svmem = psutil.virtual_memory()
+    total = convert_bytes( svmem.total/(1024**2) ) if pretty else svmem.total/(1024**2)
+    avail = convert_bytes( svmem.available/(1024**2) ) if pretty else svmem.available/(1024**2)
+    used  = convert_bytes( svmem.used/(1024**2) ) if pretty else svmem.used/(1024**2)
+    usage = svmem.percent,
+    return total, avail, used, usage
+
+
+def get_gpu_memory_info(device=0, pretty=False):
+    gpu = gputil.getGPUs()[device]
+    total  = convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal
+    used   = convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed
+    avail  = convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree
+    usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100,
+    return total, avail, used, usage
+
+
 
 def system_info(pretty=False):
 

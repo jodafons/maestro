@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-import uvicorn, os, socket, mlflow
+import uvicorn
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from maestro import schemas, Consumer, Database
 from maestro import system_info as get_system_info
 from loguru import logger
@@ -37,18 +37,18 @@ def run( args ):
     @app.get("/executor/start") 
     async def start() -> schemas.Answer:
         consumer.start()
-        return schemas.Answer( host=consumer.url, message="executor was started by external signal." )
+        return schemas.Answer( host=consumer.host_url, message="executor was started by external signal." )
 
 
     @app.get("/executor/ping")
     async def ping() -> schemas.Answer:
-        return schemas.Answer( host=consumer.url, message="pong" )
+        return schemas.Answer( host=consumer.host_url, message="pong" )
 
 
     @app.get("/executor/stop") 
     async def stop() -> schemas.Answer:
         consumer.stop()
-        return schemas.Answer( host=consumer.url, message="executor was stopped by external signal." )
+        return schemas.Answer( host=consumer.host_url, message="executor was stopped by external signal." )
 
 
     @app.on_event("shutdown")
@@ -61,12 +61,12 @@ def run( args ):
         jobs = req.metadata['jobs']
         print(jobs)
         submitted = consumer.start_job( jobs )
-        return schemas.Answer( host=consumer.url, message=f"jobs was included into the pipe.", metadata={'submitted':submitted})
+        return schemas.Answer( host=consumer.host_url, message=f"jobs was included into the pipe.", metadata={'submitted':submitted})
 
 
     @app.get("/executor/system_info")
     async def system_info() -> schemas.Answer:
-        return schemas.Answer( host=consumer.url, metadata=consumer.system_info(detailed=True) )
+        return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info(detailed=True) )
 
 
     uvicorn.run(app, host=host, port=args.executor_port, reload=False)

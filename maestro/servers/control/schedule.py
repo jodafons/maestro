@@ -1,13 +1,13 @@
 
 __all__ = ["Schedule"]
 
-import traceback, time, os, threading
+import traceback, threading
 from mlflow.tracking import MlflowClient
-from sqlalchemy import and_, or_
+from sqlalchemy import or_, and_
 from loguru import logger
-from tqdm import tqdm
-from time import sleep, time
-from maestro.models import Task, Job
+from time import sleep
+from maestro.servers.control.postman import Postman
+from maestro.models import Task, Job, Database
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
@@ -28,7 +28,7 @@ def send_email( app, task: Task ) -> bool:
     taskname = task.name
     subject    = f"[LPS Cluster] Notification for task id {status}"
     message    = (f"The task with name {taskname} was assigned with {status} status.")
-    logger.debug(f"Sending email to {email}") 
+    logger.debug(f"Sending email to {task.to_email}") 
     app.postman.send(task.to_email, subject, message)
   except Exception as e:
     traceback.print_exc()
@@ -269,61 +269,56 @@ class Transition:
 # 
 class Schedule(threading.Thread):
 
-  def __init__(self, db, postman):
+  def __init__(self, task_id, db):
     threading.Thread.__init__(self)
     logger.info("Creating schedule...")
-    self.db              = db
+    self.task_id  = task_id
+    self.db       = Database(db.host)
     self.__stop   = threading.Event()
-    self.postman  = postman
-    with db as session:
+    with self.db as session:
       tracking_url = session.get_environ( "TRACKING_SERVER_URL" )
       self.tracking = MlflowClient( tracking_url )
-  
+      email = session.get_environ( "POSTMAN_EMAIL_FROM" )
+      password = session.get_environ( "POSTMAN_EMAIL_PASSWORD" ) 
+      self.postman = Postman(email,password)
+
     self.compile()
 
     
-
   def stop(self):
+    logger.info("stopping service")
     self.__stop.set()
 
 
   def run(self):
     while (not self.__stop.isSet()):
-      sleep(10)
+      sleep(1)
       self.loop()
 
 
   def loop(self):
 
-    #
-    # treat dead jobs
-    #
     try:
       with self.db as session:
         logger.debug("Treat jobs with status running but not alive into the executor.")
         # NOTE: Check if we have some job with running but not alive. If yes, return it to assigne status
-        jobs = session().query(Job).filter( or_(Job.status==JobStatus.RUNNING, Job.status==JobStatus.PENDING) ).with_for_update().all()
+        jobs = session().query(Job).filter( and_(Job.taskid==self.task_id, or_(Job.status==JobStatus.RUNNING, Job.status==JobStatus.PENDING)) ).with_for_update().all()
         for job in jobs:
           if not job.is_alive():
             job.status = JobStatus.ASSIGNED
             update_status(self, job)
-
         session.commit()
     except Exception as e:
       traceback.print_exc()
       logger.error(e)
       return False
       
-    #
     # Update task states
-    #
-    with self.db as session:
-
-      # NOTE: All tasks assigned to remove should not be returned by the database.
-      tasks = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
-
-      for task in tasks:
-
+    try:
+      with self.db as session:
+        # NOTE: All tasks assigned to remove should not be returned by the database.
+        #task = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
+        task = session().query(Task).filter(Task.id==self.task_id).with_for_update().first()
         logger.debug(f"task in {task.status} status.")
         # Run all JobStatus triggers to find the correct transiction
         for state in self.states:
@@ -339,36 +334,22 @@ class Schedule(threading.Thread):
               logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
               traceback.print_exc()
               return False
-              
-      session.commit()
-
-    #
-    # remove tasks
-    #
-    with self.db as session:
-      tasks = session().query(Task).filter(Task.status==TaskStatus.REMOVED).all()
-      for task in tasks:
-        logger.info(f"delete task {task.id}...")
-        session().query(Job).filter(Job.taskid==task.id).delete()
-        session().query(Task).filter(Task.id==task.id).delete()
         session.commit()
 
+        if task.status == TaskStatus.REMOVED:
+          logger.info("removing task with name {self.taskname} from database")
+          session().query(Job).filter(Job.taskid==self.task_id).delete()
+          session().query(Task).filter(Task.id==self.task_id).delete()
+          session.commit()
+          self.stop()
 
+    except Exception as e:
+      traceback.print_exc()
+      logger.error(e)
+      return False
 
     logger.debug("Commit all database changes.")
     return True
-
-
-  def get_jobs(self, partition : str, n: int):
-    with self.db as session:
-      try:
-        jobs = session().query(Job).filter(  Job.status==JobStatus.ASSIGNED  ).filter( Job.partition==partition).order_by(Job.id).limit(n).all()
-        jobs.reverse()
-        return [job.id for job in jobs]
-      except Exception as e:
-        logger.error(f"Not be able to get {njobs} from database. Return an empty list to the user.")
-        traceback.print_exc()
-        return []
 
 
   #
@@ -379,11 +360,10 @@ class Schedule(threading.Thread):
     logger.info("Compiling all transitions...")
     self.states = [
 
-      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]   ),
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                                    ),
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]              ), 
-      Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]                   ), 
-
+      Transition( source=TaskStatus.REGISTERED, target=TaskStatus.TESTING    , relationship=[task_registered, test_job_assigned]       ),
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.TESTING    , relationship=[test_job_running]                         ),
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.BROKEN     , relationship=[test_job_fail, task_broken, send_email]   ), 
+      Transition( source=TaskStatus.TESTING   , target=TaskStatus.RUNNING    , relationship=[test_job_completed, task_assigned]        ), 
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.COMPLETED  , relationship=[task_completed, send_email]               ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.BROKEN     , relationship=[task_broken, send_email]                  ),
@@ -395,21 +375,14 @@ class Schedule(threading.Thread):
       Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),
-      
-      # NOTE: removed by trigger or when the task is in running state and go to killed status
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REMOVED    , relationship=[task_removed]                             ),
-      
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.BROKEN    , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.REGISTERED, target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
       Transition( source=TaskStatus.COMPLETED , target=TaskStatus.REMOVED    , relationship=[trigger_task_delete]                      ),
     ]
-
-   
-      
-
 
     logger.info(f"Schedule with a total of {len(self.states)} nodes into the graph.")
 
