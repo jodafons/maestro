@@ -156,25 +156,26 @@ class Dispatcher(threading.Thread):
 
         if self.client.ping():
           self.retry = 0
-
-          answer = self.client.try_request("system_info" , method="get")
-          if answer.status:
-            consumer = answer.metadata['consumer']
-            n = consumer['avail_procs']
-            if n > 0:
-              jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
+          #answer = self.client.try_request("system_info" , method="get")
+          #if answer.status:
+          #  consumer = answer.metadata['consumer']
+          #  n = consumer['avail_procs']
+          #  if n > 0:
+          jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
                                                  .filter(models.Job.partition==self.partition)\
                                                  .filter(models.Job.consumer==self.name)\
-                                                 .order_by(models.Job.id).limit(n).all()
-              )
-              jobs = [job.id for job in jobs]
-              logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
-              if len(jobs)>0:
-                job_start=time()
-                for job_id in jobs:
-                  self.client.try_request(f'start_job/{job_id}', method='post')
-                job_end=time()
-                logger.info(f"AKI JOAO!    start job requests toke {job_end-job_start} seconds...")
+                                                 .order_by(models.Job.id).all()
+                 )
+          jobs = [job.id for job in jobs]
+          logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
+          
+          job_start=time()
+          if len(jobs)>0:
+            for job_id in jobs:
+              self.client.try_request(f'start_job/{job_id}', method='post')
+          
+          job_end=time()
+          logger.info(f"AKI JOAO!    start job requests toke {job_end-job_start} seconds...")
 
         else:
           self.retry += 1
