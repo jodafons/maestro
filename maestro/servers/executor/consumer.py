@@ -92,7 +92,7 @@ class Consumer(threading.Thread):
 
 
   def start_job_thread( self, job_id : int ):
-    thread = threading.Thread( target=self.start_job, args=(job_id) )
+    thread = threading.Thread( target=self.start_job, args=(job_id,) )
     thread.start()
     self.queue_child_threads.put(thread)
     return True
