@@ -89,11 +89,11 @@ class Task (Base):
         if job.status==s: total[s]+=1
     return total
 
-  def sys_used_memory(self):
-    return int(max([job.sys_used_memory for job in self.jobs]))
+  def sys_used_memory(self, sys_memory_factor : float=1.2 ):
+    return int(max([job.sys_used_memory for job in self.jobs])) * sys_memory_factor 
    
-  def gpu_used_memory(self):
-    return int(max([job.gpu_used_memory for job in self.jobs]))
+  def gpu_used_memory(self, gpu_memory_factor : float=1.1 ):
+    return int(max([job.gpu_used_memory for job in self.jobs])) * gpu_memory_factor 
 
   def cpu_percent(self):
     return int(max([job.cpu_percent for job in self.jobs]))
@@ -110,27 +110,35 @@ class Job (Base):
   # Local
   id        = Column(Integer, primary_key = True)
   name      = Column(String)
+  
+  # NOTE: parameters used by consumer service
   image     = Column(String , default="")
   virtualenv= Column(String , default="")
-
   command   = Column(String , default="")
   status    = Column(String , default=JobStatus.REGISTERED)
-  retry     = Column(Integer, default=0)
   workarea  = Column(String)
   inputfile = Column(String)
   timer     = Column(DateTime)
   envs      = Column(String, default="{}")
   binds     = Column(String, default="{}")
-  partition = Column(String, default='cpu')
 
-  # NOTE: mlflow id param
+
+  # NOTE: parameters used by the control plane service
+  partition      = Column(String , default='cpu')
+  consumer       = Column(String , default='')
+  consumer_retry = Column(Integer, default=0)
+
+  # NOTE: job retry used by the schedule service
+  retry     = Column(Integer, default=0)
+
+
+  # NOTE: tracking id param used by mlflow service
   run_id    = Column(String)
 
   # NOTE: extra info, can be removed in future
   sys_used_memory     = Column(Float, default=-1)
   gpu_used_memory     = Column(Float, default=-1)
   cpu_percent         = Column(Float, default=-1)
-  decorator           = Column(String, default="{}")
 
 
 
@@ -150,15 +158,6 @@ class Job (Base):
   def is_alive(self):
     return True  if (self.timer and ((datetime.datetime.now() - self.timer).total_seconds() < 30)) else False
 
-
-  def set_decorator(self, key, value):
-    decorator = eval(self.decorator)
-    decorator[key]=value
-    self.decorator = str(decorator)
-
-
-  def get_decorator(self, key):
-    return eval(self.decorator).get(key, "")
 
 
 class Database:

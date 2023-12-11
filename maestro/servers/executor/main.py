@@ -4,7 +4,7 @@ import uvicorn
 
 from fastapi import FastAPI
 from maestro import schemas, Consumer, Database
-from maestro import system_info as get_system_info
+from maestro import get_system_info
 from loguru import logger
 
 
@@ -66,7 +66,7 @@ def run( args ):
 
     @app.get("/executor/system_info")
     async def system_info() -> schemas.Answer:
-        return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info(detailed=True) )
+        return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info() )
 
 
     uvicorn.run(app, host=host, port=args.executor_port, reload=False)

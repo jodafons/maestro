@@ -1,5 +1,6 @@
 
-__all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "Server"]
+__all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "get_hostname_from_url",
+           "Server", "GB"]
 
 import psutil, socket, platform, cpuinfo
 import netifaces as ni
@@ -9,6 +10,8 @@ import subprocess
 
 import warnings
 warnings.filterwarnings("ignore")
+
+GB = 1024
 
 
 def convert_bytes(size):
@@ -23,6 +26,9 @@ def get_ip_address():
     s.connect(("8.8.8.8", 80))
     return s.getsockname()[0]
 
+
+def get_hostname_from_url( url ):
+  return url.split('@')[1].split(':')[0]
 
 def get_memory_info(pretty=False):
     svmem = psutil.virtual_memory()
@@ -43,7 +49,7 @@ def get_gpu_memory_info(device=0, pretty=False):
 
 
 
-def system_info(pretty=False):
+def get_system_info(pretty=False):
 
     hostname = socket.gethostname()
 
@@ -103,6 +109,8 @@ def system_info(pretty=False):
 
 
 
+
+
 class Server:
 
   def __init__(self , command ):
@@ -145,11 +153,6 @@ from .schemas import *
 from . import console
 __all__.extend( console.__all__ )
 from .console import *
-
-#from . import standalone
-#__all__.extend( standalone.__all__ )
-#from .standalone import *
-
 
 from . import servers
 __all__.extend( servers.__all__ )

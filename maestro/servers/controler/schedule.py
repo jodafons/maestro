@@ -6,7 +6,7 @@ from mlflow.tracking import MlflowClient
 from sqlalchemy import or_, and_
 from loguru import logger
 from time import sleep
-from maestro.servers.control.postman import Postman
+from maestro.servers.controler.postman import Postman
 from maestro.models import Task, Job, Database
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
@@ -276,11 +276,11 @@ class Schedule(threading.Thread):
     self.db       = Database(db.host)
     self.__stop   = threading.Event()
     with self.db as session:
-      tracking_url = session.get_environ( "TRACKING_SERVER_URL" )
+      tracking_url  = session.get_environ( "TRACKING_SERVER_URL" )
       self.tracking = MlflowClient( tracking_url )
-      email = session.get_environ( "POSTMAN_EMAIL_FROM" )
-      password = session.get_environ( "POSTMAN_EMAIL_PASSWORD" ) 
-      self.postman = Postman(email,password)
+      email         = session.get_environ( "POSTMAN_EMAIL_FROM" )
+      password      = session.get_environ( "POSTMAN_EMAIL_PASSWORD" ) 
+      self.postman  = Postman(email,password)
 
     self.compile()
 

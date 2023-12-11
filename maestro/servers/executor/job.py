@@ -58,8 +58,8 @@ class Job:
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_NAME"]                  = job_name
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_ID"]                    = str(self.id)
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_DRY_RUN"]               = 'true' if testing else 'false'
-    self.env[("" if image=="" else "SINGULARITYENV_") + "MLFLOW_RUN_ID"]             = self.run_id
-    self.env[("" if image=="" else "SINGULARITYENV_") + "MLFLOW_URL"]                = tracking_url 
+    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_RUN_ID"]             = self.run_id
+    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_URL"]                = tracking_url 
 
     self.logpath = self.workarea+'/output.log'
 

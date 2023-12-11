@@ -90,11 +90,11 @@ class run_parser:
     run( args )
 
   def pilot(self, args):
-    from maestro.servers.control.main import run
+    from maestro.servers.controler.main import run
     run( args )
 
   def all(self, args):
-    from maestro.servers.control.main import run
+    from maestro.servers.controler.main import run
     run( args, launch_executor = True )
 
 

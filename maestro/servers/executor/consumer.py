@@ -1,23 +1,18 @@
 
-__all__ = ["Job", "Consumer", "GB"]
+__all__ = ["Consumer"]
 
-import os, traceback, time, threading
+import os, traceback, time, threading, queue
 import mlflow
 
 from time import time, sleep
 from loguru import logger
 from maestro.enumerations import JobStatus, TaskStatus
-from maestro import Database, schemas, models, system_info, get_gpu_memory_info, get_memory_info
+from maestro import Database, schemas, models
+from maestro import get_system_info, get_gpu_memory_info, get_memory_info, GB
 from maestro.servers.executor.job import Job
 from mlflow.tracking import MlflowClient
 
-SYS_MEMORY_FACTOR = 1.2 # not exactally the amount of memory. We should correct.
-GPU_MEMORY_FACTOR = 1.1 # usually the memory estimation is the real value used.
-GB                = 1024
 
-
-
- 
 
 #
 # A collection of slots
@@ -25,11 +20,11 @@ GB                = 1024
 class Consumer(threading.Thread):
 
   def __init__(self, host_url            : str,
+                     db                  : Database,
                      device              : int=-1, 
                      timeout             : int=60, 
                      max_retry           : int=5, 
                      partition           : str='cpu',
-                     db                  : Database=None,
                      max_procs           : int=os.cpu_count(),
                      reserved_memory     : float=4*GB,
                      reserved_gpu_memory : float=2*GB,
@@ -42,10 +37,10 @@ class Consumer(threading.Thread):
     self.timeout   = timeout
     self.max_retry = max_retry
     self.device    = device
+    self.db        = models.Database(db.host) 
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set() 
-    self.db = db 
 
 
     # getting system values
@@ -55,7 +50,7 @@ class Consumer(threading.Thread):
     self.reserved_memory      = sys_avail_memory - reserved_memory
     self.reserved_gpu_memory  = gpu_avail_memory - reserved_gpu_memory
 
-    with db as session:
+    with self.db as session:
       # get the server host location from the database everytime since this can change
       self.server_url   = session.get_environ( "PILOT_SERVER_URL" )
       # get the server host location from the database everytime since this can change
@@ -64,7 +59,6 @@ class Consumer(threading.Thread):
       logger.info(f"pilot url     : {self.server_url}"  )
       logger.info(f"tracking url  : {self.tracking_url}")
 
-    import queue
     self.queue = queue.Queue(maxsize=max_procs)
 
 
@@ -84,7 +78,6 @@ class Consumer(threading.Thread):
       sleep(0.5)
 
       server = schemas.client( self.server_url, 'pilot')
-
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host_url     ).json())
       if answer.status:
         logger.debug(f"connected with {answer.host}")
@@ -106,7 +99,6 @@ class Consumer(threading.Thread):
     # NOTE: check if we have a test job waiting to run or running...
     if blocked:
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
-      self.__lock.set()
       logger.info(f"start job toke {end-start} seconds")
       return False
 
@@ -114,21 +106,24 @@ class Consumer(threading.Thread):
 
       start = time()
 
-      if job_id in self.jobs.keys():
-        logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
-        continue
-
       with self.db as session:
 
         job_db = session.get_job(job_id, with_for_update=True)
 
+        if job_id in self.jobs.keys():
+          logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
+          job_db.consumer_retry += 1
+          session.commit()
+          continue
+
+
+
         # NOTE: check if the consumer attend some resouces criteria to run the current job
         if (not self.check_resources(job_db)):
           logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
-          self.__lock.set()
-          end = time()
-          logger.info(f"start job toke {end-start} seconds")
-          return True
+          job_db.consumer_retry += 1
+          session.commit()
+          continue
 
         binds = job_db.get_binds()
 
@@ -144,8 +139,8 @@ class Consumer(threading.Thread):
                device=self.device,
                binds=binds,
                testing=job_db.task.status == TaskStatus.TESTING,
-               run_id = job_db.run_id,
-               tracking_url  = self.tracking_url ,
+               run_id=job_db.run_id,
+               tracking_url=self.tracking_url ,
                )
         job_db.status = JobStatus.PENDING
         job_db.ping()
@@ -159,9 +154,8 @@ class Consumer(threading.Thread):
         tracking_end = time()
         logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
 
-        sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
-        gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value 
-        #self.jobs[job_id] = Slot(self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+        sys_used_memory  = job_db.task.sys_used_memory()
+        gpu_used_memory  = job_db.task.gpu_used_memory() 
         
         slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
         self.queue.put(slot)
@@ -182,7 +176,6 @@ class Consumer(threading.Thread):
   def loop(self):
 
     start = time()
-
 
     while not self.queue.empty():
       try:
@@ -212,51 +205,10 @@ class Consumer(threading.Thread):
     logger.info(f"loop job toke {end-start} seconds")
 
 
-
-
-
-  def system_info(self, detailed=False, pretty=False):
-
-    d = system_info(pretty=pretty)
-
-    if pretty:
-      gpu = d['gpu'][self.device]
-      cpu = d['cpu']
-      memory = d['memory']
-      network = d['network']
-      return {  
-                "hostname"   : d['hostname'],
-                "ip_address" : network['ip_address'],
-                "system"     : d['system']['system'],
-                "version"    : d['system']['version'],
-                "release"    : d['system']['release'],
-                "cpu_name"   : cpu['processor'],
-                "cpu_count"  : cpu['count'],
-                "memory"     : memory['total'],
-                "gpu_name"   : gpu['name'],
-                "gpu_memory" : gpu['total'],
-                "gpu_id"     : self.device,
-              }
-    else:
-
-      d['consumer'] = {
-        'url'       : self.host_url    ,
-        'partition' : self.partition,
-        'device'    : self.device,
-        'allocated' : len(self.jobs.keys()),
-        'max_procs' : d['cpu']['count'],
-      }
-
-      sys_avail_memory = d['memory']['avail']
-      gpu_avail_memory = d['gpu'][self.device]['avail'] if self.device>=0 else 0
-      cpu_usage        = d['cpu']['usage']
-      sys_total_memory = d['memory']['total']
-      gpu_total_memory = d['gpu'][self.device]['total'] if self.device>=0 else 0
-      return d if detailed else (cpu_usage, sys_avail_memory, sys_total_memory, gpu_avail_memory, gpu_total_memory) 
-
-
-
-  def check_resources(self, job_db : models.Job):
+  def check_resources(self, job_db : models.Job,
+                            sys_memory_factor : float=1.2,
+                            gpu_memory_factor : float=1.1
+                     ):
 
     start = time()
     nprocs = len(self.jobs)
@@ -267,11 +219,16 @@ class Consumer(threading.Thread):
       logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-    # estimatate memory peak by mean for the current task
-    sys_used_memory  = job_db.task.sys_used_memory() * SYS_MEMORY_FACTOR # correct the value
-    gpu_used_memory  = job_db.task.gpu_used_memory() * GPU_MEMORY_FACTOR # correct the value
+    # NOTE: JOB memory peak estimation for the current task
+    sys_used_memory  = job_db.task.sys_used_memory()
+    gpu_used_memory  = job_db.task.gpu_used_memory()
+
+    # NOTE: NODE memory estimation
     sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
     gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
+    sys_avail_memory = 0 if sys_avail_memory < 0 else sys_avail_memory
+    gpu_avail_memory = 0 if gpu_avail_memory < 0 else gpu_avail_memory
+
 
     logger.debug(f"task:")
     logger.debug(f"      system used memory  : {sys_used_memory} MB")
@@ -281,13 +238,13 @@ class Consumer(threading.Thread):
     logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
 
 
-    if sys_avail_memory < 0:
+    if sys_avail_memory == 0:
       logger.warning("System memory node usage reached the limit stablished.")
       end = time()
       logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-    if (self.device >= 0) and (gpu_avail_memory < 0):
+    if (self.device >= 0) and (gpu_avail_memory == 0):
       logger.warning("GPU memory node usage reached the limit stablished.")
       end = time()
       logger.info(f"check_resources toke {end-start} seconds")
@@ -313,6 +270,33 @@ class Consumer(threading.Thread):
     logger.info(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
     return True
+
+
+
+  def system_info(self):
+
+    d = get_system_info()
+    sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
+    gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
+    blocked = any([slot.job.testing for slot in self.jobs.values()])
+
+    d['consumer'] = {
+          'url'              : self.host_url,
+          'partition'        : self.partition,
+          'device'           : self.device,
+          'blocked'          : blocked,
+          'max_procs'        : self.max_procs,
+          'max_system_memory': self.reserved_memory,
+          'max_gpu_memory'   : self.reserved_gpu_memory,
+          'avail_procs'      : self.max_procs - len(self.jobs.keys()),
+          'sys_avail_memory' : 0 if sys_avail_memory < 0 else sys_avail_memory, # NOTE: NODE memory
+          'gpu_avail_memory' : 0 if gpu_avail_memory < 0 else gpu_avail_memory, # NOTE: NODE memory
+        }
+
+    d['gpu'] = d['gpu'][self.device]
+    return d
+
+
 
 
 
@@ -359,7 +343,7 @@ class Slot(threading.Thread):
         job_db.ping()
         logger.debug(f"Job {self.job.id} is a single job...")
         if self.job.run(tracking):
-          #tracking.log_dict(self.job.run_id, self.system_info(pretty=True), "system.json")
+          tracking.log_dict(self.job.run_id, get_system_info(pretty=True), "system.json")
           logger.debug(f'Job {self.job.id} is RUNNING.')
           job_db.status = JobStatus.RUNNING
         else:

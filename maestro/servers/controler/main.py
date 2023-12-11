@@ -2,8 +2,8 @@
 
 import uvicorn, os, shutil
 from fastapi import FastAPI
-from maestro import schemas, Database, Pilot, Server
-from maestro import system_info as get_system_info
+from maestro import schemas, Database, Pilot, Server, ControlPlane
+from maestro import get_system_info
 from maestro.models import Base
 from loguru import logger
 
@@ -47,8 +47,11 @@ def run( args , launch_executor : bool=False ):
 
 
     # services
+
+    control_plane = ControlPlane( db )
+
     #postman    = Postman(args.email_from, args.email_password)
-    pilot      = Pilot(pilot_url, db)
+    pilot      = Pilot(pilot_url, db, control_plane)
 
     # mlflow tracking server
     tracking   = Server( f"mlflow ui --port {args.tracking_port} --host 0.0.0.0 --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )
@@ -80,19 +83,15 @@ def run( args , launch_executor : bool=False ):
 
     @app.get("/pilot/ping")
     async def ping() -> schemas.Answer:
-        return schemas.Answer( host=pilot.host, message="pong")
+        return schemas.Answer( host=pilot.host_url, message="pong")
 
 
     @app.post("/pilot/join")
     async def join( req : schemas.Request ) -> schemas.Answer:
         pilot.join_as( req.host )
-        return schemas.Answer( host = pilot.host, message="joined" )
+        return schemas.Answer( host = pilot.host_url, message="joined" )
 
 
-    @app.get("/pilot/system_info") 
-    async def system_info()  -> schemas.Answer:
-        return schemas.Answer( host=pilot.host, metadata=pilot.system_info() )
-        
 
     uvicorn.run(app, host=host, port=args.pilot_port, reload=False)
 
