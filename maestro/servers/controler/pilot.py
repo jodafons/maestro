@@ -149,7 +149,8 @@ class Dispatcher(threading.Thread):
      
 
   def loop(self):
-      
+
+    logger.info("=============================================================================")    
     try:
       start = time()
       with self.db as session:
@@ -192,3 +193,4 @@ class Dispatcher(threading.Thread):
     if self.retry > self.max_retry:
       logger.error("stopping dispatcher since max_retry value reached.")
       self.stop()
+    logger.info("=============================================================================")    
