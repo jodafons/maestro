@@ -99,6 +99,10 @@ class Consumer(threading.Thread):
     return True
   
 
+  def blocked(self):
+    return any([slot.job.testing for slot in self.jobs.values()])
+
+
   def start_job( self, job_id : int):
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
@@ -114,9 +118,10 @@ class Consumer(threading.Thread):
     start = time()
 
     db = models.Database(self.db_host) 
+
     with db as session:
 
-      job_db = session.get_job(job_id, with_for_update=True)
+      job_db = session.get_job(job_id, with_for_update=False)
 
       if job_id in self.jobs.keys():
         logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
