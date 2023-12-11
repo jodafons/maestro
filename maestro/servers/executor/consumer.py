@@ -33,7 +33,6 @@ class Consumer(threading.Thread):
     threading.Thread.__init__(self)
     self.host_url  = host_url    
     self.partition = partition
-    self.jobs      = {}
     self.timeout   = timeout
     self.max_retry = max_retry
     self.device    = device
@@ -61,8 +60,11 @@ class Consumer(threading.Thread):
         logger.info(f"tracking url  : {self.tracking_url}")
         mlflow.set_tracking_uri(self.tracking_url)
 
-    self.queue = queue.Queue(maxsize=max_procs)
+    self.queue_slots   = queue.Queue(maxsize=max_procs)
+    self.queue_threads = queue.Queue(maxsize=max_procs*10)
 
+    self.jobs          = {}
+    self.threads       = []
 
 
   def stop(self):
@@ -89,10 +91,14 @@ class Consumer(threading.Thread):
  
 
 
+  def start_job_thread( self, job_id : int ):
+    thread = threading.Thread( target=self.start_job, args=(job_id) )
+    thread.start()
+    self.queue_threads.put(thread)
+    return True
+  
 
-
-  def start_job( self, jobs: list ):
-
+  def start_job( self, job_id : int):
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
     # testing jobs must run alone since we dont know how much resouces will be used.
@@ -103,6 +109,8 @@ class Consumer(threading.Thread):
       logger.warning("The consumer is blocked because we have a testing job waiting to run.")
       logger.info(f"start job toke {end-start} seconds")
       return False
+
+    jobs = [job_id]
 
     for job_id in jobs:
 
@@ -158,24 +166,31 @@ class Consumer(threading.Thread):
         gpu_used_memory  = job_db.task.gpu_used_memory() 
         
         slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
-        self.queue.put(slot)
+        self.queue_slots.put(slot)
         session.commit()
       
         end = time()
         logger.info(f"start job toke {end-start} seconds")
 
-
     return True
+
 
 
   def loop(self):
 
     start = time()
 
-    while not self.queue.empty():
+    while not self.queue_slots.empty():
       try:
-        slot = self.queue.get_nowait()
+        slot = self.queue_slots.get_nowait()
         self.jobs[slot.job_id] = slot
+      except:
+        continue
+
+    while not self.queue_thread.empty():
+      try:
+        thread = self.queue_thread.get_nowait()
+        self.threads.append(thread)
       except:
         continue
 
@@ -198,6 +213,9 @@ class Consumer(threading.Thread):
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
     end = time()
     logger.info(f"loop job toke {end-start} seconds")
+
+
+    self.threads = [ thread for thread in self.threads if thread.is_alive()]
 
 
   def check_resources(self, job_db : models.Job):
