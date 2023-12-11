@@ -168,7 +168,7 @@ class Dispatcher(threading.Thread):
                                                  .order_by(models.Job.id).all()
                  )
           jobs = [job.id for job in jobs]
-          logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
+          logger.info(f"AKI JOAO! getting {len(jobs)} jobs from {self.partition} partition...")
           
           job_start=time()
           if len(jobs)>0:
