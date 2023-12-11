@@ -60,11 +60,11 @@ class Consumer(threading.Thread):
         logger.info(f"tracking url  : {self.tracking_url}")
         mlflow.set_tracking_uri(self.tracking_url)
 
-    self.queue_slots   = queue.Queue(maxsize=max_procs)
-    self.queue_threads = queue.Queue(maxsize=max_procs*10)
+    self.queue_slots         = queue.Queue(maxsize=max_procs)
+    self.queue_child_threads = queue.Queue(maxsize=max_procs*10)
 
     self.jobs          = {}
-    self.threads       = []
+    self.child_threads = []
 
 
   def stop(self):
@@ -94,7 +94,7 @@ class Consumer(threading.Thread):
   def start_job_thread( self, job_id : int ):
     thread = threading.Thread( target=self.start_job, args=(job_id) )
     thread.start()
-    self.queue_threads.put(thread)
+    self.queue_child_threads.put(thread)
     return True
   
 
@@ -170,7 +170,7 @@ class Consumer(threading.Thread):
         session.commit()
       
         end = time()
-        logger.info(f"start job toke {end-start} seconds")
+        logger.info(f"start job toke {end-start} secondss")
 
     return True
 
@@ -187,10 +187,10 @@ class Consumer(threading.Thread):
       except:
         continue
 
-    while not self.queue_thread.empty():
+    while not self.queue_child_threads.empty():
       try:
-        thread = self.queue_thread.get_nowait()
-        self.threads.append(thread)
+        thread = self.queue_child_threads.get_nowait()
+        self.child_threads.append(thread)
       except:
         continue
 
@@ -215,7 +215,7 @@ class Consumer(threading.Thread):
     logger.info(f"loop job toke {end-start} seconds")
 
 
-    self.threads = [ thread for thread in self.threads if thread.is_alive()]
+    self.child_threads = [ thread for thread in self.child_threads if thread.is_alive()]
 
 
   def check_resources(self, job_db : models.Job):
