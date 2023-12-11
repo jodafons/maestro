@@ -159,7 +159,7 @@ class Consumer(threading.Thread):
       sys_used_memory  = job_db.task.sys_used_memory()
       gpu_used_memory  = job_db.task.gpu_used_memory() 
       
-      slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+      slot = Slot(job.id, db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
       self.queue_slots.put(slot)
       session.commit()
     
