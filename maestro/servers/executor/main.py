@@ -59,8 +59,9 @@ def run( args ):
     @app.post("/executor/start_job") 
     async def start_job( req : schemas.Request ) -> schemas.Answer:
         jobs = req.metadata['jobs']
-        for job_id in jobs:
-            consumer.start_job_thread(job_id)
+        if not consumer.blocked():
+            for job_id in jobs:
+                consumer.start_job(job_id)
         return schemas.Answer( host=consumer.host_url, message=f"jobs was included into the pipe.")
 
 
