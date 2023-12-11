@@ -169,13 +169,12 @@ class Dispatcher(threading.Thread):
               )
               jobs = [job.id for job in jobs]
               logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
-              body = schemas.Request( host=self.host_url, metadata={"jobs":jobs} ) 
               if len(jobs)>0:
                 job_start=time()
                 for job_id in jobs:
-                  self.client.try_request(f'start_job/{job_id}', method='post', body=body.json())
+                  self.client.try_request(f'start_job/{job_id}', method='post')
                 job_end=time()
-                logger.info(f"start job requests toke {job_end-job_start} seconds...")
+                logger.info(f"AKI JOAO!    start job requests toke {job_end-job_start} seconds...")
 
         else:
           self.retry += 1
