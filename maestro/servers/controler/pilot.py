@@ -171,8 +171,9 @@ class Dispatcher(threading.Thread):
               logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
               body = schemas.Request( host=self.host_url, metadata={"jobs":jobs} ) 
               if len(jobs)>0:
-                if self.client.try_request(f'start_job', method='post', body=body.json()).status:
-                  logger.debug(f'start job sent well to the consumer node.')
+                for job_id in jobs:
+                  self.client.try_request(f'start_job/{job_id}', method='post', body=body.json())
+                  
         else:
           self.retry += 1
 
