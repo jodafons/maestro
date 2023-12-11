@@ -50,6 +50,8 @@ class Task (Base):
   # NOTE: mlflow id param
   experiment_id    = Column(String)
 
+  parents          = Column(String, default="[]")
+
   #
   # Method that adds jobs into task
   #

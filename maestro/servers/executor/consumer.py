@@ -53,11 +53,13 @@ class Consumer(threading.Thread):
     with self.db as session:
       # get the server host location from the database everytime since this can change
       self.server_url   = session.get_environ( "PILOT_SERVER_URL" )
+      logger.info(f"pilot url     : {self.server_url}"  )
+
       # get the server host location from the database everytime since this can change
       self.tracking_url = session.get_environ("TRACKING_SERVER_URL")
-      mlflow.set_tracking_uri(self.tracking_url)
-      logger.info(f"pilot url     : {self.server_url}"  )
-      logger.info(f"tracking url  : {self.tracking_url}")
+      if self.tracking_url != "":
+        logger.info(f"tracking url  : {self.tracking_url}")
+        mlflow.set_tracking_uri(self.tracking_url)
 
     self.queue = queue.Queue(maxsize=max_procs)
 
@@ -116,8 +118,6 @@ class Consumer(threading.Thread):
           session.commit()
           continue
 
-
-
         # NOTE: check if the consumer attend some resouces criteria to run the current job
         if (not self.check_resources(job_db)):
           logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
@@ -145,31 +145,26 @@ class Consumer(threading.Thread):
         job_db.status = JobStatus.PENDING
         job_db.ping()
 
-        tracking_start = time()
-        tracking = MlflowClient( self.tracking_url  )
-        run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
-                                     run_name=job_db.name).info.run_id
-        tracking.log_artifact(run_id, job_db.inputfile)
-        job.run_id = run_id
-        tracking_end = time()
-        logger.info(f"tracking time toke {tracking_end - tracking_start} seconds")
+        if self.tracking_url!="":
+          tracking = MlflowClient( self.tracking_url  )
+          run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
+                                       run_name=job_db.name).info.run_id
+          tracking.log_artifact(run_id, job_db.inputfile)
+          job.run_id = run_id
+          logger.debug(f"tracking job id {job_db.id} as run_id {run_id}...")
 
+          
         sys_used_memory  = job_db.task.sys_used_memory()
         gpu_used_memory  = job_db.task.gpu_used_memory() 
         
         slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
         self.queue.put(slot)
-
-        db_start = time()
         session.commit()
-        db_end = time()
-        logger.info(f"database toke {db_end-db_start} seconds")
-
+      
         end = time()
         logger.info(f"start job toke {end-start} seconds")
 
 
-    logger.debug(f'Job with id {job.id} included into the consumer.')
     return True
 
 
@@ -205,10 +200,7 @@ class Consumer(threading.Thread):
     logger.info(f"loop job toke {end-start} seconds")
 
 
-  def check_resources(self, job_db : models.Job,
-                            sys_memory_factor : float=1.2,
-                            gpu_memory_factor : float=1.1
-                     ):
+  def check_resources(self, job_db : models.Job):
 
     start = time()
     nprocs = len(self.jobs)
@@ -332,7 +324,8 @@ class Slot(threading.Thread):
 
       logger.debug(f"checking job id {self.job.id}")
       job_db   = session.get_job(self.job.id, with_for_update=True)
-      tracking = MlflowClient( self.tracking_url  )
+      
+      tracking = MlflowClient( self.tracking_url  ) if self.tracking_url != "" else None
 
       # NOTE: kill job option only available with database by external trigger
       if job_db.status == JobStatus.KILL:
@@ -373,10 +366,11 @@ class Slot(threading.Thread):
         job_db.ping()
   
 
-        # NOTE: log metrics into mlflow database
-        tracking.log_metric(self.job.run_id, "sys_used_memory", job_db.sys_used_memory )
-        tracking.log_metric(self.job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
-        tracking.log_metric(self.job.run_id, "cpu_percent"    , job_db.cpu_percent     )
+        if tracking:
+          # NOTE: log metrics into mlflow database
+          tracking.log_metric(self.job.run_id, "sys_used_memory", job_db.sys_used_memory )
+          tracking.log_metric(self.job.run_id, "gpu_used_memory", job_db.gpu_used_memory )
+          tracking.log_metric(self.job.run_id, "cpu_percent"    , job_db.cpu_percent     )
 
       elif self.job.status() is JobStatus.COMPLETED:
         logger.debug(f'Job {self.job.id} is COMPLETED.')
@@ -384,11 +378,11 @@ class Slot(threading.Thread):
         self.job.to_close()
 
       # update job status into the tracking server
-      tracking.set_tag(self.job.run_id, "Status", job_db.status)
-
-      # add job log as artifact into the tracking server
-      if self.job.closed():
-        tracking.log_artifact(self.job.run_id, self.job.logpath)
+      if tracking:
+        tracking.set_tag(self.job.run_id, "Status", job_db.status)
+        # add job log as artifact into the tracking server
+        if self.job.closed():
+          tracking.log_artifact(self.job.run_id, self.job.logpath)
       
       # update job into the database
       logger.debug("commit all changes into the database...")

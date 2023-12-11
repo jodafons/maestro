@@ -20,7 +20,7 @@ def run( args , launch_executor : bool=False ):
 
     # mlflow server endpoints
     tracking_host     = host
-    tracking_url      = f"http://{tracking_host}:{args.tracking_port}"
+    tracking_url      = f"http://{tracking_host}:{args.tracking_port}" if args.tracking_enable else ""
 
 
     db = Database(args.database_url)
@@ -30,7 +30,7 @@ def run( args , launch_executor : bool=False ):
         Base.metadata.drop_all(db.engine())
         Base.metadata.create_all(db.engine())
         logger.info("Database created...")
-        if os.path.exists(args.tracking_location):
+        if args.tracking_enable and os.path.exists(args.tracking_location):
             logger.info("clean up tracking directory...")
             shutil.rmtree(args.tracking_location)
     else:
@@ -53,9 +53,12 @@ def run( args , launch_executor : bool=False ):
     #postman    = Postman(args.email_from, args.email_password)
     pilot      = Pilot(pilot_url, db, control_plane)
 
-    # mlflow tracking server
-    tracking   = Server( f"mlflow ui --port {args.tracking_port} --host 0.0.0.0 --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )
-    
+    if args.tracking_enable:
+        # mlflow tracking server
+        tracking   = Server( f"mlflow ui --port {args.tracking_port} --host 0.0.0.0 --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )
+    else:
+        logger.warning("tracking service is disable")
+
     if launch_executor:
         executor = Server(f"maestro run executor --max_procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
 
@@ -65,7 +68,9 @@ def run( args , launch_executor : bool=False ):
 
     @app.on_event("shutdown")
     async def shutdown_event():
-        tracking.stop()
+        
+        if args.tracking_enable:
+            tracking.stop()
         if launch_executor:
             logger.info("stopping executor service...")
             executor.stop()
@@ -74,7 +79,8 @@ def run( args , launch_executor : bool=False ):
 
     @app.on_event("startup")
     async def startup_event():
-        tracking.start()
+        if args.tracking_enable:
+            tracking.start()
         if launch_executor:
             logger.info("starting executor service...")
             executor.start()

@@ -51,6 +51,10 @@ class run_parser:
                                  required=False , default= os.getcwd()+"/tracking",
                                  help = "the tracking location path into the storage")     
 
+    pilot_parser.add_argument('--tracking-enable', action='store_true', dest='tracking_enable', 
+                                 required=False , 
+                                 help = "enable the tracking service")     
+
     pilot_parser.add_argument('--database-recreate', action='store_true', dest='database_recreate', 
                                  required=False , 
                                  help = "recreate the postgres SQL database and erase the tracking location")     

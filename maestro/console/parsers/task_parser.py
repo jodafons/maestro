@@ -60,15 +60,11 @@ def create_tracking( tracking_url : str, task : Task ):
 
   # get tracking server
   try:
-    logger.info(f"tracking server from {tracking_url}")
-    tracking      = MlflowClient( tracking_url )
-    experiment_id = tracking.create_experiment( task.name )
-    #mlflow.set_tracking_uri(tracking_url)
-    #for job in tqdm( task.jobs, "create runs...."):
-    #  run_id = tracking.create_run(experiment_id=experiment_id, run_name=job.name).info.run_id
-    #  #tracking.log_artifact(run_id, job.inputfile)
-    #  job.run_id = run_id
-    task.experiment_id = experiment_id
+    if tracking_url != "":
+      logger.info(f"tracking server from {tracking_url}")
+      tracking      = MlflowClient( tracking_url )
+      experiment_id = tracking.create_experiment( task.name )
+      task.experiment_id = experiment_id
     return True
   except Exception as e:
     traceback.print_exc()
@@ -88,6 +84,7 @@ def create( session   : Session,
             binds     : str="{}", 
             partition : str="cpu",
             email_to  : str="",
+            parents   : list=[],
           ) -> bool:
             
   
@@ -103,6 +100,13 @@ def create( session   : Session,
   if session.get_task(taskname) is not None:
     logger.error("The task exist into the database. Abort.")
     return None
+
+  if len(parents) > 0:
+    for task_id in parents:
+      if session.get_task(task_id) is None:
+        logger.error(f"The parent task id {task_id} does not exist into the database. Abort")
+        return None
+
 
   if (not '%IN' in command):
     logger.error("The exec command must include '%IN' into the string. This will substitute to the configFile when start.")
@@ -121,6 +125,7 @@ def create( session   : Session,
     task_db = Task( id=session.generate_id(Task),
                     name=taskname,
                     volume=volume,
+                    parents=str(parents),
                     status=TaskStatus.REGISTERED,
                     trigger=TaskTrigger.WAITING,
                     email_to  = email_to )
@@ -165,6 +170,8 @@ def create( session   : Session,
       logger.info("local test done but not stored into the database. remove dry_run to launch into the orchestrator.")
       return task_db.id
       
+    print(tracking_url)
+    print(type(tracking_url))
     if create_tracking(tracking_url, task_db):
       session().add(task_db)
       session.commit()
@@ -318,7 +325,8 @@ class task_parser:
                         help = f"The selected partitions.")
     create_parser.add_argument('--email_to', action='store', dest='email_to', required=False, default="",
                         help = "The email of the task responsible.")
-   
+    create_parser.add_argument('--parents', action='store', dest='parents', required=False, default='', type=str,
+                        help = "The parent task id. can be a list of ids commom separate like 0,1-3,5")
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                   help = "All task ids to be deleted", type=str)                     
@@ -372,7 +380,8 @@ class task_parser:
                     dry_run=args.dry_run, 
                     binds=args.binds, 
                     partition=args.partition,
-                    email_to=args.email_to)
+                    email_to=args.email_to,
+                    parents=convert_string_to_range(args.parents) )
 
 
   def kill(self, task_ids, args):
