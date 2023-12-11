@@ -336,7 +336,8 @@ class Slot(threading.Thread):
         job_db.ping()
         logger.debug(f"Job {self.job.id} is a single job...")
         if self.job.run(tracking):
-          tracking.log_dict(self.job.run_id, get_system_info(pretty=True), "system.json")
+          if tracking:
+            tracking.log_dict(self.job.run_id, get_system_info(pretty=True), "system.json")
           logger.debug(f'Job {self.job.id} is RUNNING.')
           job_db.status = JobStatus.RUNNING
         else:

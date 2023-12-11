@@ -12,7 +12,7 @@ from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger
 
 
 def update_status(app, job):
-  if job.run_id != "":
+  if job.run_id != "" and app.tracking:
     app.tracking.set_tag(job.run_id, "Status", job.status)
 
 #
@@ -277,7 +277,7 @@ class Schedule(threading.Thread):
     self.__stop   = threading.Event()
     with self.db as session:
       tracking_url  = session.get_environ( "TRACKING_SERVER_URL" )
-      self.tracking = MlflowClient( tracking_url )
+      self.tracking = MlflowClient( tracking_url ) if tracking_url != "" else None
       email         = session.get_environ( "POSTMAN_EMAIL_FROM" )
       password      = session.get_environ( "POSTMAN_EMAIL_PASSWORD" ) 
       self.postman  = Postman(email,password)
