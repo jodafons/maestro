@@ -110,67 +110,57 @@ class Consumer(threading.Thread):
       logger.info(f"start job toke {end-start} seconds")
       return False
 
-    jobs = [job_id]
+    start = time()
+    with self.db as session:
+      job_db = session.get_job(job_id, with_for_update=True)
 
-    for job_id in jobs:
-
-      start = time()
-
-      with self.db as session:
-
-        job_db = session.get_job(job_id, with_for_update=True)
-
-        if job_id in self.jobs.keys():
-          logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
-          job_db.consumer_retry += 1
-          session.commit()
-          continue
-
-        # NOTE: check if the consumer attend some resouces criteria to run the current job
-        if (not self.check_resources(job_db)):
-          logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
-          job_db.consumer_retry += 1
-          session.commit()
-          continue
-
-        binds = job_db.get_binds()
-
-        task_db = job_db.task
-
-        job = Job(  
-               job_db.id,
-               job_db.task.name,
-               job_db.command,
-               job_db.workarea,
-               image=job_db.image,
-               virtualenv=job_db.virtualenv,
-               device=self.device,
-               binds=binds,
-               testing=job_db.task.status == TaskStatus.TESTING,
-               run_id=job_db.run_id,
-               tracking_url=self.tracking_url ,
-               )
-        job_db.status = JobStatus.PENDING
-        job_db.ping()
-
-        if self.tracking_url!="":
-          tracking = MlflowClient( self.tracking_url  )
-          run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
-                                       run_name=job_db.name).info.run_id
-          tracking.log_artifact(run_id, job_db.inputfile)
-          job.run_id = run_id
-          logger.debug(f"tracking job id {job_db.id} as run_id {run_id}...")
-
-          
-        sys_used_memory  = job_db.task.sys_used_memory()
-        gpu_used_memory  = job_db.task.gpu_used_memory() 
-        
-        slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
-        self.queue_slots.put(slot)
+      if job_id in self.jobs.keys():
+        logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")
+        job_db.consumer_retry += 1
         session.commit()
+        return False
+
+      # NOTE: check if the consumer attend some resouces criteria to run the current job
+      if (not self.check_resources(job_db)):
+        logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
+        job_db.consumer_retry += 1
+        session.commit()
+        return False
       
-        end = time()
-        logger.info(f"start job toke {end-start} secondss")
+      binds = job_db.get_binds()
+      task_db = job_db.task
+      job = Job(  
+             job_db.id,
+             job_db.task.name,
+             job_db.command,
+             job_db.workarea,
+             image=job_db.image,
+             virtualenv=job_db.virtualenv,
+             device=self.device,
+             binds=binds,
+             testing=job_db.task.status == TaskStatus.TESTING,
+             run_id=job_db.run_id,
+             tracking_url=self.tracking_url ,
+             )
+      job_db.status = JobStatus.PENDING
+      job_db.ping()
+      if self.tracking_url!="":
+        tracking = MlflowClient( self.tracking_url  )
+        run_id = tracking.create_run(experiment_id=task_db.experiment_id, 
+                                     run_name=job_db.name).info.run_id
+        tracking.log_artifact(run_id, job_db.inputfile)
+        job.run_id = run_id
+        logger.debug(f"tracking job id {job_db.id} as run_id {run_id}...")
+        
+      sys_used_memory  = job_db.task.sys_used_memory()
+      gpu_used_memory  = job_db.task.gpu_used_memory() 
+      
+      slot = Slot(job.id, self.db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
+      self.queue_slots.put(slot)
+      session.commit()
+    
+    end = time()
+    logger.info(f"start job toke {end-start} secondss")
 
     return True
 
