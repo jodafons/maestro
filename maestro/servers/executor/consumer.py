@@ -36,7 +36,7 @@ class Consumer(threading.Thread):
     self.timeout   = timeout
     self.max_retry = max_retry
     self.device    = device
-    self.db        = models.Database(db.host) 
+    self.db_host   = db.host
     self.__stop    = threading.Event()
     self.__lock    = threading.Event()
     self.__lock.set() 
@@ -49,7 +49,9 @@ class Consumer(threading.Thread):
     self.reserved_memory      = sys_avail_memory - reserved_memory
     self.reserved_gpu_memory  = gpu_avail_memory - reserved_gpu_memory
 
-    with self.db as session:
+
+    db = models.Database(self.db_host) 
+    with db as session:
       # get the server host location from the database everytime since this can change
       self.server_url   = session.get_environ( "PILOT_SERVER_URL" )
       logger.info(f"pilot url     : {self.server_url}"  )
@@ -80,7 +82,6 @@ class Consumer(threading.Thread):
     while (not self.__stop.isSet()):
 
       sleep(0.5)
-
       server = schemas.client( self.server_url, 'pilot')
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host_url     ).json())
       if answer.status:
@@ -111,7 +112,10 @@ class Consumer(threading.Thread):
       return False
 
     start = time()
-    with self.db as session:
+
+    db = models.Database(self.db_host) 
+    with db as session:
+
       job_db = session.get_job(job_id, with_for_update=True)
 
       if job_id in self.jobs.keys():
