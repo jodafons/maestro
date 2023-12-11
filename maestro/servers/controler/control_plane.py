@@ -13,7 +13,7 @@ from maestro import Database, schemas, models
 from sqlalchemy.sql import func
 
 
-class ControlPlane( threading.Thread ):
+class ControlPlane:
 
 
   def __init__(self, 
@@ -21,36 +21,30 @@ class ControlPlane( threading.Thread ):
                max_retry : int=5,
               ):
 
-    threading.Thread.__init__(self)
-    self.__stop    = threading.Event()
+    #threading.Thread.__init__(self)
+    #self.__stop    = threading.Event()
     self.db        = models.Database(db.host)
     self.dispatcher= {}
     self.max_retry = max_retry
+
 
   def push_back(self, dispatcher):
     self.dispatcher[ dispatcher.name ] = dispatcher
     dispatcher.start()
 
 
-  def run(self):
-    while not self.__stop.isSet():
-      sleep(1)
-      self.loop()
-
-
   def loop(self):
 
+    logger.debug("starting control plane...")
     start = time()
-
-    print(self.dispatcher.keys)
 
     # NOTE: remove all dispatcher that is not alive and reached the max number of retry (not ping)
     for name, dispatcher in self.dispatcher.items():
       if not dispatcher.is_alive():
-        logger.warning("consumer from host {host_url} is not alive... removing...")
-        self.dispatcher.pop(name, dispatcher)
+        logger.warning(f"consumer from host {name} is not alive... removing...")
+    self.dispatcher = { name:dispatcher for name, dispatcher in self.dispatcher.items() if dispatcher.is_alive()}
 
-
+    logger.debug("put back all jobs into the queue...")
 
     # NOTE: put back all jobs that reached the max number of retries for the given node 
     with self.db as session:
@@ -65,6 +59,7 @@ class ControlPlane( threading.Thread ):
 
       session.commit()
 
+    logger.debug("assgiend jobs to the dispatcher...")
 
     # NOTE: assign jobs for each dispatcher
     with self.db as session:
@@ -96,10 +91,10 @@ class ControlPlane( threading.Thread ):
                 jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
                                                .filter(models.Job.partition==partition)\
                                                .filter(models.Job.consumer=="")\
-                                               .order_by(func.random()).limit(procs).all() )
+                                               .order_by(models.Job.id).limit(procs).all() )
 
               
-                logger.debug(f"we get {len(jobs)} from the database...")
+                logger.debug(f"we get {len(jobs)} from the database using {partition} partition...")
                 
                 for job in jobs:
 

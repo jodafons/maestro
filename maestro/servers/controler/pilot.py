@@ -99,10 +99,9 @@ class Pilot( threading.Thread ):
           schedule = Schedule(task.id, self.db)
           schedule.start()
           self.schedule[task.id] = schedule
-        else:
-          schedule = self.schedule[task.id]
-          if not schedule.is_alive():
-            self.schedule.pop(task.id, schedule)
+        
+    self.schedule = {task_id:schedule for task_id, schedule in self.schedule.items() if schedule.is_alive()}
+  
 
 
 
@@ -169,7 +168,7 @@ class Dispatcher(threading.Thread):
                                                  .order_by(models.Job.id).limit(n).all()
               )
               jobs = [job.id for job in jobs]
-              logger.debug(f"getting {n} jobs from {self.partition} partition...")
+              logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
               body = schemas.Request( host=self.host_url, metadata={"jobs":jobs} ) 
               if len(jobs)>0:
                 if self.client.try_request(f'start_job', method='post', body=body.json()).status:
