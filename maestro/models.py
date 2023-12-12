@@ -91,15 +91,6 @@ class Task (Base):
         if job.status==s: total[s]+=1
     return total
 
-  def sys_used_memory(self, sys_memory_factor : float=1.2 ):
-    return int(max([job.sys_used_memory for job in self.jobs])) * sys_memory_factor 
-   
-  def gpu_used_memory(self, gpu_memory_factor : float=1.1 ):
-    return int(max([job.gpu_used_memory for job in self.jobs])) * gpu_memory_factor 
-
-  def cpu_percent(self):
-    return int(max([job.cpu_percent for job in self.jobs]))
- 
 
 
 
@@ -141,8 +132,6 @@ class Job (Base):
   sys_used_memory     = Column(Float, default=-1)
   gpu_used_memory     = Column(Float, default=-1)
   cpu_percent         = Column(Float, default=-1)
-
-
 
   # Foreign
   task    = relationship("Task", back_populates="jobs")

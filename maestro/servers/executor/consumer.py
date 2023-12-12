@@ -232,10 +232,15 @@ class Consumer(threading.Thread):
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-
+    # NOTE: optimize query to retrieve the memory peak from all jobs for the current task
     sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
     gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
 
+
+    print('AKI JOAO')
+    print(sys_used_memory)
+    print(gpu_used_memory)
+    
     # NOTE: NODE memory estimation
     sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
     gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
