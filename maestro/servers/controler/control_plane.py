@@ -99,8 +99,8 @@ class ControlPlane:
                 for job_db in jobs:
 
                   # NOTE: JOB memory estimation
-                  job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
-                  job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
+                  job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
+                  job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
 
                   print('AKI JOAO')
                   print(job_sys_memory)

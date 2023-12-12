@@ -169,9 +169,7 @@ def create( session   : Session,
         return None
       logger.info("local test done but not stored into the database. remove dry_run to launch into the orchestrator.")
       return task_db.id
-      
-    print(tracking_url)
-    print(type(tracking_url))
+   
     if create_tracking(tracking_url, task_db):
       session().add(task_db)
       session.commit()

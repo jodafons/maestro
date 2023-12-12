@@ -233,8 +233,8 @@ class Consumer(threading.Thread):
       return False
 
     # NOTE: optimize query to retrieve the memory peak from all jobs for the current task
-    sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
-    gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
+    sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
+    gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
 
 
     print('AKI JOAO')
