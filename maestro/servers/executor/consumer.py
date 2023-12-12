@@ -231,30 +231,17 @@ class Consumer(threading.Thread):
       end = time()
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
-    x1=time()
+
+
     sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
     gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
-    x2=time()
-    logger.debug(f"DB0 x2-x1 = {x2-x1}")
-    x1=time()
-
-
-    # NOTE: JOB memory peak estimation for the current task
-    sys_used_memory  = job_db.task.sys_used_memory()
-    gpu_used_memory  = job_db.task.gpu_used_memory()
-    x2=time()
-    logger.debug(f"DB1 x2-x1 = {x2-x1}")
-
-    x1=time()
 
     # NOTE: NODE memory estimation
     sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
     gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
     sys_avail_memory = 0 if sys_avail_memory < 0 else sys_avail_memory
     gpu_avail_memory = 0 if gpu_avail_memory < 0 else gpu_avail_memory
-    x2=time()
-    logger.debug(f"DB2 x2-x1 = {x2-x1}")
-
+    
 
     #logger.debug(f"task:")
     #logger.debug(f"      system used memory  : {sys_used_memory} MB")
@@ -262,7 +249,6 @@ class Consumer(threading.Thread):
     #logger.debug("system now:")
     #logger.debug(f"      system avail memory : {sys_avail_memory} MB")
     #logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
-    x1=time()
 
 
     if sys_avail_memory == 0:
@@ -292,10 +278,7 @@ class Consumer(threading.Thread):
       end = time()
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
-    x2=time()
-    logger.debug(f"DB3 x2-x1 = {x2-x1}")
-
-
+  
     end = time()
     logger.info(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
