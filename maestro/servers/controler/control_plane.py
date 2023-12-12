@@ -96,21 +96,22 @@ class ControlPlane:
               
                 logger.debug(f"we get {len(jobs)} from the database using {partition} partition...")
                 
-                for job in jobs:
+                for job_db in jobs:
 
                   # NOTE: JOB memory estimation
-                  job_sys_memory  = job.task.sys_used_memory()
-                  job_gpu_memory  = job.task.gpu_used_memory()
+                  job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
+                  job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
+
 
                   if (sys_avail_memory - job_sys_memory) > 0 and (gpu_avail_memory - job_gpu_memory) > 0:
                     sys_avail_memory -= job_sys_memory
                     gpu_avail_memory -= job_gpu_memory
-                    job.consumer      = name
+                    job_db.consumer      = name
                   else:
-                    logger.warning(f"not available resouces for job {job.id}...")
+                    logger.warning(f"not available resouces for job {job_db.id}...")
                     continue
 
-                  logger.debug(f"job {job.id} assigned to partition {partition} into node {name}")
+                  logger.debug(f"job {job_db.id} assigned to partition {partition} into node {name}")
 
 
                 session.commit()
