@@ -3,6 +3,8 @@ __all__ = ["Consumer"]
 
 import os, traceback, time, threading, queue
 import mlflow
+from sqlalchemy import func
+
 
 from time import time, sleep
 from loguru import logger
@@ -132,7 +134,7 @@ class Consumer(threading.Thread):
         return False
 
       # NOTE: check if the consumer attend some resouces criteria to run the current job
-      if (not self.check_resources(job_db)):
+      if (not self.check_resources(session, job_db)):
         logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
         job_db.consumer_retry += 1
         session.commit()
@@ -219,7 +221,7 @@ class Consumer(threading.Thread):
     self.child_threads = [ thread for thread in self.child_threads if thread.is_alive()]
 
 
-  def check_resources(self, job_db : models.Job):
+  def check_resources(self, session, job_db : models.Job):
 
     start = time()
     nprocs = len(self.jobs)
@@ -229,9 +231,14 @@ class Consumer(threading.Thread):
       end = time()
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
-
-
     x1=time()
+    sys_used_memory  = session().query(func.max(Job.sys_used_memory)).filter(Job.taskid==job_db.task.id).first()
+    gpu_used_memory  = session().query(func.max(Job.gpu_used_memory)).filter(Job.taskid==job_db.task.id).first()
+    x2=time()
+    logger.debug(f"DB0 x2-x1 = {x2-x1}")
+    x1=time()
+
+
     # NOTE: JOB memory peak estimation for the current task
     sys_used_memory  = job_db.task.sys_used_memory()
     gpu_used_memory  = job_db.task.gpu_used_memory()
