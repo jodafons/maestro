@@ -225,7 +225,7 @@ class Consumer(threading.Thread):
     if  nprocs > self.max_procs:
       logger.warning("Number of procs reached the limit stablished.")
       end = time()
-      logger.info(f"check_resources toke {end-start} seconds")
+      #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     # NOTE: JOB memory peak estimation for the current task
@@ -239,40 +239,40 @@ class Consumer(threading.Thread):
     gpu_avail_memory = 0 if gpu_avail_memory < 0 else gpu_avail_memory
 
 
-    logger.debug(f"task:")
-    logger.debug(f"      system used memory  : {sys_used_memory} MB")
-    logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
-    logger.debug("system now:")
-    logger.debug(f"      system avail memory : {sys_avail_memory} MB")
-    logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
+    #logger.debug(f"task:")
+    #logger.debug(f"      system used memory  : {sys_used_memory} MB")
+    #logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
+    #logger.debug("system now:")
+    #logger.debug(f"      system avail memory : {sys_avail_memory} MB")
+    #logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
 
 
     if sys_avail_memory == 0:
       logger.warning("System memory node usage reached the limit stablished.")
       end = time()
-      logger.info(f"check_resources toke {end-start} seconds")
+      #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     if (self.device >= 0) and (gpu_avail_memory == 0):
       logger.warning("GPU memory node usage reached the limit stablished.")
       end = time()
-      logger.info(f"check_resources toke {end-start} seconds")
+      #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-    logger.debug(f"Job system used memory : {sys_used_memory} ({sys_avail_memory}) MB")
+    #logger.debug(f"Job system used memory : {sys_used_memory} ({sys_avail_memory}) MB")
     # check if we have memory to run this workload
     if (sys_used_memory >= 0) and (sys_used_memory > sys_avail_memory):
       logger.warning("Not available memory to run this job into this consumer.")
       end = time()
-      logger.info(f"check_resources toke {end-start} seconds")
+      #logger.info(f"check_resources toke {end-start} seconds")
       return False  
 
-    logger.debug(f"Job gpu used memory    : {gpu_used_memory} ({gpu_avail_memory}) MB")
+    #logger.debug(f"Job gpu used memory    : {gpu_used_memory} ({gpu_avail_memory}) MB")
     # check if we have gpu memory to run this workload
     if (self.device >= 0) and (gpu_used_memory >= 0) and (gpu_used_memory > gpu_avail_memory):
       logger.warning("Not available GPU memory to run this job into this consumer.")
       end = time()
-      logger.info(f"check_resources toke {end-start} seconds")
+      #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
     end = time()
