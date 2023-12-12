@@ -133,8 +133,16 @@ class Consumer(threading.Thread):
         session.commit()
         return False
 
+
+      # NOTE: optimize query to retrieve the memory peak from all jobs for the current task
+      sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
+      gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
+      print('AKI JOAO')
+      print(sys_used_memory)
+      print(gpu_used_memory)
+      
       # NOTE: check if the consumer attend some resouces criteria to run the current job
-      if (not self.check_resources(session, job_db)):
+      if (not self.check_resources(sys_used_memory, gpu_used_memory)):
         logger.warning(f"Job {job_id} estimated resources not available at this consumer.")
         job_db.consumer_retry += 1
         session.commit()
@@ -165,8 +173,6 @@ class Consumer(threading.Thread):
         job.run_id = run_id
         logger.debug(f"tracking job id {job_db.id} as run_id {run_id}...")
         
-      sys_used_memory  = job_db.task.sys_used_memory()
-      gpu_used_memory  = job_db.task.gpu_used_memory() 
       
       slot = Slot(job.id, db, job, sys_used_memory, gpu_used_memory, self.tracking_url)
       self.queue_slots.put(slot)
@@ -221,7 +227,7 @@ class Consumer(threading.Thread):
     self.child_threads = [ thread for thread in self.child_threads if thread.is_alive()]
 
 
-  def check_resources(self, session, job_db : models.Job):
+  def check_resources(self, sys_used_memory : float, gpu_used_memory : float):
 
     start = time()
     nprocs = len(self.jobs)
@@ -232,14 +238,9 @@ class Consumer(threading.Thread):
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-    # NOTE: optimize query to retrieve the memory peak from all jobs for the current task
-    sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
-    gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
 
 
-    print('AKI JOAO')
-    print(sys_used_memory)
-    print(gpu_used_memory)
+
     
     # NOTE: NODE memory estimation
     sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
