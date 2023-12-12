@@ -102,6 +102,9 @@ class ControlPlane:
                   job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
                   job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
 
+                  print('AKI JOAO')
+                  print(job_sys_memory)
+                  print(job_gpu_memory)
 
                   if (sys_avail_memory - job_sys_memory) > 0 and (gpu_avail_memory - job_gpu_memory) > 0:
                     sys_avail_memory -= job_sys_memory
