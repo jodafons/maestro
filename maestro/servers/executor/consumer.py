@@ -232,8 +232,8 @@ class Consumer(threading.Thread):
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
     x1=time()
-    sys_used_memory  = session().query(func.max(Job.sys_used_memory)).filter(Job.taskid==job_db.task.id).first()
-    gpu_used_memory  = session().query(func.max(Job.gpu_used_memory)).filter(Job.taskid==job_db.task.id).first()
+    sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
+    gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()
     x2=time()
     logger.debug(f"DB0 x2-x1 = {x2-x1}")
     x1=time()
