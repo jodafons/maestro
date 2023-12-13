@@ -85,6 +85,7 @@ def create( session   : Session,
             partition : str="cpu",
             email_to  : str="",
             parents   : list=[],
+            envs      : str="{}",
           ) -> bool:
             
   
@@ -143,7 +144,6 @@ def create( session   : Session,
       extension = fpath.split('/')[-1].split('.')[-1]
       job_name  = fpath.split('/')[-1].replace('.'+extension, '')
       workarea  = volume +'/'+ job_name
-      envs      = {}
 
       job_db = Job(
                     name=job_name,
@@ -153,7 +153,7 @@ def create( session   : Session,
                     command=command.replace('%IN',fpath),
                     workarea=workarea,
                     inputfile=fpath,
-                    envs=str(envs),
+                    envs=envs,
                     binds=binds,
                     status=JobStatus.REGISTERED,
                     partition=partition,
@@ -325,6 +325,9 @@ class task_parser:
                         help = "The email of the task responsible.")
     create_parser.add_argument('--parents', action='store', dest='parents', required=False, default='', type=str,
                         help = "The parent task id. can be a list of ids commom separate like 0,1-3,5")
+    create_parser.add_argument('--envs', action='store', dest='envs', required=False, default="{}", type=str,
+                        help = "Extra environs to be appended into the process like {'ENV':'VALUE', ...}")
+
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                   help = "All task ids to be deleted", type=str)                     
@@ -379,7 +382,8 @@ class task_parser:
                     binds=args.binds, 
                     partition=args.partition,
                     email_to=args.email_to,
-                    parents=convert_string_to_range(args.parents) )
+                    parents=convert_string_to_range(args.parents),
+                    envs=args.envs )
 
 
   def kill(self, task_ids, args):

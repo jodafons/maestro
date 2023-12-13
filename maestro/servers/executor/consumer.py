@@ -137,9 +137,6 @@ class Consumer(threading.Thread):
       # NOTE: optimize query to retrieve the memory peak from all jobs for the current task
       sys_used_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
       gpu_used_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
-      print('AKI JOAO')
-      print(sys_used_memory)
-      print(gpu_used_memory)
       
       # NOTE: check if the consumer attend some resouces criteria to run the current job
       if (not self.check_resources(sys_used_memory, gpu_used_memory)):
@@ -162,6 +159,7 @@ class Consumer(threading.Thread):
              testing=job_db.task.status == TaskStatus.TESTING,
              run_id=job_db.run_id,
              tracking_url=self.tracking_url ,
+             envs=job_db.get_envs(),
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()

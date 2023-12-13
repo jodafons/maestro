@@ -22,6 +22,7 @@ class Job:
                testing       : bool=False,
                run_id        : str="",
                tracking_url  : str="",
+               extra_envs    : dict={},
                ):
 
     self.id         = job_id
@@ -60,6 +61,9 @@ class Job:
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_DRY_RUN"]               = 'true' if testing else 'false'
     self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_RUN_ID"]             = self.run_id
     self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_URL"]                = tracking_url 
+
+    for env_name, env_value in extra_envs.items():
+      self.env[("" if image=="" else "SINGULARITYENV_") + env_name] = env_value
 
     self.logpath = self.workarea+'/output.log'
 
