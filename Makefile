@@ -35,5 +35,7 @@ deploy_down:
 clean:
 	docker system prune -a
 	
+poetry_to_requirements:
+	poetry export --without-hashes --format=requirements.txt > requirements.txt
 
 
