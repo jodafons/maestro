@@ -159,7 +159,7 @@ class Consumer(threading.Thread):
              testing=job_db.task.status == TaskStatus.TESTING,
              run_id=job_db.run_id,
              tracking_url=self.tracking_url ,
-             envs=job_db.get_envs(),
+             extra_envs=job_db.get_envs(),
              )
       job_db.status = JobStatus.PENDING
       job_db.ping()
