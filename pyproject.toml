@@ -37,6 +37,7 @@ nvsmi = "^0.4.2"
 mlflow = "^2.8.0"
 netifaces = "^0.11.0"
 pydantic = "1.10.13"
+rich-argparse = "^1.4.0"
 
 [tool.poetry.scripts]
 maestro = "maestro.console.main:run"

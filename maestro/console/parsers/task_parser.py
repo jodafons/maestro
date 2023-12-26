@@ -17,6 +17,7 @@ from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from maestro.models import Task, Job, Database, Session
 from maestro import schemas
 
+from rich_argparse import RichHelpFormatter
 
 
 def convert_string_to_range(s):
