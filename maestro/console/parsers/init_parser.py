@@ -4,6 +4,7 @@ __all__ = ["init_parser"]
 import glob, traceback, os, argparse, re
 from loguru import logger
 from maestro.models import Base, Database
+from rich_argparse import RichHelpFormatter
 
 
 
@@ -62,10 +63,10 @@ class init_parser:
       subparser = parent.add_subparsers(dest='option')
 
       # Datasets
-      subparser.add_parser('create', parents=[parser])
-      subparser.add_parser('recreate' , parents=[parser])
-      subparser.add_parser('delete', parents=[parser])
-      args.add_parser( 'init', parents=[parent] )
+      subparser.add_parser('create', parents=[parser], formatter_class=RichHelpFormatter)
+      subparser.add_parser('recreate' , parents=[parser], formatter_class=RichHelpFormatter)
+      subparser.add_parser('delete', parents=[parser], formatter_class=RichHelpFormatter)
+      args.add_parser( 'init', parents=[parent] , formatter_class=RichHelpFormatter)
 
 
 
