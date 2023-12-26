@@ -125,7 +125,7 @@ class Consumer(threading.Thread):
 
     with db as session:
 
-      job_db = session.get_job(job_id, with_for_update=False)
+      job_db = session.get_job(job_id, with_for_update=True)
 
       if job_id in self.jobs.keys():
         logger.warning(f"Job {job_id} exist into the consumer. Not possible to include here.")

@@ -1,7 +1,5 @@
 export DOCKER_NAMESPACE='maestro'
 export VIRTUALENV_NAMESPACE='maestro-env'
-export PYTHONPATH=`pwd`:$PYTHONPATH
-export PATH=`pwd`/scripts:$PATH
 export LOGURU_LEVEL="DEBUG"
 
 
@@ -25,4 +23,13 @@ echo "EXECUTOR_SERVER_BINDS   = ${EXECUTOR_SERVER_BINDS}"
 echo "=================================================================================="
 
 
-source $VIRTUALENV_NAMESPACE/bin/activate
+
+if [ -d "$VIRTUALENV_NAMESPACE" ]; then
+    echo "$VIRTUALENV_NAMESPACE exists."
+    source $VIRTUALENV_NAMESPACE/bin/activate
+else
+    make
+    source $VIRTUALENV_NAMESPACE/bin/activate
+fi
+
+
