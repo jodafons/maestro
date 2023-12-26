@@ -165,13 +165,13 @@ def create( session   : Session,
       task_db.jobs.append(job_db)
 
 
-    if dry_run:
-      if not test_job( task_db.jobs[0] ):
-        logger.fatal("local test fail...")
-        return None
-      logger.info("local test done but not stored into the database. remove dry_run to launch into the orchestrator.")
-      return task_db.id
+    if not test_job( task_db.jobs[0] ):
+      logger.fatal("local test fail...")
+      return None
    
+    if dry_run:
+      return task_db.id
+
     if create_tracking(tracking_url, task_db):
       session().add(task_db)
       session.commit()
@@ -188,7 +188,6 @@ def create( session   : Session,
 
 
 
-from rich_argparse import RichHelpFormatter
 
 
 class task_parser:
