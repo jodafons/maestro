@@ -17,6 +17,8 @@ from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from maestro.models import Task, Job, Database, Session
 from maestro import schemas
 
+
+
 def convert_string_to_range(s):
      """
        convert 0-2,20 to [0,1,2,20]
@@ -186,103 +188,7 @@ def create( session   : Session,
 
 
 
-def kill( session: Session, task_id: int ) -> bool:
-
-  try:
-    task = session().query(Task).filter(Task.id==task_id).first()
-    if not task:
-        logger.warning( f"The task with id ({task_id}) does not exist into the data base" )
-        return False
-    task.kill()
-    session.commit()
-    logger.info(f"Succefully kill.")
-    return True
-  except Exception as e:
-    traceback.print_exc()
-    logger.info("Unknown error.")
-    return False
-
-
-
-def retry( session: Session, task_id: int ) -> bool:
-  try:
-    task = session().query(Task).filter(Task.id==task_id).first()
-    if not task:
-      logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
-      return False
-    
-    if task.completed():
-      logger.info(f"The task with id ({task.status}) is in COMPLETED TaskStatus. Can not retry." )
-      return False
-    
-    task.retry()
-    session.commit()
-    logger.info(f"Succefully retry.")
-    return True
-  except Exception as e:
-    traceback.print_exc()
-    logger.error("Unknown error." )
-    return False
-
-
-def delete( session: Session, task_id: int ) -> bool:
-
-  try:
-    # Get task by id
-    task = session().query(Task).filter(Task.id==task_id).first()
-    if not task:
-      logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
-      return False
-
-    task.delete()
-    session.commit()
-    while task.status != TaskStatus.REMOVED:
-      logger.info(f"Waiting for schedule... Task with status {task.status}")
-      sleep(2)
-    logger.info("Succefully deleted.")
-    return True
- 
-
-  except Exception as e:
-    traceback.print_exc()
-    logger.error("Unknown error." )
-    return False
-
-
-def list_tasks( session: Session ):
-
-  try:
-
-    tasks = session().query(Task).all()
-    table = []
-    for task in tasks:
-      values        = task.count()
-      row = [task.id, task.name]
-      row.extend([values[status] for status in job_status])
-      row.append(task.status)
-      table.append(row)
-
-    t = tabulate(table,  headers=[
-                  'ID'    ,
-                  'Task'  ,
-                  'Registered',
-                  'Assigned'  ,
-                  'Pending'   ,
-                  'Running'   ,
-                  'Completed' ,
-                  'Failed'    ,
-                  'kill'      ,
-                  'killed'    ,
-                  'Broken'    ,
-                  'Status'    ,
-                  ],tablefmt="heavy_outline")
-    return t
-
-  except Exception as e:
-    traceback.print_exc()
-    logger.error("Unknown error." )
-    return "Not possible to show the table."
-
+from rich_argparse import RichHelpFormatter
 
 
 class task_parser:
@@ -301,32 +207,32 @@ class task_parser:
     database_parser   = argparse.ArgumentParser(description = '', add_help = False)
     database_parser.add_argument('--database-url', action='store', dest='database_url', type=str,
                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
-                  help = "database url")
+                  help = "the database url endpoint.")
 
 
     create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
-                        help = "The task name to be append into the db.")
+                        help = "The name of the task to be included into the maestro.")
     create_parser.add_argument('-i','--inputfile', action='store',
                         dest='inputfile', required = True,
-                        help = "The input config file that will be used to configure the job (sort and init).")
+                        help = "The input config file that will be used to configure the job.")
     create_parser.add_argument('--image', action='store', dest='image', required=False, default="",
-                        help = "The singularity sif image path.")
+                        help = "The singularity image path to be used during the job execution.")
     create_parser.add_argument('--virtualenv', action='store', dest='virtualenv', required=False, default="",
-                        help = "The virtualenv path.")
+                        help = "The virtualenv path to be used during the job execution.")
     create_parser.add_argument('--exec', action='store', dest='command', required=True,
-                        help = "The exec command")
+                        help = "The exec command to be used when the job start.")
     create_parser.add_argument('--dry_run', action='store_true', dest='dry_run', required=False, default=False,
-                        help = "Use this as debugger.")
+                        help = "Only prepare the command but not launch into the database. Use this as debugger.")
     create_parser.add_argument('--binds', action='store', dest='binds', required=False, default="{}", type=str,
-                        help = "image volume bindd like {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}")
+                        help = "image volume binds to be append during the singularaty command preparation. The format should be: {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}.")
     create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
-                        help = f"The selected partitions.")
+                        help = f"The name of the partition where this task will be executed.")
     create_parser.add_argument('--email_to', action='store', dest='email_to', required=False, default="",
-                        help = "The email of the task responsible.")
+                        help = "The email contact used to send the task notification.")
     create_parser.add_argument('--parents', action='store', dest='parents', required=False, default='', type=str,
-                        help = "The parent task id. can be a list of ids commom separate like 0,1-3,5")
+                        help = "The parent task id. Can be a list of ids (e.g, 0,1-3,5)")
     create_parser.add_argument('--envs', action='store', dest='envs', required=False, default="{}", type=str,
-                        help = "Extra environs to be appended into the process like {'ENV':'VALUE', ...}")
+                        help = "Extra environs to be added into the process environ system during the job execution. The format should be: {'ENV':'VALUE', ...}.")
 
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
@@ -339,16 +245,15 @@ class task_parser:
                              help = "All task ids to be killed", type=str)
                        
 
-
-    parent = argparse.ArgumentParser(description = '', add_help = False)
+    parent = argparse.ArgumentParser(description = '', add_help = False, formatter_class=RichHelpFormatter)
     subparser = parent.add_subparsers(dest='option')
     # Datasets
-    subparser.add_parser('create', parents=[create_parser, database_parser])
-    subparser.add_parser('retry' , parents=[retry_parser, database_parser])
-    subparser.add_parser('delete', parents=[delete_parser, database_parser])
-    subparser.add_parser('list'  , parents=[list_parser, database_parser])
-    subparser.add_parser('kill'  , parents=[kill_parser, database_parser])
-    args.add_parser( 'task', parents=[parent] )
+    subparser.add_parser('create', parents=[create_parser, database_parser], formatter_class=RichHelpFormatter)
+    subparser.add_parser('retry' , parents=[retry_parser, database_parser] , formatter_class=RichHelpFormatter)
+    subparser.add_parser('delete', parents=[delete_parser, database_parser], formatter_class=RichHelpFormatter)
+    subparser.add_parser('list'  , parents=[list_parser, database_parser]  , formatter_class=RichHelpFormatter)
+    subparser.add_parser('kill'  , parents=[kill_parser, database_parser]  , formatter_class=RichHelpFormatter)
+    args.add_parser( 'task', parents=[parent], formatter_class=RichHelpFormatter )
 
   
 
@@ -369,6 +274,115 @@ class task_parser:
         logger.error("Option not available.")
 
 
+
+
+
+  #
+  # kill task
+  #
+  def kill(self, task_ids, args):
+    try:
+      db = Database(args.database_url)
+      with db as session:
+        for task_id in task_ids:
+          # Get task by id
+          task = session().query(Task).filter(Task.id==task_id).first()
+          if not task:
+            logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
+            continue
+          task.kill()
+          session.commit()
+          logger.info("Succefully killed.")
+          return True
+    except Exception as e:
+      traceback.print_exc()
+      logger.error("Unknown error." )
+
+
+
+  #
+  # delete task
+  #
+  def delete(self, task_ids, args):
+    try:
+      db = Database(args.database_url)
+      with db as session:
+        for task_id in task_ids:
+          # Get task by id
+          task = session().query(Task).filter(Task.id==task_id).first()
+          if not task:
+            logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
+            continue
+          task.delete()
+          session.commit()
+          logger.info("Succefully deleted.")
+          return True
+    except Exception as e:
+      traceback.print_exc()
+      logger.error("Unknown error." )
+
+
+  #
+  # retry task
+  #
+  def retry(self, task_ids, args):
+    try:
+      db = Database(args.database_url)
+      with db as session:
+        for task_id in task_ids:
+          # Get task by id
+          task = session().query(Task).filter(Task.id==task_id).first()
+          if not task:
+            logger.warning(f"The task with id ({task_id}) does not exist into the data base" )
+            continue
+          if task.completed():
+            logger.info(f"The task with id ({task.status}) is in COMPLETED TaskStatus. Can not retry." )
+            continue
+          task.retry()
+          session.commit()
+          logger.info("Succefully retry.")
+          return True
+    except Exception as e:
+      traceback.print_exc()
+      logger.error("Unknown error." )
+
+
+  def list(self, args):
+
+    try: 
+      db = Database(args.database_url)
+      with db as session:
+        tasks = session().query(Task).all()
+        table = []
+        for task in tasks:
+          values        = task.count()
+          row = [task.id, task.name]
+          row.extend([values[status] for status in job_status])
+          row.append(task.status)
+          table.append(row)
+
+        t = tabulate(table,  headers=[
+                      'ID'        ,
+                      'Task'      ,
+                      'Registered',
+                      'Assigned'  ,
+                      'Pending'   ,
+                      'Running'   ,
+                      'Completed' ,
+                      'Failed'    ,
+                      'kill'      ,
+                      'killed'    ,
+                      'Broken'    ,
+                      'Status'    ,
+                      ],tablefmt="heavy_outline")
+        print(t)
+
+    except Exception as e:
+      traceback.print_exc()
+      logger.error("Unknown error." )
+
+
+
   def create(self, basepath: str, args ):
     db = Database(args.database_url)
     with db as session:
@@ -386,31 +400,10 @@ class task_parser:
                     envs=args.envs )
 
 
-  def kill(self, task_ids, args):
-    db = Database(args.database_url)
-    with db as session:
-      for task_id in task_ids:
-        kill(session, task_id)
 
-  def delete(self, task_ids, args):
-    db = Database(args.database_url)
-    with db as session:
-      for task_id in task_ids:
-        delete(session, task_id)
 
-  def retry(self, task_ids, args):
-    db = Database(args.database_url)
-    with db as session:
-      for task_id in task_ids:
-        retry(session, task_id)
 
-  def list(self, args):
-    db = Database(args.database_url)
-    with db as session:
-      print(list_tasks(session))
-  
 
-  
 
 
 

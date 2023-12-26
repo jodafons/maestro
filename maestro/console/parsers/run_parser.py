@@ -4,6 +4,7 @@ __all__ = ["run_parser"]
 import glob, traceback, os, argparse, re
 from loguru import logger
 from maestro.models import Base, Database
+from rich_argparse import RichHelpFormatter
 
 
 class run_parser:
@@ -68,13 +69,13 @@ class run_parser:
                                  help = "the email server password")
                                  
 
-    parent    = argparse.ArgumentParser(description = '', add_help = False)
+    parent    = argparse.ArgumentParser(description = '', add_help = False, formatter_class=RichHelpFormatter)
     subparser = parent.add_subparsers(dest='option')
-    subparser.add_parser('executor'    , parents=[executor_parser, database_parser])
-    subparser.add_parser('pilot'       , parents=[pilot_parser, database_parser])
-    subparser.add_parser('all'         , parents=[pilot_parser, executor_parser, database_parser])
+    subparser.add_parser('executor'    , parents=[executor_parser, database_parser], formatter_class=RichHelpFormatter)
+    subparser.add_parser('pilot'       , parents=[pilot_parser, database_parser], formatter_class=RichHelpFormatter)
+    subparser.add_parser('all'         , parents=[pilot_parser, executor_parser, database_parser], formatter_class=RichHelpFormatter)
 
-    args.add_parser( 'run', parents=[parent] )
+    args.add_parser( 'run', parents=[parent], formatter_class=RichHelpFormatter )
 
 
   def parser( self, args ):
