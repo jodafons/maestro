@@ -111,7 +111,10 @@ class Consumer(threading.Thread):
 
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
     # testing jobs must run alone since we dont know how much resouces will be used.
+
+    print([slot.job.testing for slot in self.jobs.values()])
     blocked = any([slot.job.testing for slot in self.jobs.values()])
+    print(blocked)
 
     # NOTE: check if we have a test job waiting to run or running...
     if blocked:
@@ -206,6 +209,7 @@ class Consumer(threading.Thread):
       logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
         if (not slot.lock):
+          print(len(self.jobs))
           if (len(self.jobs)==1):
             logger.info(f"starting testing job with id {slot.job.id}")
             slot.start()

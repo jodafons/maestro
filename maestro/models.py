@@ -115,6 +115,7 @@ class Job (Base):
   envs      = Column(String, default="{}")
   binds     = Column(String, default="{}")
 
+  #priority  = Column(Integer, default=1)
 
   # NOTE: parameters used by the control plane service
   partition      = Column(String , default='cpu')

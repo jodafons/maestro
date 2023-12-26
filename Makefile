@@ -26,11 +26,10 @@ server:
 	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/control/main.py
 
 deploy_up:
-	make build_base
-	docker compose -f docker-compose-dev.yml up
+	docker compose up -d
 
 deploy_down:
-	docker compose -f docker-compose-dev.yml down
+	docker compose down
 
 clean:
 	docker system prune -a
