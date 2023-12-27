@@ -83,11 +83,9 @@ class Consumer(threading.Thread):
     while (not self.__stop.isSet()):
 
       sleep(1)
-      print('AKI 1')
       server = schemas.client( self.server_url, 'pilot')
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host_url     ).json())
       if answer.status:
-        print('AKI 2')
         logger.debug(f"connected with {answer.host}")
         self.loop()
       else:
@@ -103,9 +101,7 @@ class Consumer(threading.Thread):
     # NOTE: If we have some testing job into the stack, we need to block the entire consumer.
     # testing jobs must run alone since we dont know how much resouces will be used.
 
-    print([slot.job.testing for slot in self.jobs.values()])
     blocked = any([slot.job.testing for slot in self.jobs.values()])
-    print(blocked)
 
     # NOTE: check if we have a test job waiting to run or running...
     if blocked:
@@ -179,12 +175,10 @@ class Consumer(threading.Thread):
 
   def loop(self):
 
-    print("AKKKIIIIII JOAOAOAOAOA!!!!")
     start = time()
 
     blocked = self.blocked()
     while (not self.queue_slots.empty()) and not blocked:
-      print('AKI 3')
       #try:
       slot = self.queue_slots.get_nowait()
       
@@ -194,24 +188,21 @@ class Consumer(threading.Thread):
       #except:
       #  continue
 
-    print('AKI JOAOOOOOOO!')
-    print(self.jobs)
 
     for slot in self.jobs.values():
 
       logger.info(f"job id : {slot.job.id}, is_a#live? {slot.is_alive()}, job.status : {slot.job.status()}")
-      #if slot.job.testing:
-      #  if (not slot.lock):
-      #    print(len(self.jobs))
-      #    if (len(self.jobs)==1):
-      #      logger.info(f"starting testing job with id {slot.job.id}")
-      #      slot.start()
-      #    else:
-      #      logger.info("job testing waining consumer to be cleaner...")
-      #else:
-      if not slot.lock:
-        logger.info(f"starting job with if {slot.job.id}")
-        slot.start()
+      if slot.job.testing:
+        if (not slot.lock):
+          if (len(self.jobs)==1):
+            logger.info(f"starting testing job with id {slot.job.id}")
+            slot.start()
+          else:
+            logger.info("job testing waining consumer to be cleaner...")
+      else:
+        if not slot.lock:
+          logger.info(f"starting job with if {slot.job.id}")
+          slot.start()
 
 
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}

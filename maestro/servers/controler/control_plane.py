@@ -83,10 +83,11 @@ class ControlPlane:
               
               blocked = consumer['blocked']
               if blocked:
-                logger.debug("current node is blocked for new jobs, skipping...")
+                logger.warning("current node is blocked for new jobs, skipping...")
                 continue
               
               if procs > 0:
+
                 # get n jobs from db with status assigned, that allow to this queue and was not
                 # assigned to any node
                 jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
@@ -96,20 +97,15 @@ class ControlPlane:
                                                .order_by(models.Job.id).limit(procs).all() )
             
 
-                print([j.priority for j in jobs])
               
                 logger.debug(f"we get {len(jobs)} from the database using {partition} partition...")
                 
                 for job_db in jobs:
 
-                  print(f'JOB {job_db.id} - TASK {job_db.taskid}')
 
                   # NOTE: JOB memory estimation
                   job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
                   job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
-                  print('AKI JOAO')
-                  print(job_sys_memory)
-                  print(job_gpu_memory)
                
                   if (sys_avail_memory - job_sys_memory) >= 0 and (gpu_avail_memory - job_gpu_memory) >= 0:
                     sys_avail_memory -= job_sys_memory

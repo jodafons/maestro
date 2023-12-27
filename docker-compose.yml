@@ -8,6 +8,7 @@ services:
   database_server:
     container_name: database-server
     image: postgres
+    command: postgres -c "max_connections=500"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

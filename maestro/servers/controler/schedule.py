@@ -55,8 +55,6 @@ def test_job_assigned( app, task: Task ) -> bool:
   logger.debug("test_job_assigned")
   task.jobs[0].status =  JobStatus.ASSIGNED
   task.jobs[0].priority = 10 * task.jobs[0].priority # multiply by 10 to force this job to the top of the queue
-  print("*************** JOAO!")
-  print(task.jobs[0].priority)
   update_status(app, task.jobs[0])   
   return True
 
