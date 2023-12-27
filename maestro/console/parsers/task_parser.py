@@ -3,7 +3,7 @@ __all__ = ["task_parser"]
 
 import traceback, os, argparse, re
 
-from time import time
+from time import time, sleep
 from mlflow.tracking import MlflowClient
 from expand_folders import expand_folders
 from tabulate import tabulate
@@ -44,6 +44,7 @@ def test_job( job_db, timeout : int=60 ):
 
     start = time()
     while True:
+        sleep(1)
         if job.status() == JobStatus.PENDING:
             if not job.run():
               return False
