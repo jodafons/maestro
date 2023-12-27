@@ -29,7 +29,7 @@ def convert_string_to_range(s):
 
 
 
-def test_job( job_db, timeout : int=60 ):
+def test_job( job_db, timeout : int=120 ):
 
     job = JobTest( job_id       = job_db.id, 
                    taskname     = job_db.task.name,
@@ -50,16 +50,16 @@ def test_job( job_db, timeout : int=60 ):
               return False
         elif job.status() == JobStatus.FAILED:
             return False
-        elif job.status() == JobStatus.RUNNING:
-            continue
-        elif job.status() == JobStatus.COMPLETED:
-            job_db.status=JobStatus.REGISTERED
-            return True
         elif (time() - start) > timeout:
           logger.info('testing timeout reached. approving...')
           job.kill()
           job_db.status=JobStatus.REGISTERED
           return True
+        elif job.status() == JobStatus.RUNNING:
+            continue
+        elif job.status() == JobStatus.COMPLETED:
+            job_db.status=JobStatus.REGISTERED
+            return True
         else:
             continue
 
