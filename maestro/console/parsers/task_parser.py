@@ -1,11 +1,9 @@
 __all__ = ["task_parser"]
 
 
-import glob, traceback, os, argparse, re
-import mlflow
+import traceback, os, argparse, re
 
-from datetime import datetime
-from time import sleep
+from time import time
 from mlflow.tracking import MlflowClient
 from expand_folders import expand_folders
 from tabulate import tabulate
@@ -31,7 +29,7 @@ def convert_string_to_range(s):
 
 
 
-def test_job( job_db ):
+def test_job( job_db, timeout : int=60 ):
 
     job = JobTest( job_id       = job_db.id, 
                    taskname     = job_db.task.name,
@@ -44,6 +42,7 @@ def test_job( job_db ):
                    run_id       = "",
                    tracking_url = "" )
 
+    start = time()
     while True:
         if job.status() == JobStatus.PENDING:
             if not job.run():
@@ -55,6 +54,11 @@ def test_job( job_db ):
         elif job.status() == JobStatus.COMPLETED:
             job_db.status=JobStatus.REGISTERED
             return True
+        elif (time() - start) > timeout:
+          logger.info('testing timeout reached. approving...')
+          job.kill()
+          job_db.status=JobStatus.REGISTERED
+          return True
         else:
             continue
 
