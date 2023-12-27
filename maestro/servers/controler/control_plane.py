@@ -10,7 +10,8 @@ from loguru import logger
 from maestro.enumerations import JobStatus
 from maestro import Database, schemas, models
 
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, desc
+#from sqlalchemy import desc
 
 
 class ControlPlane:
@@ -91,22 +92,26 @@ class ControlPlane:
                 jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
                                                .filter(models.Job.partition==partition)\
                                                .filter(models.Job.consumer=="")\
+                                               .order_by(models.Job.priority.desc())\
                                                .order_by(models.Job.id).limit(procs).all() )
+            
 
+                print([j.priority for j in jobs])
               
                 logger.debug(f"we get {len(jobs)} from the database using {partition} partition...")
                 
                 for job_db in jobs:
 
+                  print(f'JOB {job_db.id} - TASK {job_db.taskid}')
+
                   # NOTE: JOB memory estimation
                   job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
                   job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
-
                   print('AKI JOAO')
                   print(job_sys_memory)
                   print(job_gpu_memory)
-
-                  if (sys_avail_memory - job_sys_memory) > 0 and (gpu_avail_memory - job_gpu_memory) > 0:
+               
+                  if (sys_avail_memory - job_sys_memory) >= 0 and (gpu_avail_memory - job_gpu_memory) >= 0:
                     sys_avail_memory -= job_sys_memory
                     gpu_avail_memory -= job_gpu_memory
                     job_db.consumer      = name
@@ -126,7 +131,7 @@ class ControlPlane:
 
   def stop(self):
 
-    self.__stop.set()
+    #self.__stop.set()
     logger.info("stopping consumer service...")
     for dispatcher in self.dispatcher.values():
       dispatcher.stop()

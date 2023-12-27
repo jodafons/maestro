@@ -86,9 +86,10 @@ def create( session   : Session,
             extension : str='.json', 
             binds     : str="{}", 
             partition : str="cpu",
-            email_to  : str="",
+            contact_to: str="",
             parents   : list=[],
             envs      : str="{}",
+            priority  : int=1,
           ) -> bool:
             
   
@@ -132,7 +133,8 @@ def create( session   : Session,
                     parents=str(parents),
                     status=TaskStatus.REGISTERED,
                     trigger=TaskTrigger.WAITING,
-                    email_to  = email_to )
+                    contact_to=contact_to,
+                    priority=priority )
                     
     # check if input file is json
     files = expand_folders( inputfile )
@@ -161,6 +163,7 @@ def create( session   : Session,
                     status=JobStatus.REGISTERED,
                     partition=partition,
                     run_id="",
+                    priority=priority,
                   )
 
       task_db.jobs.append(job_db)
@@ -227,12 +230,14 @@ class task_parser:
                         help = "image volume binds to be append during the singularaty command preparation. The format should be: {'/home':'/home','/mnt/host_volume:'/mnt/image_volume'}.")
     create_parser.add_argument('-p', '--partition',action='store', dest='partition', required=True,
                         help = f"The name of the partition where this task will be executed.")
-    create_parser.add_argument('--email_to', action='store', dest='email_to', required=False, default="",
+    create_parser.add_argument('--contact_to', action='store', dest='contact_to', required=False, default="",
                         help = "The email contact used to send the task notification.")
     create_parser.add_argument('--parents', action='store', dest='parents', required=False, default='', type=str,
                         help = "The parent task id. Can be a list of ids (e.g, 0,1-3,5)")
     create_parser.add_argument('--envs', action='store', dest='envs', required=False, default="{}", type=str,
                         help = "Extra environs to be added into the process environ system during the job execution. The format should be: {'ENV':'VALUE', ...}.")
+    create_parser.add_argument('--priority', action='store', dest='priority', required=False, default=1, type=int,
+                        help = "the task priority value to give some execution priority into the queue.")
 
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
@@ -395,9 +400,10 @@ class task_parser:
                     dry_run=args.dry_run, 
                     binds=args.binds, 
                     partition=args.partition,
-                    email_to=args.email_to,
+                    contact_to=args.contact_to,
                     parents=convert_string_to_range(args.parents),
-                    envs=args.envs )
+                    envs=args.envs,
+                    priority=args.priority )
 
 
 

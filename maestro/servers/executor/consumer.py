@@ -28,7 +28,7 @@ class Consumer(threading.Thread):
                      max_retry           : int=5, 
                      partition           : str='cpu',
                      max_procs           : int=os.cpu_count(),
-                     reserved_memory     : float=4*GB,
+                     reserved_memory     : float=1*GB,
                      reserved_gpu_memory : float=2*GB,
                      ):
             
@@ -64,11 +64,8 @@ class Consumer(threading.Thread):
         logger.info(f"tracking url  : {self.tracking_url}")
         mlflow.set_tracking_uri(self.tracking_url)
 
-    self.queue_slots         = queue.Queue(maxsize=max_procs)
-    self.queue_child_threads = queue.Queue(maxsize=max_procs*10)
-
-    self.jobs          = {}
-    self.child_threads = []
+    self.queue_slots = queue.Queue(maxsize=max_procs)
+    self.jobs        = {}
 
 
   def stop(self):
@@ -85,22 +82,16 @@ class Consumer(threading.Thread):
 
     while (not self.__stop.isSet()):
 
-      sleep(0.5)
+      sleep(1)
+      print('AKI 1')
       server = schemas.client( self.server_url, 'pilot')
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host_url     ).json())
       if answer.status:
+        print('AKI 2')
         logger.debug(f"connected with {answer.host}")
         self.loop()
       else:
         logger.error("not possible to connect with the server...")
- 
-
-
-  def start_job_thread( self, job_id : int ):
-    thread = threading.Thread( target=self.start_job, args=(job_id,) )
-    thread.start()
-    self.queue_child_threads.put(thread)
-    return True
   
 
   def blocked(self):
@@ -188,37 +179,39 @@ class Consumer(threading.Thread):
 
   def loop(self):
 
+    print("AKKKIIIIII JOAOAOAOAOA!!!!")
     start = time()
 
-    while not self.queue_slots.empty():
-      try:
-        slot = self.queue_slots.get_nowait()
-        self.jobs[slot.job_id] = slot
-      except:
-        continue
+    blocked = self.blocked()
+    while (not self.queue_slots.empty()) and not blocked:
+      print('AKI 3')
+      #try:
+      slot = self.queue_slots.get_nowait()
+      
+      self.jobs[slot.job_id] = slot
+      if slot.job.testing:
+        blocked=True
+      #except:
+      #  continue
 
-    while not self.queue_child_threads.empty():
-      try:
-        thread = self.queue_child_threads.get_nowait()
-        self.child_threads.append(thread)
-      except:
-        continue
+    print('AKI JOAOOOOOOO!')
+    print(self.jobs)
 
     for slot in self.jobs.values():
 
-      logger.info(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
-      if slot.job.testing:
-        if (not slot.lock):
-          print(len(self.jobs))
-          if (len(self.jobs)==1):
-            logger.info(f"starting testing job with id {slot.job.id}")
-            slot.start()
-          else:
-            logger.info("job testing waining consumer to be cleaner...")
-      else:
-        if not slot.lock:
-          logger.info(f"starting job with if {slot.job.id}")
-          slot.start()
+      logger.info(f"job id : {slot.job.id}, is_a#live? {slot.is_alive()}, job.status : {slot.job.status()}")
+      #if slot.job.testing:
+      #  if (not slot.lock):
+      #    print(len(self.jobs))
+      #    if (len(self.jobs)==1):
+      #      logger.info(f"starting testing job with id {slot.job.id}")
+      #      slot.start()
+      #    else:
+      #      logger.info("job testing waining consumer to be cleaner...")
+      #else:
+      if not slot.lock:
+        logger.info(f"starting job with if {slot.job.id}")
+        slot.start()
 
 
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
@@ -226,7 +219,7 @@ class Consumer(threading.Thread):
     logger.info(f"loop job toke {end-start} seconds")
 
 
-    self.child_threads = [ thread for thread in self.child_threads if thread.is_alive()]
+
 
 
   def check_resources(self, sys_used_memory : float, gpu_used_memory : float):
@@ -314,7 +307,7 @@ class Consumer(threading.Thread):
           'gpu_avail_memory' : 0 if gpu_avail_memory < 0 else gpu_avail_memory, # NOTE: NODE memory
         }
 
-    d['gpu'] = d['gpu'][self.device]
+    d['gpu'] = d['gpu'][self.device] if d['gpu'] else {}
     return d
 
 

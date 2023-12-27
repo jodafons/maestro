@@ -28,8 +28,8 @@ def send_email( app, task: Task ) -> bool:
     taskname = task.name
     subject    = f"[LPS Cluster] Notification for task id {status}"
     message    = (f"The task with name {taskname} was assigned with {status} status.")
-    logger.debug(f"Sending email to {task.to_email}") 
-    app.postman.send(task.to_email, subject, message)
+    logger.debug(f"Sending email to {task.contact_to}") 
+    app.postman.send(task.contact_to, subject, message)
   except Exception as e:
     traceback.print_exc()
     logger.error("not possible to send email to the responsible.")
@@ -54,6 +54,9 @@ def test_job_assigned( app, task: Task ) -> bool:
   """
   logger.debug("test_job_assigned")
   task.jobs[0].status =  JobStatus.ASSIGNED
+  task.jobs[0].priority = 10 * task.jobs[0].priority # multiply by 10 to force this job to the top of the queue
+  print("*************** JOAO!")
+  print(task.jobs[0].priority)
   update_status(app, task.jobs[0])   
   return True
 
@@ -181,6 +184,13 @@ def task_kill( app, task: Task ):
 
   return True
 
+
+def update_priority(app, task: Task):
+  job = task.jobs[0]
+  if job.priority!=task.priority:
+    for job in task.jobs:
+      job.priority=task.priority
+  return True
 
 #
 # Triggers
@@ -370,7 +380,7 @@ class Schedule(threading.Thread):
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.FINALIZED  , relationship=[task_finalized, task_retry, send_email]   ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_kill, task_kill]             ),
       Transition( source=TaskStatus.RUNNING   , target=TaskStatus.KILL       , relationship=[trigger_task_delete, task_kill]           ),      
-      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running]                             ),
+      Transition( source=TaskStatus.RUNNING   , target=TaskStatus.RUNNING    , relationship=[task_running,update_priority]                             ),
       Transition( source=TaskStatus.FINALIZED , target=TaskStatus.RUNNING    , relationship=[trigger_task_retry]                       ),
       Transition( source=TaskStatus.KILL      , target=TaskStatus.KILLED     , relationship=[task_killed, send_email]                  ),
       Transition( source=TaskStatus.KILLED    , target=TaskStatus.REGISTERED , relationship=[trigger_task_retry]                       ),

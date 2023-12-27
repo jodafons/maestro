@@ -40,13 +40,16 @@ def get_memory_info(pretty=False):
 
 
 def get_gpu_memory_info(device=0, pretty=False):
-    gpu = gputil.getGPUs()[device]
-    total  = convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal
-    used   = convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed
-    avail  = convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree
-    usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100,
-    return total, avail, used, usage
-
+    gpus = gputil.getGPUs()
+    if gpus:
+      gpu = gpus[device]
+      total  = convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal
+      used   = convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed
+      avail  = convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree
+      usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100,
+      return total, avail, used, usage
+    else:
+      return 0,0,0,0
 
 
 def get_system_info(pretty=False):
@@ -90,7 +93,7 @@ def get_system_info(pretty=False):
     }
 
 
-    iname = [ name for name in ni.interfaces() if 'enp' in name][0]
+    #iname = [ name for name in ni.interfaces() if 'enp' in name][0]
 
     network_info = {
       'ip_address' : get_ip_address(),

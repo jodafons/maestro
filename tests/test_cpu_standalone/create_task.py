@@ -1,11 +1,10 @@
 import os
 basepath = os.getcwd()
+virtualenv = os.environ['VIRTUALENV_PATH']
 
-image="/mnt/cern_data/joao.pinto/images/torch_base_latest.sif"
-command = "maestro task create -i {BASE}/jobs -t task.standalone --exec 'python {BASE}/program.py -j %IN' -p cpu --image {IMAGE}"
-os.system(command.format(BASE=basepath,IMAGE=image))
+def create_task ( taskname ):
+    command = f"maestro task create -i {basepath}/jobs -t {taskname} --exec 'python {basepath}/program.py -j %IN' -p cpu --virtualenv {virtualenv}"
+    os.system(command)
 
 
-#image="/mnt/cern_data/images/torch_base_latest.sif"
-#command = "maestro task create -i {BASE}/jobs -t task.standalone --exec 'python {BASE}/test_local.py -j %IN' -p cpu --virtualenv /home/joao_pinto/my_github/orchestra-server/maestro-env"
-#os.system(command.format(BASE=basepath,IMAGE=image))
+create_task('test.3')

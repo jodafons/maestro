@@ -19,10 +19,10 @@ def run( args ):
 
 
     consumer = Consumer(host_url, 
-                        db            = Database(args.database_url),
-                        device        = args.device,  
-                        partition     = args.partition,
-                        max_procs     = args.max_procs,
+                        db        = Database(args.database_url),
+                        device    = args.device,  
+                        partition = args.partition,
+                        max_procs = args.max_procs,
                         )
 
 

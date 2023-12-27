@@ -33,16 +33,17 @@ class Task (Base):
   __tablename__ = 'task'
 
   # Local
-  id        = Column(Integer, primary_key = True)
-  name      = Column(String, unique=True)
-  volume    = Column(String)
-  status    = Column(String, default=TaskStatus.REGISTERED)
-  trigger   = Column(String, default=TaskTrigger.WAITING )
-  # Foreign 
-  jobs      = relationship("Job", order_by="Job.id", back_populates="task")
+  id         = Column(Integer, primary_key = True)
+  name       = Column(String, unique=True)
+  volume     = Column(String)
+  status     = Column(String, default=TaskStatus.REGISTERED)
+  trigger    = Column(String, default=TaskTrigger.WAITING )
+  # Foreign  
+  jobs       = relationship("Job", order_by="Job.id", back_populates="task")
   
+  priority   = Column(Integer, default=1)
 
-  email_to  = Column(String)
+  contact_to = Column(String)
 
   # NOTE: aux variable
   to_remove = Column(Boolean, default=False)
@@ -114,8 +115,7 @@ class Job (Base):
   timer     = Column(DateTime)
   envs      = Column(String, default="{}")
   binds     = Column(String, default="{}")
-
-  #priority  = Column(Integer, default=1)
+  priority  = Column(Integer, default=1)
 
   # NOTE: parameters used by the control plane service
   partition      = Column(String , default='cpu')
