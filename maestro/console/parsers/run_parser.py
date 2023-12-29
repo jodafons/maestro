@@ -52,6 +52,16 @@ wait
     value_str = f"'{value}'" if type(value) == str else f"{value}"
     command += f" --{key.replace('_','-')}={value_str}"
 
+
+  if not args.slurm_virtualenv:
+    logger.error("maestro virtual env must be passed by --slurm-virtualenv as parameter.")
+  if not args.slurm_partition:
+    logger.error("slurm partition must be assigned by --slurm-partition as parameter.")
+  if not args.slurm_account:
+    logger.error("slurm account name must be passed by --slurm-account as parameter.")
+    
+
+
   job_name = args.slurm_name + '-' +option
   # prepare script
   with open(f'sbatch_{job_name}.sh','w') as f:
@@ -61,7 +71,7 @@ wait
                           partition=args.slurm_partition,
                           reservation=args.slurm_reservation,
                           database_url=args.database_url,
-                          virtualenv=os.environ["VIRTUAL_ENV"],
+                          virtualenv=args.slurm_virtualenv,
                           command=command
                         )
     #print(cmd)
@@ -197,6 +207,11 @@ class run_parser:
                               required=False, default='',#os.getlogin(),
                               help = "the slurm account name.")
            
+    slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_account', type=str,
+                              required=False, default='',#os.getlogin(),
+                              help = "the slurm account name.")
+           
+
     executor_args = [common_parser, executor_parser, database_parser, slurm_parser]
     pilot_args    = [common_parser, pilot_parser, tracking_parser, database_parser, slurm_parser]
     all_args      = [common_parser, pilot_parser, executor_parser, tracking_parser, database_parser, slurm_parser]
