@@ -31,10 +31,13 @@ def convert_string_to_range(s):
 
 def test_job( job_db, timeout : int=120 ):
 
+    # NOTE: if inside of singularity, put image and empty.
+    image = "" if os.environ['SINGULARITY_CONTAINER'] else job_db.image
+
     job = JobTest( job_id       = job_db.id, 
                    taskname     = job_db.task.name,
                    command      = job_db.command,
-                   image        = job_db.image, 
+                   image        = image, 
                    workarea     = job_db.workarea,
                    device       = -1,
                    binds        = {},
