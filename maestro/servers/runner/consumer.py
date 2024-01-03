@@ -11,7 +11,7 @@ from loguru import logger
 from maestro.enumerations import JobStatus, TaskStatus
 from maestro import Database, schemas, models
 from maestro import get_system_info, get_gpu_memory_info, get_memory_info, GB
-from maestro.servers.executor.job import Job
+from maestro.servers.runner.job import Job
 from mlflow.tracking import MlflowClient
 
 

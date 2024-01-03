@@ -13,9 +13,9 @@ def run( args ):
     # node information
     sys_info = get_system_info()
 
-    # executor endpoint
+    # runner endpoint
     host     = sys_info['network']['ip_address']
-    host_url = f"http://{host}:{args.executor_port}"
+    host_url = f"http://{host}:{args.runner_port}"
 
 
     consumer = Consumer(host_url, 
@@ -34,21 +34,21 @@ def run( args ):
         consumer.start()
 
 
-    @app.get("/executor/start") 
+    @app.get("/runner/start") 
     async def start() -> schemas.Answer:
         consumer.start()
-        return schemas.Answer( host=consumer.host_url, message="executor was started by external signal." )
+        return schemas.Answer( host=consumer.host_url, message="runner was started by external signal." )
 
 
-    @app.get("/executor/ping")
+    @app.get("/runner/ping")
     async def ping() -> schemas.Answer:
         return schemas.Answer( host=consumer.host_url, message="pong" )
 
 
-    @app.get("/executor/stop") 
+    @app.get("/runner/stop") 
     async def stop() -> schemas.Answer:
         consumer.stop()
-        return schemas.Answer( host=consumer.host_url, message="executor was stopped by external signal." )
+        return schemas.Answer( host=consumer.host_url, message="runner was stopped by external signal." )
 
 
     @app.on_event("shutdown")
@@ -56,7 +56,7 @@ def run( args ):
         consumer.stop()
 
 
-    @app.post("/executor/start_job") 
+    @app.post("/runner/start_job") 
     async def start_job( req : schemas.Request ) -> schemas.Answer:
         jobs = req.metadata['jobs']
         if not consumer.blocked():
@@ -65,12 +65,12 @@ def run( args ):
         return schemas.Answer( host=consumer.host_url, message=f"jobs was included into the pipe.")
 
 
-    @app.get("/executor/system_info")
+    @app.get("/runner/system_info")
     async def system_info() -> schemas.Answer:
         return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info() )
 
 
-    uvicorn.run(app, host=host, port=args.executor_port, reload=False)
+    uvicorn.run(app, host=host, port=args.runner_port, reload=False)
 
 
 

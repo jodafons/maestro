@@ -10,7 +10,7 @@ from tabulate import tabulate
 from tqdm import tqdm
 from loguru import logger
 
-from maestro.servers.executor.consumer import Job as JobTest
+from maestro.servers.runner.consumer import Job as JobTest
 from maestro.enumerations import JobStatus, TaskStatus, TaskTrigger, job_status
 from maestro.models import Task, Job, Database, Session
 from maestro import schemas

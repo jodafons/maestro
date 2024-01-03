@@ -8,7 +8,7 @@ from maestro.models import Base
 from loguru import logger
 
 
-def run( args , launch_executor : bool=False ):
+def run( args , launch_runner : bool=False ):
 
     # node information
     sys_info = get_system_info()
@@ -16,7 +16,7 @@ def run( args , launch_executor : bool=False ):
     # pilot server endpoints
     hostname  = sys_info['hostname']
     host      = sys_info['network']['ip_address']
-    pilot_url = f"http://{host}:{args.pilot_port}"
+    pilot_url = f"http://{host}:{args.master_port}"
 
     # mlflow server endpoints
     tracking_host     = host
@@ -42,8 +42,8 @@ def run( args , launch_executor : bool=False ):
         session.set_environ( "PILOT_SERVER_URL"       , pilot_url           )
         session.set_environ( "TRACKING_SERVER_URL"    , tracking_url        )
         session.set_environ( "DATABASE_SERVER_URL"    , args.database_url   )
-        session.set_environ( "POSTMAN_EMAIL_FROM"     , args.email_from     )
-        session.set_environ( "POSTMAN_EMAIL_PASSWORD" , args.email_password )
+        session.set_environ( "POSTMAN_EMAIL_FROM"     , args.tracking_email_from     )
+        session.set_environ( "POSTMAN_EMAIL_PASSWORD" , args.tracking_email_password )
 
 
     # services
@@ -59,8 +59,8 @@ def run( args , launch_executor : bool=False ):
     else:
         logger.warning("tracking service is disable")
 
-    if launch_executor:
-        executor = Server(f"maestro run executor --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
+    if args.max_procs > 0:
+        runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --runner-port {args.runner_port} --database-url {args.database_url}")
 
 
     # create master
@@ -71,9 +71,9 @@ def run( args , launch_executor : bool=False ):
         
         if args.tracking_enable:
             tracking.stop()
-        if launch_executor:
-            logger.info("stopping executor service...")
-            executor.stop()
+        if launch_runner:
+            logger.info("stopping runner service...")
+            runner.stop()
         pilot.stop()
 
 
@@ -81,9 +81,9 @@ def run( args , launch_executor : bool=False ):
     async def startup_event():
         if args.tracking_enable:
             tracking.start()
-        if launch_executor:
-            logger.info("starting executor service...")
-            executor.start()
+        if launch_runner:
+            logger.info("starting runner service...")
+            runner.start()
         pilot.start()
 
 
@@ -99,6 +99,6 @@ def run( args , launch_executor : bool=False ):
 
 
 
-    uvicorn.run(app, host=host, port=args.pilot_port, reload=False)
+    uvicorn.run(app, host=host, port=args.master_port, reload=False)
 
 

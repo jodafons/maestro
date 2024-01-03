@@ -119,7 +119,7 @@ class Dispatcher(threading.Thread):
     self.host_url  = host_url
     self.__stop    = threading.Event()
     self.db        = models.Database(db.host) 
-    self.client    = schemas.client(self.host_url, "executor")
+    self.client    = schemas.client(self.host_url, "runner")
     self.max_retry = max_retry
     self.name      = host_url #get_hostname_from_url(host_url)
     

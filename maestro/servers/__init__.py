@@ -1,9 +1,9 @@
 
 __all__ = []
 
-from . import executor
-__all__.extend( executor.__all__ )
-from .executor import *
+from . import runner
+__all__.extend( runner.__all__ )
+from .runner import *
 
 from . import controler
 __all__.extend( controler.__all__ )

@@ -23,6 +23,7 @@ def run():
               init_parser(commands),
               task_parser(commands),
               run_parser(commands),
+              slurm_parser(commands),
             ]
 
   if len(sys.argv)==1:
