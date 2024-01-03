@@ -6,89 +6,8 @@ from loguru import logger
 from maestro.models import Base, Database
 from rich_argparse import RichHelpFormatter
 from shutil import which
-import tempfile
 from time import sleep
-
-
-#
-# slurm integration
-#
-def run_sbatch( args ):
-
-  script_sbatch = """#!/bin/bash
-#SBATCH --nodes=1
-#SBATCH --output={jobname}.job_%j.out
-#SBATCH --ntasks-per-node=1
-#SBATCH --job-name={jobname}
-#SBATCH --exclusive
-#SBATCH --account={account}
-#SBATCH --ntasks=1
-#SBATCH --partition={partition}
-#SBATCH --reservation={reservation}
-
-echo 'Node:' $SLURM_JOB_NODELIST
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export DATABASE_SERVER_URL='{database_url}'
-source {virtualenv}/bin/activate
-{command}
-wait
-"""
-
-  args.partition      = args.slurm_partition
-  params = vars(args)
-  mode = params.pop('mode')
-  option = params.pop('option')
-  command = f'maestro {mode} {option}'
-
-  # command preparation
-  for key, value in params.items():
-    # remove all slurm args
-    if 'slurm' in key:
-      continue
-    # if bool and true append the key into the command
-    if type(value)==bool and not value:
-      continue
-    # if value is str shoul add ''
-    value_str = f"'{value}'" if type(value) == str else f"{value}"
-    command += f" --{key.replace('_','-')}={value_str}"
-
-
-  if not args.slurm_virtualenv:
-    logger.error("maestro virtual env must be passed by --slurm-virtualenv as parameter.")
-  if not args.slurm_partition:
-    logger.error("slurm partition must be assigned by --slurm-partition as parameter.")
-  if not args.slurm_account:
-    logger.error("slurm account name must be passed by --slurm-account as parameter.")
-    
-
-
-  job_name = args.slurm_name + '-' +option
-  # prepare script
-  with open(f'sbatch_{job_name}.sh','w') as f:
-    cmd = script_sbatch.format( 
-                          jobname=job_name,
-                          account=args.slurm_account,
-                          partition=args.slurm_partition,
-                          reservation=args.slurm_reservation,
-                          database_url=args.database_url,
-                          virtualenv=args.slurm_virtualenv,
-                          command=command
-                        )
-    #print(cmd)
-    f.write(cmd)
-
-  for _ in range( args.slurm_nodes ):
-    os.system(f'sbatch sbatch_{job_name}.sh')
-  sleep(5)
-  os.system(f'rm sbatch_{job_name}.sh')
-
-
-def cancel_sbatch():
-  options = ['pilot','executor','all']
-  for op in options:
-    command = "squeue -u $USER -n maestro-%s -h | awk '{print $1}' | xargs scancel && rm *.out"%(op)
-    os.system(command)
-
+from maestro.console.parsers import srun, scancel
 
 
 
@@ -182,10 +101,9 @@ class run_parser:
 
     slurm_parser = argparse.ArgumentParser(description = '', add_help = False)
 
-    slurm_parser.add_argument('--slurm-launcher', action='store_true', dest='slurm_launcher', 
+    slurm_parser.add_argument('--slurm-engine', action='store_true', dest='slurm_engine', 
                                  required=False , 
-                                 help = "Use slurm as launcher.")     
-            
+                                 help = "Use slurm as engine.")     
 
     slurm_parser.add_argument('--slurm-reservation', action='store', dest='slurm_reservation', type=str,
                               required=False, default=None,
@@ -204,11 +122,11 @@ class run_parser:
                               help = "the slurm task name.")
                                  
     slurm_parser.add_argument('--slurm-account', action='store', dest='slurm_account', type=str,
-                              required=False, default='',#os.getlogin(),
+                              required=False, default=None,#os.getlogin(),
                               help = "the slurm account name.")
            
-    slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_account', type=str,
-                              required=False, default='',#os.getlogin(),
+    slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_virtualenv', type=str,
+                              required=False, default=None,#os.getlogin(),
                               help = "the slurm account name.")
            
 
@@ -223,7 +141,7 @@ class run_parser:
     subparser.add_parser('executor'    , parents=executor_args, formatter_class=RichHelpFormatter, help='run as executor') 
     subparser.add_parser('pilot'       , parents=pilot_args   , formatter_class=RichHelpFormatter, help='run as server')
     subparser.add_parser('all'         , parents=all_args     , formatter_class=RichHelpFormatter, help='run as server and executor')
-    subparser.add_parser('clear'       , parents=[]           , formatter_class=RichHelpFormatter, help='clear slurm tasks')
+    subparser.add_parser('cancel'      , parents=[]           , formatter_class=RichHelpFormatter, help='clear slurm tasks')
 
     args.add_parser( 'run', parents=[parent], formatter_class=RichHelpFormatter )
 
@@ -236,32 +154,31 @@ class run_parser:
         self.pilot(args)
       elif args.option == 'all':
         self.all(args)
-      elif args.option == "clear":
-        cancel_sbatch()
+      elif args.option == "cancel":
+        scancel()
       else:
         logger.error("Option not available.")
 
 
   def executor(self, args):
-    from maestro.servers.executor.main import run
-    if args.slurm_launcher:
-      run_sbatch(args)
+    if args.slurm_engine:
+      srun(args)
     else:
+      from maestro.servers.executor.main import run
       run( args )
 
   def pilot(self, args):
-    from maestro.servers.controler.main import run
-    if args.slurm_launcher:
-      run_sbatch(args)
+    if args.slurm_engine:
+      srun(args)
     else:
+      from maestro.servers.controler.main import run
       run( args )
 
   def all(self, args):
-    from maestro.servers.controler.main import run
-    if args.slurm_launcher:
-      run_sbatch(args)
+    if args.slurm_engine:
+      srun(args)
     else:
+      from maestro.servers.controler.main import run
       run( args, launch_executor = True )
 
 
- 

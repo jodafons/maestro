@@ -60,7 +60,7 @@ def run( args , launch_executor : bool=False ):
         logger.warning("tracking service is disable")
 
     if launch_executor:
-        executor = Server(f"maestro run executor --max_procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
+        executor = Server(f"maestro run executor --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --executor-port {args.executor_port} --database-url {args.database_url}")
 
 
     # create master
