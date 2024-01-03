@@ -7,7 +7,6 @@ from maestro.models import Base, Database
 from rich_argparse import RichHelpFormatter
 from shutil import which
 from time import sleep
-from maestro.console.parsers import srun, scancel
 
 
 
@@ -68,6 +67,9 @@ class run_parser:
     pilot_parser.add_argument('--pilot-port', action='store', dest='pilot_port', type=int,
                                  required=False , default=5000,
                                  help = "the pilot port number")                           
+    pilot_parser.add_argument('--pilot-as-executor', action='store_true', dest='pilot_as_executor',
+                                 required=False ,
+                                 help = "add an executor into the pilot")                           
 
     #
     # tracking
@@ -101,10 +103,6 @@ class run_parser:
 
     slurm_parser = argparse.ArgumentParser(description = '', add_help = False)
 
-    slurm_parser.add_argument('--slurm-engine', action='store_true', dest='slurm_engine', 
-                                 required=False , 
-                                 help = "Use slurm as engine.")     
-
     slurm_parser.add_argument('--slurm-reservation', action='store', dest='slurm_reservation', type=str,
                               required=False, default=None,
                               help = "the slurm reservation name.")
@@ -128,11 +126,14 @@ class run_parser:
     slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_virtualenv', type=str,
                               required=False, default=None,#os.getlogin(),
                               help = "the slurm account name.")
-           
+    slurm_parser.add_argument('--slurm-cancel', action='store_true', dest='slurm_cancel',
+                              required=False,
+                              help = "cancel all tasks.")
+                 
 
-    executor_args = [common_parser, executor_parser, database_parser, slurm_parser]
-    pilot_args    = [common_parser, pilot_parser, tracking_parser, database_parser, slurm_parser]
-    all_args      = [common_parser, pilot_parser, executor_parser, tracking_parser, database_parser, slurm_parser]
+    executor_args = [common_parser, executor_parser, database_parser]
+    pilot_args    = [common_parser, pilot_parser, tracking_parser, database_parser]
+    cluster_args  = [common_parser, pilot_parser, executor_parser, tracking_parser, database_parser, slurm_parser]
 
 
     parent    = argparse.ArgumentParser(description = '', add_help = False, formatter_class=RichHelpFormatter)
@@ -140,8 +141,7 @@ class run_parser:
     subparser = parent.add_subparsers(dest='option')
     subparser.add_parser('executor'    , parents=executor_args, formatter_class=RichHelpFormatter, help='run as executor') 
     subparser.add_parser('pilot'       , parents=pilot_args   , formatter_class=RichHelpFormatter, help='run as server')
-    subparser.add_parser('all'         , parents=all_args     , formatter_class=RichHelpFormatter, help='run as server and executor')
-    subparser.add_parser('cancel'      , parents=[]           , formatter_class=RichHelpFormatter, help='clear slurm tasks')
+    subparser.add_parser('slurm'       , parents=cluster_args , formatter_class=RichHelpFormatter, help='run as server and executor into the slurm infrastructure.')
 
     args.add_parser( 'run', parents=[parent], formatter_class=RichHelpFormatter )
 
@@ -152,33 +152,42 @@ class run_parser:
         self.executor(args)
       elif args.option == 'pilot':
         self.pilot(args)
-      elif args.option == 'all':
-        self.all(args)
+      elif args.option == 'slurm':
+        self.slurm(args)
       elif args.option == "cancel":
+        from maestro.console.parsers import scancel
         scancel()
       else:
         logger.error("Option not available.")
 
 
   def executor(self, args):
-    if args.slurm_engine:
-      srun(args)
-    else:
-      from maestro.servers.executor.main import run
-      run( args )
+    from maestro.servers.executor.main import run
+    run( args )
+
 
   def pilot(self, args):
-    if args.slurm_engine:
-      srun(args)
+    from maestro.servers.controler.main import run
+    run( args, launch_executor= args.pilot_and_executor )
+
+
+  def slurm(self, args):
+    from maestro.console.parsers import srun, scancel
+    if args.slurm_cancel:
+      scancel()
     else:
-      from maestro.servers.controler.main import run
-      run( args )
+      # cancel all tasks for clear all tasks
+      scancel()
+      nodes = args.slurm_nodes
+      args.option='pilot'
+      args.pilot_as_executor = True
+      args.slurm_nodes = 1
+      srun( args )
+      if nodes > 1: # add executor as nodes into the slurm 
+        args.slurm_nodes = nodes - 1
+        args.pilot_and_executor = False
+        args.option='executor'
+        srun(args)
 
-  def all(self, args):
-    if args.slurm_engine:
-      srun(args)
-    else:
-      from maestro.servers.controler.main import run
-      run( args, launch_executor = True )
 
-
+    
