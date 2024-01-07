@@ -149,7 +149,7 @@ class Dispatcher(threading.Thread):
      
 
   def loop(self):
-    logger.info("=======================================================")
+    logger.debug("=======================================================")
     try:
       start = time()
       with self.db as session:
@@ -174,13 +174,13 @@ class Dispatcher(threading.Thread):
                 body = schemas.Request(host=self.host_url, metadata={'jobs':jobs})
                 self.client.try_request(f'start_job', method='post', body=body.json())
                 job_end=time()
-                logger.info(f"AKI JOAO!    start job requests toke {job_end-job_start} seconds...")
+                logger.debug(f"start job requests toke {job_end-job_start} seconds...")
 
         else:
           self.retry += 1
 
       end = time()
-      logger.info(f"AKI JOAO server consumer toke {end-start} seconds...")
+      logger.debug(f"dispatcher toke {end-start} seconds...")
 
     except Exception as e:
       traceback.print_exc()
@@ -192,4 +192,4 @@ class Dispatcher(threading.Thread):
       logger.error("stopping dispatcher since max_retry value reached.")
       self.stop()
 
-    logger.info("=======================================================")
+    logger.debug("=======================================================")

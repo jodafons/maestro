@@ -121,7 +121,7 @@ class ControlPlane:
                 session.commit()
 
     end = time()
-    logger.info(f"control plane toke {end-start} seconds...")
+    logger.debug(f"control plane toke {end-start} seconds...")
 
 
 

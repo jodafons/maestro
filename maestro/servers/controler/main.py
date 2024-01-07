@@ -60,6 +60,7 @@ def run( args , launch_runner : bool=False ):
         logger.warning("tracking service is disable")
 
     if args.max_procs > 0:
+        logger.info('starting runner...')
         runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --runner-port {args.runner_port} --database-url {args.database_url}")
 
 
@@ -71,7 +72,7 @@ def run( args , launch_runner : bool=False ):
         
         if args.tracking_enable:
             tracking.stop()
-        if launch_runner:
+        if args.max_procs > 1:
             logger.info("stopping runner service...")
             runner.stop()
         pilot.stop()
@@ -81,7 +82,7 @@ def run( args , launch_runner : bool=False ):
     async def startup_event():
         if args.tracking_enable:
             tracking.start()
-        if launch_runner:
+        if args.max_procs > 1:
             logger.info("starting runner service...")
             runner.start()
         pilot.start()

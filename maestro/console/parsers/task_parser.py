@@ -178,7 +178,7 @@ def create( session   : Session,
 
 
     if not test_job( task_db.jobs[0] ):
-      logger.fatal("local test fail...")
+      logger.error("local test fail...")
       return None
    
     if dry_run:

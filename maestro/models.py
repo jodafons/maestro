@@ -254,7 +254,7 @@ class Session:
     env = self.__session.query(Env).filter(Env.key==key).first()
     if not env:
       id = self.generate_id(Env)
-      logger.info(f"setting new environ ({id}) as {key}:{value}")
+      logger.debug(f"setting new environ ({id}) as {key}:{value}")
       env = Env( id = id, key=key, value=value)
       self.__session.add(env)
     else:

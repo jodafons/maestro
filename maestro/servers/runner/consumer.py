@@ -191,7 +191,7 @@ class Consumer(threading.Thread):
 
     for slot in self.jobs.values():
 
-      logger.info(f"job id : {slot.job.id}, is_a#live? {slot.is_alive()}, job.status : {slot.job.status()}")
+      logger.debug(f"job id : {slot.job.id}, is_alive? {slot.is_alive()}, job.status : {slot.job.status()}")
       if slot.job.testing:
         if (not slot.lock):
           if (len(self.jobs)==1):
@@ -207,7 +207,7 @@ class Consumer(threading.Thread):
 
     self.jobs = { job_id:slot for job_id, slot in self.jobs.items() if not slot.job.closed()}
     end = time()
-    logger.info(f"loop job toke {end-start} seconds")
+    logger.debug(f"loop job toke {end-start} seconds")
 
 
 
@@ -272,7 +272,7 @@ class Consumer(threading.Thread):
       return False
   
     end = time()
-    logger.info(f"check_resources toke {end-start} seconds")
+    logger.debug(f"check_resources toke {end-start} seconds")
     # if here, all resources available for this workload
     return True
 
