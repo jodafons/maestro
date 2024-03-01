@@ -20,10 +20,10 @@ build_local:
 # Server
 #
 node:
-	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/executor/main.py
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/runner/main.py
 
 server:
-	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/control/main.py
+	source ${MAESTRO_PATH}/${VIRTUALENV_NAMESPACE}/bin/activate && python maestro/servers/controller/main.py
 
 deploy_up:
 	docker compose up -d

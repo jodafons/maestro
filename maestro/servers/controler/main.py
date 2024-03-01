@@ -1,14 +1,35 @@
 
 
-import uvicorn, os, shutil
+import uvicorn, os, shutil, sys
 from fastapi import FastAPI
 from maestro import schemas, Database, Pilot, Server, ControlPlane
 from maestro import get_system_info
 from maestro.models import Base
 from loguru import logger
+import logging
 
 
-def run( args , launch_runner : bool=False ):
+
+
+def setup_logs( server_name , level):
+    """Setup and configure the logger"""
+
+    logger.configure(extra={"server_name" : server_name})
+    logger.remove()  # Remove any old handler
+    logger.add(
+        sys.stdout,
+        colorize=True,
+        backtrace=True,
+        diagnose=True,
+        level=level,
+        format="<green>{time}</green> | <level>{level:^12}</level> | <cyan>{extra[server_name]:<30}</cyan> | <blue>{message}</blue>",
+    )
+
+    output_file = server_name.replace(':','_').replace('-','_') + '.log'
+    logger.add(output_file, rotation="30 minutes", retention=3)
+
+
+def run( args  ):
 
     # node information
     sys_info = get_system_info()
@@ -21,6 +42,15 @@ def run( args , launch_runner : bool=False ):
     # mlflow server endpoints
     tracking_host     = host
     tracking_url      = f"http://{tracking_host}:{args.tracking_port}" if args.tracking_enable else ""
+
+
+
+    hostname    = sys_info['hostname']
+    server_name = f"{hostname}:master"
+
+
+    setup_logs( server_name, args.message_level)
+
 
 
     db = Database(args.database_url)
@@ -59,10 +89,17 @@ def run( args , launch_runner : bool=False ):
     else:
         logger.warning("tracking service is disable")
 
+    local_runners = {}
     if args.max_procs > 0:
-        logger.info('starting runner...')
-        runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --runner-port {args.runner_port} --database-url {args.database_url}")
-
+        devices = args.device.split(',')
+        runner_port = args.runner_port
+        for device in devices:
+            device=int(device)
+            device_name = f'cuda:{device}' if device>=0 else 'cpu'
+            logger.info(f'starting runner with device {device} and {args.max_procs} slots...')
+            runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {device} --partition {args.partition} --runner-port {runner_port} --database-url {args.database_url}")
+            runner_port+=1
+            local_runners[device_name] = runner
 
     # create master
     app      = FastAPI()
@@ -72,9 +109,11 @@ def run( args , launch_runner : bool=False ):
         
         if args.tracking_enable:
             tracking.stop()
-        if args.max_procs > 1:
-            logger.info("stopping runner service...")
+
+        for device_name, runner in local_runners.items():
+            logger.info(f"stopping {device_name} runner service...")
             runner.stop()
+      
         pilot.stop()
 
 
@@ -82,9 +121,11 @@ def run( args , launch_runner : bool=False ):
     async def startup_event():
         if args.tracking_enable:
             tracking.start()
-        if args.max_procs > 1:
-            logger.info("starting runner service...")
+
+        for device_name, runner in local_runners.items():
+            logger.info(f"starting {device_name} runner service...")
             runner.start()
+      
         pilot.start()
 
 
@@ -100,6 +141,6 @@ def run( args , launch_runner : bool=False ):
 
 
 
-    uvicorn.run(app, host=host, port=args.master_port, reload=False)
+    uvicorn.run(app, host=host, port=args.master_port, reload=False, log_level="warning")
 
 

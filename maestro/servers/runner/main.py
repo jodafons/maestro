@@ -1,11 +1,30 @@
 #!/usr/bin/env python
 
-import uvicorn
+import uvicorn, sys, logging
 
 from fastapi import FastAPI
 from maestro import schemas, Consumer, Database
 from maestro import get_system_info
 from loguru import logger
+
+
+def setup_logs( server_name , level):
+    """Setup and configure the logger"""
+
+    logger.configure(extra={"server_name" : server_name})
+    logger.remove()  # Remove any old handler
+    logger.add(
+        sys.stdout,
+        colorize=True,
+        backtrace=True,
+        diagnose=True,
+        level=level,
+        format="<green>{time}</green> | <level>{level:^12}</level> | <cyan>{extra[server_name]:<30}</cyan> | <blue>{message}</blue>",
+    )
+
+    output_file = server_name.replace(':','_').replace('-','_') + '.log'
+    logger.add(output_file, rotation="30 minutes", retention=3)
+
 
 
 def run( args ):
@@ -18,9 +37,17 @@ def run( args ):
     host_url = f"http://{host}:{args.runner_port}"
 
 
+    device      = int(args.device)
+    device_name = f'cuda:{device}' if device>=0 else 'cpu'
+    hostname    = sys_info['hostname']
+    server_name = f"{hostname}:{device_name}"
+
+
+    setup_logs( server_name, args.message_level)
+
     consumer = Consumer(host_url, 
                         db        = Database(args.database_url),
-                        device    = args.device,  
+                        device    = int(args.device),  
                         partition = args.partition,
                         max_procs = args.max_procs,
                         )
@@ -70,7 +97,7 @@ def run( args ):
         return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info() )
 
 
-    uvicorn.run(app, host=host, port=args.runner_port, reload=False)
+    uvicorn.run(app, host=host, port=args.runner_port, reload=False, log_level="warning")
 
 
 

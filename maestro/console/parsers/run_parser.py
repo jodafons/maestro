@@ -22,8 +22,8 @@ class run_parser:
     #
     common_parser = argparse.ArgumentParser(description = '', add_help = False)
 
-    common_parser.add_argument('--device', action='store', dest='device', type=int,
-                               required=False, default = -1,
+    common_parser.add_argument('--device', action='store', dest='device', type=str,
+                               required=False, default = '-1',
                                help = "gpu device number, if not used, default will be cpu as device.")
 
     common_parser.add_argument('--partition', action='store', dest='partition', type=str,
@@ -34,6 +34,9 @@ class run_parser:
                                required=True, 
                                help = "the max number of processors in the partition.")
 
+    common_parser.add_argument('--message-level', action='store', dest='message_level', type=str,
+                               required=False, default='INFO', 
+                               help = "the server messagem output level.")
 
     #
     # database
