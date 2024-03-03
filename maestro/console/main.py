@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, argparse
+import sys, argparse
 from maestro.console.parsers import *
 
 from rich_argparse import RichHelpFormatter
@@ -23,12 +23,13 @@ def run():
               init_parser(commands),
               task_parser(commands),
               run_parser(commands),
-              slurm_parser(commands),
+              #slurm_parser(commands),
             ]
 
   if len(sys.argv)==1:
     print(parser.print_help())
     sys.exit(1)
+
 
   args = parser.parse_args()
 

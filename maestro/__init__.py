@@ -3,9 +3,8 @@ __all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "get_hostnam
            "Server", "GB"]
 
 import psutil, socket, platform, cpuinfo
-import netifaces as ni
 import GPUtil as gputil
-from time import time, sleep
+from time import sleep
 import subprocess
 
 import warnings
@@ -152,6 +151,10 @@ from .models import *
 from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
+
+from . import cluster
+__all__.extend( cluster.__all__ )
+from .cluster import *
 
 from . import console
 __all__.extend( console.__all__ )

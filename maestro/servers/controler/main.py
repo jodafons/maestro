@@ -1,12 +1,11 @@
 
 
-import uvicorn, os, shutil, sys
+import uvicorn, os, shutil, sys, time
 from fastapi import FastAPI
 from maestro import schemas, Database, Pilot, Server, ControlPlane
 from maestro import get_system_info
 from maestro.models import Base
 from loguru import logger
-import logging
 
 
 
@@ -79,51 +78,45 @@ def run( args  ):
     # services
 
     control_plane = ControlPlane( db )
-
-    #postman    = Postman(args.email_from, args.email_password)
-    pilot      = Pilot(pilot_url, db, control_plane)
+    pilot         = Pilot(pilot_url, db, control_plane)
 
     if args.tracking_enable:
-        # mlflow tracking server
         tracking   = Server( f"mlflow ui --port {args.tracking_port} --host 0.0.0.0 --backend-store-uri {args.tracking_location}/mlflow  --artifacts-destination {args.tracking_location}/artifacts" )
     else:
         logger.warning("tracking service is disable")
 
-    local_runners = {}
     if args.max_procs > 0:
-        devices = args.device.split(',')
-        runner_port = args.runner_port
-        for device in devices:
-            device=int(device)
-            device_name = f'cuda:{device}' if device>=0 else 'cpu'
-            logger.info(f'starting runner with device {device} and {args.max_procs} slots...')
-            runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {device} --partition {args.partition} --runner-port {runner_port} --database-url {args.database_url}")
-            runner_port+=1
-            local_runners[device_name] = runner
+        logger.info(f'starting runner with device {args.device} and {args.max_procs} slots...')
+        runner = Server(f"maestro run runner --max-procs {args.max_procs} --device {args.device} --partition {args.partition} --runner-port {args.runner_port} --database-url {args.database_url}")
+    else:
+        runner = None
 
     # create master
     app      = FastAPI()
 
     @app.on_event("shutdown")
     async def shutdown_event():
-        
+        logger.info("shutdown event...")
+        pilot.stop()
+        time.sleep(2)
+
         if args.tracking_enable:
             tracking.stop()
 
-        for device_name, runner in local_runners.items():
-            logger.info(f"stopping {device_name} runner service...")
+        if args.max_procs>0:
+            logger.info(f"stopping local runner service...")
             runner.stop()
       
-        pilot.stop()
 
 
     @app.on_event("startup")
     async def startup_event():
+        logger.info("startup event...")
         if args.tracking_enable:
             tracking.start()
 
-        for device_name, runner in local_runners.items():
-            logger.info(f"starting {device_name} runner service...")
+        if args.max_procs > 0:
+            logger.info(f"starting local runner service...")
             runner.start()
       
         pilot.start()

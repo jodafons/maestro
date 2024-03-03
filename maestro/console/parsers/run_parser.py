@@ -1,14 +1,11 @@
 
 __all__ = ["run_parser"]
 
-import glob, traceback, os, argparse, re
+import os, argparse
 from loguru import logger
-from maestro.models import Base, Database
-from rich_argparse import RichHelpFormatter
-from shutil import which
-from time import sleep
 
-from maestro.console.parsers.slurm_parser import cancel_all_jobs, Slurm
+from rich_argparse import RichHelpFormatter
+from maestro.cluster import cancel_all_jobs, Slurm
 
 #
 # run parser
@@ -61,6 +58,11 @@ class run_parser:
     runner_parser.add_argument('--runner-port', action='store', dest='runner_port', type=int,
                                  required=False , default=6000,
                                  help = "the consumer port number")                           
+    
+    # NOTE: disable boot discovery mode to allocate runners given the host devices.                                                              
+    runner_parser.add_argument('--disable-boot-discovery', action='store_false', dest='boot_discovery',
+                                 required=False , 
+                                 help=argparse.SUPPRESS,)
                                                               
 
     #
@@ -131,7 +133,11 @@ class run_parser:
     slurm_parser.add_argument('--slurm-cancel', action='store_true', dest='slurm_cancel',
                               required=False,
                               help = "cancel all tasks.")
-                 
+    
+    slurm_parser.add_argument('--slurm-dry-run', action='store_true', dest='slurm_dry_run',
+                              required=False,
+                              help = "dry run slurm commands.")
+                     
 
     runner_args   = [common_parser, runner_parser, database_parser]
     master_args   = [common_parser, master_parser, runner_parser, tracking_parser, database_parser]
@@ -161,8 +167,11 @@ class run_parser:
 
 
   def runner(self, args):
-    from maestro.servers.runner.main import run
-    run( args )
+    from maestro.servers.runner.main import run, boot_discovery
+    if args.boot_discovery:
+      boot_discovery(args)
+    else:
+      run( args )
 
 
   def master(self, args):
@@ -184,8 +193,8 @@ class run_parser:
                         virtualenv=args.slurm_virtualenv )
 
       launcher.jobname = args.slurm_jobname + '-master'
-      launcher.run( args, master=True )
+      launcher.run( args, master=True, dry_run=args.slurm_dry_run )
 
       for _ in range(args.slurm_nodes-1):
         launcher.jobname = args.slurm_jobname + '-runner'
-        launcher.run(args)
+        launcher.run(args, dry_run=args.slurm_dry_run)
