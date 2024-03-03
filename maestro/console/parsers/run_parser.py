@@ -5,7 +5,7 @@ import os, argparse
 from loguru import logger
 
 from rich_argparse import RichHelpFormatter
-from maestro.cluster import cancel_all_jobs, Slurm
+from maestro.clients.slurm import cancel_all_jobs, Slurm
 
 #
 # run parser

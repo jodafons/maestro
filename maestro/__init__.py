@@ -152,9 +152,9 @@ from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
 
-from . import cluster
-__all__.extend( cluster.__all__ )
-from .cluster import *
+from . import clients
+__all__.extend( clients.__all__ )
+from .clients import *
 
 from . import console
 __all__.extend( console.__all__ )

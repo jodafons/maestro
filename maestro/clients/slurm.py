@@ -101,7 +101,7 @@ class Slurm:
         continue
       if 'slurm' in argument: # skip slurm args by the way
         continue
-      if 'boot' in argument:
+      if 'boot' in argument: # skip boot command since this is hidden for external users
         continue
       if not master: # for runner
         if argument in ['database_recreate']: # skip these args if runner
