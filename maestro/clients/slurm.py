@@ -15,13 +15,11 @@ def get_all_jobs( username : str, jobname : str ):
 
 
 def cancel_all_jobs( account : str, jobname : str):
-
   jobs = get_all_jobs( account, jobname + '-master')
   jobs.extend( get_all_jobs(account, jobname + '-runner') )
   for job_id in jobs:
     logger.info(f"cancel job {job_id}...")
     os.system(f"scancel {job_id}")
-  os.system("rm *.out")
 
 
 

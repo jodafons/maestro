@@ -129,10 +129,6 @@ class run_parser:
     slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_virtualenv', type=str,
                               required=True,
                               help = "the slurm account name.")
-
-    slurm_parser.add_argument('--slurm-cancel', action='store_true', dest='slurm_cancel',
-                              required=False,
-                              help = "cancel all tasks.")
     
     slurm_parser.add_argument('--slurm-dry-run', action='store_true', dest='slurm_dry_run',
                               required=False,
@@ -181,20 +177,15 @@ class run_parser:
 
   def slurm( self, args ):
 
-    if args.slurm_cancel:
-      cancel_all_jobs(args.slurm_account, args.slurm_jobname)
-    else:
-      cancel_all_jobs(args.slurm_account, args.slurm_jobname)
-      args.partition = args.slurm_partition
-      launcher = Slurm( reservation=args.slurm_reservation, 
-                        account=args.slurm_account,
-                        jobname=args.slurm_jobname,
-                        partition=args.slurm_partition,
-                        virtualenv=args.slurm_virtualenv )
+    args.partition = args.slurm_partition
+    launcher = Slurm( reservation=args.slurm_reservation, 
+                      account=args.slurm_account,
+                      jobname=args.slurm_jobname,
+                      partition=args.slurm_partition,
+                      virtualenv=args.slurm_virtualenv )
+    launcher.jobname = args.slurm_jobname + '-master'
+    launcher.run( args, master=True, dry_run=args.slurm_dry_run )
 
-      launcher.jobname = args.slurm_jobname + '-master'
-      launcher.run( args, master=True, dry_run=args.slurm_dry_run )
-
-      for _ in range(args.slurm_nodes-1):
-        launcher.jobname = args.slurm_jobname + '-runner'
-        launcher.run(args, dry_run=args.slurm_dry_run)
+    for _ in range(args.slurm_nodes-1):
+      launcher.jobname = args.slurm_jobname + '-runner'
+      launcher.run(args, dry_run=args.slurm_dry_run)

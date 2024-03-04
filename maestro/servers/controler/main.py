@@ -15,17 +15,22 @@ def setup_logs( server_name , level):
 
     logger.configure(extra={"server_name" : server_name})
     logger.remove()  # Remove any old handler
+    format="<green>{time}</green> | <level>{level:^12}</level> | <cyan>{extra[server_name]:<30}</cyan> | <blue>{message}</blue>"
     logger.add(
         sys.stdout,
         colorize=True,
         backtrace=True,
         diagnose=True,
         level=level,
-        format="<green>{time}</green> | <level>{level:^12}</level> | <cyan>{extra[server_name]:<30}</cyan> | <blue>{message}</blue>",
+        format=format,
     )
-
     output_file = server_name.replace(':','_').replace('-','_') + '.log'
-    logger.add(output_file, rotation="30 minutes", retention=3)
+    logger.add(output_file, 
+               rotation="30 minutes", 
+               retention=3, 
+               format=format, 
+               level=level, 
+               colorize=False)
 
 
 def run( args  ):
