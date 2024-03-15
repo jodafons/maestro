@@ -224,23 +224,20 @@ class Consumer(threading.Thread):
       #logger.info(f"check_resources toke {end-start} seconds")
       return False
 
-
-
-
     
     # NOTE: NODE memory estimation
     sys_avail_memory = self.reserved_memory - sum([slot.sys_memory for slot in self.jobs.values()])
     gpu_avail_memory = self.reserved_gpu_memory - sum([slot.gpu_memory for slot in self.jobs.values()])
-    sys_avail_memory = 0 if sys_avail_memory < 0 else sys_avail_memory
-    gpu_avail_memory = 0 if gpu_avail_memory < 0 else gpu_avail_memory
+    sys_avail_memory = max(0, sys_avail_memory)
+    gpu_avail_memory = max(0, gpu_avail_memory)
     
 
-    #logger.debug(f"task:")
-    #logger.debug(f"      system used memory  : {sys_used_memory} MB")
-    #logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
-    #logger.debug("system now:")
-    #logger.debug(f"      system avail memory : {sys_avail_memory} MB")
-    #logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
+    logger.debug(f"task:")
+    logger.debug(f"      system used memory  : {sys_used_memory} MB")
+    logger.debug(f"      gpu used memory     : {gpu_used_memory} MB")
+    logger.debug("system now:")
+    logger.debug(f"      system avail memory : {sys_avail_memory} MB")
+    logger.debug(f"      gpu avail memory    : {gpu_avail_memory} MB")
 
 
     if sys_avail_memory == 0:
