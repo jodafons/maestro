@@ -100,6 +100,7 @@ def create( session   : Session,
             parents   : list=[],
             envs      : str="{}",
             priority  : int=1,
+            test_bypass: bool=False,
           ) -> bool:
             
   
@@ -178,10 +179,10 @@ def create( session   : Session,
 
       task_db.jobs.append(job_db)
 
-
-    if not test_job( task_db.jobs[0] ):
-      logger.error("local test fail...")
-      return None
+    if not test_bypass:
+      if not test_job( task_db.jobs[0] ):
+        logger.error("local test fail...")
+        return None
    
     if dry_run:
       return task_db.id
@@ -248,7 +249,8 @@ class task_parser:
                         help = "Extra environs to be added into the process environ system during the job execution. The format should be: {'ENV':'VALUE', ...}.")
     create_parser.add_argument('--priority', action='store', dest='priority', required=False, default=1, type=int,
                         help = "the task priority value to give some execution priority into the queue.")
-
+    create_parser.add_argument('--test_bypass', action='store_true', dest='test_bypass', required=False, default=False,
+                        help = "Bypass test...")
 
     delete_parser.add_argument('--id', action='store', dest='id_list', required=False, default='',
                   help = "All task ids to be deleted", type=str)                     
@@ -413,7 +415,8 @@ class task_parser:
                     contact_to=args.contact_to,
                     parents=convert_string_to_range(args.parents),
                     envs=args.envs,
-                    priority=args.priority )
+                    priority=args.priority,
+                    test_bypass=args.test_bypass )
 
 
 
