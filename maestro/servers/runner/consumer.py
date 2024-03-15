@@ -28,8 +28,8 @@ class Consumer(threading.Thread):
                      max_retry           : int=5, 
                      partition           : str='cpu',
                      max_procs           : int=os.cpu_count(),
-                     reserved_memory     : float=1*GB,
-                     reserved_gpu_memory : float=2*GB,
+                     reserved_memory     : float=2*GB,
+                     reserved_gpu_memory : float=0*GB,
                      ):
             
     threading.Thread.__init__(self)

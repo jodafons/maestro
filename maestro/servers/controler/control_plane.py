@@ -107,11 +107,18 @@ class ControlPlane:
                   job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
                   job_gpu_memory  = session().query(func.max(models.Job.gpu_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
                
+                  logger.debug(f"job sys memory: {job_sys_memory}")
+                  logger.debug(f"job gpu memory: {job_gpu_memory}")
+                  
                   if (sys_avail_memory - job_sys_memory) >= 0 and (gpu_avail_memory - job_gpu_memory) >= 0:
                     sys_avail_memory -= job_sys_memory
                     gpu_avail_memory -= job_gpu_memory
                     job_db.consumer      = name
                   else:
+                    logger.info(f"system gpu available memory {gpu_avail_memory}")
+                    logger.info(f"job gpu memory required {job_gpu_memory} MB")
+                    logger.info(f"system available memory {sys_avail_memory} MB")
+                    logger.info( f"job memory required {job_sys_memory} MB")
                     logger.warning(f"not available resouces for job {job_db.id}...")
                     continue
 

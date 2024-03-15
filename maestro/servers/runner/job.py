@@ -59,8 +59,8 @@ class Job:
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_NAME"]                  = job_name
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_ID"]                    = str(self.id)
     self.env[("" if image=="" else "SINGULARITYENV_") + "JOB_DRY_RUN"]               = 'true' if testing else 'false'
-    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_RUN_ID"]             = self.run_id
-    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_URL"]                = tracking_url 
+    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_RUN_ID"]           = self.run_id
+    self.env[("" if image=="" else "SINGULARITYENV_") + "TRACKING_URL"]              = tracking_url 
 
     for env_name, env_value in extra_envs.items():
       self.env[("" if image=="" else "SINGULARITYENV_") + env_name] = env_value
@@ -87,8 +87,8 @@ class Job:
     os.makedirs(self.workarea, exist_ok=True)
 
     entrypoint = f"cd {self.workarea}\n"
-    if self.virtualenv!="":
-      entrypoint+=f"source {self.virtualenv}/bin/activate\n"
+    #if self.virtualenv!="":
+    #  entrypoint+=f"source {self.virtualenv}/bin/activate\n"
     entrypoint+=f"{self.command.replace('%','$')}\n"
 
     # build script command
@@ -117,7 +117,8 @@ class Job:
       print(command)
       
       self.__log_file = open(self.logpath, 'w')
-      self.__proc = subprocess.Popen(command, env=self.env, shell=True, stdout=self.__log_file)
+      #self.__proc = subprocess.Popen(command, env=self.env, shell=True, stdout=self.__log_file)
+      self.__proc = subprocess.Popen(command, env=self.env, shell=True)
 
       sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
       self.__proc_stat = psutil.Process(self.__proc.pid)
