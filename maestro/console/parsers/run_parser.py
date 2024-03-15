@@ -64,7 +64,7 @@ class run_parser:
                                  required=False , 
                                  help=argparse.SUPPRESS,)
                                                               
-
+ 
     #
     # master
     #
@@ -74,6 +74,10 @@ class run_parser:
                                  required=False , default=5000,
                                  help = "the master port number")     
                    
+    master_parser.add_argument('--disable-resources-policy', action='store_true', dest='disable_resources_policy',
+                                 required=False , 
+                                 help="Use this to disable the resource prediction. Beware, use this with caution in conjuntion with max-procs argument.")
+                                                              
 
     #
     # tracking

@@ -144,7 +144,7 @@ class Consumer(threading.Thread):
              job_db.workarea,
              image=job_db.image,
              virtualenv=job_db.virtualenv,
-             device=self.device,
+             device=self.device, 
              binds=binds,
              testing=job_db.task.status == TaskStatus.TESTING,
              run_id=job_db.run_id,

@@ -82,7 +82,7 @@ def run( args  ):
 
     # services
 
-    control_plane = ControlPlane( db )
+    control_plane = ControlPlane( db , bypass_resources_policy = args.disable_resources_policy  )
     pilot         = Pilot(pilot_url, db, control_plane)
 
     if args.tracking_enable:

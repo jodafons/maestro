@@ -3,23 +3,21 @@
 
 __all__ = ["ControlPlane"]
 
-import traceback, threading
 
-from time import time, sleep
+from time import time
 from loguru import logger
 from maestro.enumerations import JobStatus
-from maestro import Database, schemas, models
-
-from sqlalchemy.sql import func, desc
-#from sqlalchemy import desc
+from maestro import  models
+from sqlalchemy.sql import func
 
 
 class ControlPlane:
 
 
   def __init__(self, 
-               db : models.Database,
+               db        : models.Database,
                max_retry : int=5,
+               bypass_resources_policy    : bool=False,
               ):
 
     #threading.Thread.__init__(self)
@@ -27,6 +25,7 @@ class ControlPlane:
     self.db        = models.Database(db.host)
     self.dispatcher= {}
     self.max_retry = max_retry
+    self.bypass_resources_policy = bypass_resources_policy
 
 
   def push_back(self, dispatcher):
@@ -46,6 +45,9 @@ class ControlPlane:
     self.dispatcher = { name:dispatcher for name, dispatcher in self.dispatcher.items() if dispatcher.is_alive()}
 
     logger.debug("put back all jobs into the queue...")
+
+    if self.bypass_resources_policy:
+      logger.warning("bypassing resource policy....")
 
     # NOTE: put back all jobs that reached the max number of retries for the given node 
     with self.db as session:
@@ -110,10 +112,10 @@ class ControlPlane:
                   logger.debug(f"job sys memory: {job_sys_memory}")
                   logger.debug(f"job gpu memory: {job_gpu_memory}")
                   
-                  if (sys_avail_memory - job_sys_memory) >= 0 and (gpu_avail_memory - job_gpu_memory) >= 0:
+                  if ( (sys_avail_memory - job_sys_memory) >= 0 and (gpu_avail_memory - job_gpu_memory) >= 0) or (self.bypass_resources_policy):
                     sys_avail_memory -= job_sys_memory
                     gpu_avail_memory -= job_gpu_memory
-                    job_db.consumer      = name
+                    job_db.consumer   = name
                   else:
                     logger.info(f"system gpu available memory {gpu_avail_memory}")
                     logger.info(f"job gpu memory required {job_gpu_memory} MB")
