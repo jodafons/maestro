@@ -122,7 +122,7 @@ class Dispatcher(threading.Thread):
     self.client    = schemas.client(self.host_url, "runner")
     self.max_retry = max_retry
     self.name      = host_url #get_hostname_from_url(host_url)
-    
+    self.retry     = 0
 
   def configure(self):
     
