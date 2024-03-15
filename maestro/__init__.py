@@ -45,7 +45,7 @@ def get_gpu_memory_info(device=0, pretty=False):
       total  = convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal
       used   = convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed
       avail  = convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree
-      usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100,
+      usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100
       return total, avail, used, usage
     else:
       return 0,0,0,0
