@@ -4,11 +4,13 @@
 __all__ = ["ControlPlane"]
 
 
-from time import time
+from time import time, sleep
 from loguru import logger
 from maestro.enumerations import JobStatus
-from maestro import  models
+from maestro import  models, MINUTES
 from sqlalchemy.sql import func
+import queue
+import datetime
 
 
 class ControlPlane:
@@ -27,15 +29,31 @@ class ControlPlane:
     self.max_retry = max_retry
     self.bypass_resources_policy = bypass_resources_policy
 
+    self.__queue = queue.Queue(maxsize=100)
+
+
 
   def push_back(self, dispatcher):
-    self.dispatcher[ dispatcher.name ] = dispatcher
-    dispatcher.start()
+    if not dispatcher.name in self.dispatcher.keys():
+      self.__queue.put(dispatcher)
+      return True
+    return False
 
 
+  #
+  # Loop over control
+  #
   def loop(self):
 
     logger.debug("starting control plane...")
+
+    while (not self.__queue.empty()):
+      dispatcher = self.__queue.get_nowait()
+      dispatcher.start()
+      sleep(1)
+      self.dispatcher[dispatcher.name]=dispatcher
+     
+
     start = time()
 
     # NOTE: remove all dispatcher that is not alive and reached the max number of retry (not ping)
@@ -51,14 +69,18 @@ class ControlPlane:
 
     # NOTE: put back all jobs that reached the max number of retries for the given node 
     with self.db as session:
-      
-      # put jobs back in case of many retries
+
+      # NOTE: if we have jobs with ASSIGNED and consumer, we need to check:
+      # max retry
+      # time in assigned status      
       for job in ( session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
-                                             .filter(models.Job.consumer!="")\
-                                             .filter(models.Job.consumer_retry>self.max_retry).with_for_update().all() ):
-        job.consumer       = ""
-        job.consumer_retry = 0
-        logger.debug(f"putting job {job.id} back into the queue...")
+                                              .filter(models.Job.consumer!="").with_for_update().all() ):
+        
+        if (job.consumer_retry > self.max_retry) or ( (datetime.datetime.now() - job.timer).total_seconds() > 5*MINUTES ):
+          job.consumer       = ""
+          job.consumer_retry = 0
+          job.ping()
+          logger.debug(f"putting job {job.id} back into the queue...")
 
       session.commit()
 
@@ -93,17 +115,16 @@ class ControlPlane:
                 # get n jobs from db with status assigned, that allow to this queue and was not
                 # assigned to any node
                 jobs = (session().query(models.Job).filter(models.Job.status==JobStatus.ASSIGNED)\
-                                               .filter(models.Job.partition==partition)\
-                                               .filter(models.Job.consumer=="")\
-                                               .order_by(models.Job.priority.desc())\
-                                               .order_by(models.Job.id).limit(procs).all() )
+                                                   .filter(models.Job.partition==partition)\
+                                                   .filter(models.Job.consumer=="")\
+                                                   .order_by(models.Job.priority.desc())\
+                                                   .order_by(models.Job.id).limit(procs).all() )
             
 
               
                 logger.debug(f"we get {len(jobs)} from the database using {partition} partition...")
                 
                 for job_db in jobs:
-
 
                   # NOTE: JOB memory estimation
                   job_sys_memory  = session().query(func.max(models.Job.sys_used_memory)).filter(models.Job.taskid==job_db.task.id).first()[0]
@@ -116,6 +137,7 @@ class ControlPlane:
                     sys_avail_memory -= job_sys_memory
                     gpu_avail_memory -= job_gpu_memory
                     job_db.consumer   = name
+                    job_db.ping()
                   else:
                     logger.info(f"system gpu available memory {gpu_avail_memory}")
                     logger.info(f"job gpu memory required {job_gpu_memory} MB")
@@ -136,7 +158,6 @@ class ControlPlane:
 
   def stop(self):
 
-    #self.__stop.set()
     logger.info("stopping consumer service...")
     for dispatcher in self.dispatcher.values():
       dispatcher.stop()

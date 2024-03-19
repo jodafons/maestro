@@ -1,14 +1,15 @@
 
 __all__ = ["Pilot"]
 
-import traceback, threading
+import traceback, threading, datetime
 
 from time import time, sleep
 from loguru import logger
 from maestro.enumerations import JobStatus
-from maestro import Database, schemas, models
+from maestro import Database, schemas, models, MINUTES
+from maestro.models import Job
 from maestro.servers.controler import Schedule, ControlPlane
-from maestro import get_hostname_from_url
+
 
 
 
@@ -22,26 +23,32 @@ class Pilot( threading.Thread ):
               ):
 
     threading.Thread.__init__(self)
-    self.host_url  = host_url
-    self.__stop    = threading.Event()
-    self.__lock    = threading.Event()
-    self.__lock.set()
-    self.db = models.Database(db.host)
+    self.host_url      = host_url
+    self.__stop        = threading.Event()
+    self.db            = models.Database(db.host)
     self.control_plane = control_plane
     self.schedule = {}
 
 
 
   def run(self):
+ 
+    # NOTE: This will run only at the begginer of the master node to clean-up all jobs with ASSIGNED status and consumer.
+    with self.db as session:
+      logger.debug("Treat jobs with status asigned assigned from the last execution...")
+      jobs = session().query(Job).filter( Job.status==JobStatus.ASSIGNED ).filter(Job.consumer!="").with_for_update().all()
+      for job in jobs:
+        if (datetime.datetime.now() - job.timer).total_seconds() > 5*MINUTES :
+          logger.info(f"resetting job {job.id}...")
+          job.consumer=""
+          job.consumer_retry = 0
+          job.ping()
+      session.commit()
+
+
     while not self.__stop.isSet():
       sleep(1)
-      # NOTE wait to be set
-      self.__lock.wait() 
-      # NOTE: when set, we will need to wait to register until this loop is read
-      self.__lock.clear()
       self.loop()
-      # NOTE: allow external user to incluse nodes into the list
-      self.__lock.set()
 
 
   def loop(self):
@@ -55,7 +62,7 @@ class Pilot( threading.Thread ):
     self.control_plane.loop()
 
     end = time()
-    logger.debug(f"the pilot run loop took {end-start} seconds.")
+    logger.info(f"the pilot run loop took {end-start} seconds.")
 
   
 
@@ -73,17 +80,12 @@ class Pilot( threading.Thread ):
 
 
   def join_as( self, host_url ) -> bool:
-
     if host_url not in self.control_plane.dispatcher.keys():
       logger.info(f"join node {host_url} into the pilot.")
       dispatcher = Dispatcher(host_url, self.db)
       if dispatcher.configure():
-        self.__lock.wait()
-        self.__lock.clear()
-        logger.info("attaching dispatcher into the control plane...")
-        self.control_plane.push_back( dispatcher )
-        self.__lock.set()
-        return True
+        logger.info(f"attaching {host_url} dispatcher into the control plane...")
+        return self.control_plane.push_back( dispatcher )
           
     return False
     
@@ -125,7 +127,7 @@ class Dispatcher(threading.Thread):
     self.retry     = 0
 
   def configure(self):
-    
+    logger.info(f"configure {self.host_url}...")
     if self.client.ping():
       answer = self.client.try_request("system_info" , method="get")
       consumer = answer.metadata['consumer']
@@ -134,8 +136,9 @@ class Dispatcher(threading.Thread):
     else:
       logger.error(f"failed to retrieve the node configuration from {self.host_url}")
       return False
-
+    logger.info("configuration done...")
     return True
+
 
   def stop(self):
     logger.info("stopping service...")
@@ -149,7 +152,7 @@ class Dispatcher(threading.Thread):
      
 
   def loop(self):
-    logger.debug("=======================================================")
+    logger.info(f"========================= {self.name} ==============================")
     try:
       start = time()
       with self.db as session:
@@ -168,19 +171,19 @@ class Dispatcher(threading.Thread):
                                                  .order_by(models.Job.id).limit(n).all()
               )
               jobs = [job.id for job in jobs]
-              logger.debug(f"getting {len(jobs)} jobs from {self.partition} partition...")
+              logger.info(f"getting {len(jobs)} jobs from {self.partition} partition...")
               if len(jobs)>0:
                 job_start=time()
                 body = schemas.Request(host=self.host_url, metadata={'jobs':jobs})
                 self.client.try_request(f'start_job', method='post', body=body.json())
                 job_end=time()
-                logger.debug(f"start job requests toke {job_end-job_start} seconds...")
+                logger.info(f"start job requests toke {job_end-job_start} seconds...")
 
         else:
           self.retry += 1
 
       end = time()
-      logger.debug(f"dispatcher toke {end-start} seconds...")
+      logger.info(f"dispatcher toke {end-start} seconds...")
 
     except Exception as e:
       traceback.print_exc()
@@ -192,4 +195,4 @@ class Dispatcher(threading.Thread):
       logger.error("stopping dispatcher since max_retry value reached.")
       self.stop()
 
-    logger.debug("=======================================================")
+    logger.info("=======================================================")

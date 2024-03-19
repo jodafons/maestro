@@ -1,6 +1,6 @@
 
 __all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "get_hostname_from_url",
-           "Server", "GB"]
+           "Server", "GB", "SECONDS", "MINUTES"]
 
 import psutil, socket, platform, cpuinfo
 import GPUtil as gputil
@@ -11,6 +11,9 @@ import warnings
 warnings.filterwarnings("ignore")
 
 GB = 1024
+
+SECONDS=1
+MINUTES=60*SECONDS
 
 
 def convert_bytes(size):

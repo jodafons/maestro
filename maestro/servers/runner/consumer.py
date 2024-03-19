@@ -28,7 +28,7 @@ class Consumer(threading.Thread):
                      max_retry           : int=5, 
                      partition           : str='cpu',
                      max_procs           : int=os.cpu_count(),
-                     reserved_memory     : float=2*GB,
+                     reserved_memory     : float=1.5*GB,
                      reserved_gpu_memory : float=0*GB,
                      ):
             
@@ -79,18 +79,23 @@ class Consumer(threading.Thread):
 
 
   def run(self):
-
+    logger.info("starting thread...")
+    count=0
     while (not self.__stop.isSet()):
 
       sleep(1)
       server = schemas.client( self.server_url, 'pilot')
       answer = server.try_request(f'join', method="post", body=schemas.Request( host=self.host_url     ).json())
       if answer.status:
-        logger.debug(f"connected with {answer.host}")
         self.loop()
+        count+=1
+        if count>5:
+          logger.info("loop...")
+          count=0
       else:
         logger.error("not possible to connect with the server...")
   
+    logger.info("thread done...")
 
   def blocked(self):
     return any([slot.job.testing for slot in self.jobs.values()])

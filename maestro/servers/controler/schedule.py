@@ -313,7 +313,10 @@ class Schedule(threading.Thread):
         jobs = session().query(Job).filter( and_(Job.taskid==self.task_id, or_(Job.status==JobStatus.RUNNING, Job.status==JobStatus.PENDING)) ).with_for_update().all()
         for job in jobs:
           if not job.is_alive():
+            logger.info(f"putting back job {job.id} with status {job.status} into the queue...")
             job.status = JobStatus.ASSIGNED
+            job.consumer= ""
+            job.ping()
             update_status(self, job)
         session.commit()
     except Exception as e:

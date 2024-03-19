@@ -108,6 +108,7 @@ def run( args ):
 
     @app.get("/runner/system_info")
     async def system_info() -> schemas.Answer:
+        logger.info("getting info...")
         return schemas.Answer( host=consumer.host_url, metadata=consumer.system_info() )
 
 
