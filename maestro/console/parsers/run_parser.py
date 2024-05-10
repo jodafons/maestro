@@ -155,15 +155,21 @@ class run_parser:
 
 
   def parser( self, args ):
+
+
     if args.mode == 'run':
-      if args.option == 'runner':
-        self.runner(args)
-      elif args.option == 'master':
-        self.master(args)
-      elif args.option == 'slurm':
-        self.slurm(args)
+
+      if "SINGULARITY_BIND" in os.environ.keys():
+        logger.error("its not possible to start the service inside a singularity image. Please, do this outside.")
       else:
-        logger.error("Option not available.")
+        if args.option == 'runner':
+          self.runner(args)
+        elif args.option == 'master':
+          self.master(args)
+        elif args.option == 'slurm':
+          self.slurm(args)
+        else:
+          logger.error("Option not available.")
 
 
   def runner(self, args):
