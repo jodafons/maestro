@@ -127,11 +127,11 @@ class run_parser:
                               help = "the slurm job name.")
                                  
     slurm_parser.add_argument('--slurm-account', action='store', dest='slurm_account', type=str,
-                              required=True,
+                              required=True,ls
                               help = "the slurm account name.")
            
     slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_virtualenv', type=str,
-                              required=True,
+                              required=False,
                               help = "the slurm account name.")
     
     slurm_parser.add_argument('--slurm-dry-run', action='store_true', dest='slurm_dry_run',
