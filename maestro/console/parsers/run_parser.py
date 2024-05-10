@@ -127,12 +127,12 @@ class run_parser:
                               help = "the slurm job name.")
                                  
     slurm_parser.add_argument('--slurm-account', action='store', dest='slurm_account', type=str,
-                              required=True,ls
+                              required=False, default=os.environ["USER"],
                               help = "the slurm account name.")
            
     slurm_parser.add_argument('--slurm-virtualenv', action='store', dest='slurm_virtualenv', type=str,
-                              required=False,
-                              help = "the slurm account name.")
+                              required=False, default=None,
+                              help = "the slurm virtualenv path in case of using a local maestro installation.")
     
     slurm_parser.add_argument('--slurm-dry-run', action='store_true', dest='slurm_dry_run',
                               required=False,
