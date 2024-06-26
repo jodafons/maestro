@@ -223,6 +223,8 @@ class task_parser:
                   required=False, default =  os.environ["DATABASE_SERVER_URL"] ,
                   help = "the database url endpoint.")
 
+    create_parser.add_argument('--basepath', action='store', dest='basepath', required=False, default=os.getcwd(),
+                        help = "The path where the task must be record. default is the current path.")
 
     create_parser.add_argument('-t','--task', action='store', dest='taskname', required=True,
                         help = "The name of the task to be included into the maestro.")
@@ -278,7 +280,7 @@ class task_parser:
 
     if args.mode == 'task':
       if args.option == 'create':
-        self.create(os.getcwd(), args)
+        self.create(args.basepath, args)
       elif args.option == 'retry':
         self.retry(convert_string_to_range(args.id_list), args)
       elif args.option == 'delete':
