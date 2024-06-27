@@ -102,7 +102,7 @@ class Slurm:
       if 'boot' in argument: # skip boot command since this is hidden for external users
         continue
       if not master: # for runner
-        if argument in ['database_recreate']: # skip these args if runner
+        if argument in ['database_recreate', 'disable-resources-policy']: # skip these args if runner
           continue
         if 'tracking_' in argument: # skip tracking args
           continue
