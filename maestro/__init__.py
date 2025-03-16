@@ -1,168 +1,150 @@
+__all__ = [
+    "setup_logs",
+    "get_argparser_formatter",
+    "GB",
+    "random_id",
+    "random_token",
+    "md5checksum",
+    "StatusCode",
+    ]
 
-__all__ = ["system_info", "get_memory_info", "get_gpu_memory_info", "get_hostname_from_url",
-           "Server", "GB", "SECONDS", "MINUTES"]
+import uuid, hashlib, sys, argparse
+from loguru import logger
+from rich_argparse import RichHelpFormatter
+from copy import copy
 
-import psutil, socket, platform, cpuinfo
-import GPUtil as gputil
-from time import sleep
-import subprocess
-
-import warnings
-warnings.filterwarnings("ignore")
-
-GB = 1024
-
-SECONDS=1
-MINUTES=60*SECONDS
-
-
-def convert_bytes(size):
-    for x in ['MB', 'GB', 'TB']:
-        if size < 1024.0:
-            return "%3.1f %s" % (size, x)
-        size /= 1024.0
-    return size
-
-def get_ip_address():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.connect(("8.8.8.8", 80))
-    return s.getsockname()[0]
+GB=1024
 
 
-def get_hostname_from_url( url ):
-  return url.split('@')[1].split(':')[0]
-
-def get_memory_info(pretty=False):
-    svmem = psutil.virtual_memory()
-    total = convert_bytes( svmem.total/(1024**2) ) if pretty else svmem.total/(1024**2)
-    avail = convert_bytes( svmem.available/(1024**2) ) if pretty else svmem.available/(1024**2)
-    used  = convert_bytes( svmem.used/(1024**2) ) if pretty else svmem.used/(1024**2)
-    usage = svmem.percent,
-    return total, avail, used, usage
-
-
-def get_gpu_memory_info(device=0, pretty=False):
-    gpus = gputil.getGPUs()
-    if gpus:
-      gpu = gpus[device]
-      total  = convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal
-      used   = convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed
-      avail  = convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree
-      usage  = (gpu.memoryUsed/gpu.memoryTotal) * 100
-      return total, avail, used, usage
+def get_argparser_formatter( custom : bool=True):
+    if custom:
+        RichHelpFormatter.styles["argparse.args"]     = "green"
+        RichHelpFormatter.styles["argparse.prog"]     = "bold grey50"
+        RichHelpFormatter.styles["argparse.groups"]   = "bold green"
+        RichHelpFormatter.styles["argparse.help"]     = "grey50"
+        RichHelpFormatter.styles["argparse.metavar"]  = "blue"
+        return RichHelpFormatter
     else:
-      return 0,0,0,0
+        return argparse.HelpFormatter
 
+def setup_logs( name , level, save : bool=False, color="cyan"):
+    """Setup and configure the logger"""
 
-def get_system_info(pretty=False):
-
-    hostname = socket.gethostname()
-
-    # NOTE: all memory values in MB
-    uname = platform.uname()
-    svmem = psutil.virtual_memory()
-    devices = []
-    for gpu in gputil.getGPUs():
-      device = { # returns always in MB
-        'name'  : gpu.name,
-        'id'    : gpu.id,
-        'total' : convert_bytes(gpu.memoryTotal) if pretty else gpu.memoryTotal,
-        'used'  : convert_bytes(gpu.memoryUsed) if pretty else gpu.memoryUsed,
-        'avail' : convert_bytes(gpu.memoryFree) if pretty else gpu.memoryFree,
-        'usage' : (gpu.memoryUsed/gpu.memoryTotal) * 100,
-      }
-      devices.append(device)
-
-    memory_info = { # alsways in bytes, convert to MB
-      'total' : convert_bytes( svmem.total/(1024**2) ) if pretty else svmem.total/(1024**2),
-      'avail' : convert_bytes( svmem.available/(1024**2) ) if pretty else svmem.available/(1024**2),
-      'used'  : convert_bytes( svmem.used/(1024**2) ) if pretty else svmem.used/(1024**2),
-      'usage' : svmem.percent,
-    }
-
-    cpu_info = {
-      'processor'  : cpuinfo.get_cpu_info()["brand_raw"],
-      'count'      : psutil.cpu_count(logical=True),
-      'usage'      : psutil.cpu_percent(),
-    }
-
-
-    system_info = {
-      'system'     : uname.system,
-      'version'    : uname.version,
-      'machine'    : uname.machine,
-      'release'    : uname.release,
-    }
-
-
-    #iname = [ name for name in ni.interfaces() if 'enp' in name][0]
-
-    network_info = {
-      'ip_address' : get_ip_address(),
-    }
-
-    return { # return the node information
-      'hostname'   : hostname,
-      'network'    : network_info,
-      'system'     : system_info,
-      'memory'     : memory_info,
-      'cpu'        : cpu_info,
-      'gpu'        : devices,
-    }
+    logger.configure(extra={"name" : name})
+    logger.remove()  # Remove any old handler
+    #format="<green>{time:DD-MMM-YYYY HH:mm:ss}</green> | <level>{level:^12}</level> | <cyan>{extra[slurms_name]:<30}</cyan> | <blue>{message}</blue>"
+    format="<"+color+">{extra[name]:^25}</"+color+"> | <green>{time:DD-MMM-YYYY HH:mm:ss}</green> | <level>{level:^12}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | <blue>{message}</blue>"
+    logger.add(
+        sys.stdout,
+        colorize=True,
+        backtrace=True,
+        diagnose=True,
+        level=level,
+        format=format,
+    )
+    if save:
+        output_file = name.replace(':','_').replace('-','_') + '.log'
+        logger.add(output_file, 
+                   rotation="30 minutes", 
+                   retention=3, 
+                   format=format, 
+                   level=level, 
+                   colorize=False)   
 
 
 
 
+def random_id():
+    new_uuid = uuid.uuid4()
+    return str(new_uuid)[-12:]
+
+def random_token():
+    new_uuid = str(uuid.uuid4()) + str(uuid.uuid4())
+    return new_uuid.replace('-','')
+
+def md5checksum(fname):
+    md5 = hashlib.md5()
+    f = open(fname, "rb")
+    while chunk := f.read(4096):
+        md5.update(chunk)
+    return md5.hexdigest()
 
 
+class StatusObj(object):
 
-class Server:
+  _status = 1
 
-  def __init__(self , command ):
-    self.command = command
+  def __init__(self, sc):
+    self._status = sc
+    self._value  = True
+    self._reason = ""
 
-  def start(self):
-    print(self.command)
-    self.__proc = subprocess.Popen(self.command, shell=True)
-    sleep(1) # NOTE: wait for 2 seconds to check if the proc really start.
-    self.__proc_stat = psutil.Process(self.__proc.pid)
-
-  def is_alive(self):
-    return True if (self.__proc and self.__proc.poll() is None) else False
-
-  def stop(self):
-    if self.is_alive():
-      children = self.__proc_stat.children(recursive=True)
-      for child in children:
-        p=psutil.Process(child.pid)
-        p.kill()
-      self.__proc.kill()
-      self.killed=True
+  def isFailure(self):
+    if self._status < 1:
+      return True
     else:
-      self.killed=True
+      return False
+    
+  def result(self, key : str=None):
+     return self._value if not key else self._value[key]
+  
+  def reason(self):
+     return self._reason
+    
+  def __call__(self, value=True, reason : str=""):
+     
+    obj = copy(self)
+    obj._value = value
+    obj._reason = reason
+    return obj
+
+  def __eq__(self, a, b):
+    if a.status == b.status:
+      return True
+    else:
+      return False
+
+  def __ne__(self, a, b):
+    if a.status != b.status:
+      return True
+    else:
+      return False
+
+  @property
+  def status(self):
+    return self._status
 
 
 
-from . import enumerations
-__all__.extend( enumerations.__all__ )
-from .enumerations import *
-
-from . import models
-__all__.extend( models.__all__ )
-from .models import *
+# status code enumeration
+class StatusCode(object):
+  """
+    The status code of something
+  """
+  SUCCESS = StatusObj(1)
+  FAILURE = StatusObj(0)
+  FATAL   = StatusObj(-1)
 
 from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
 
-from . import clients
-__all__.extend( clients.__all__ )
-from .clients import *
+from . import db
+__all__.extend( db.__all__ )
+from .db import *
 
-from . import console
-__all__.extend( console.__all__ )
-from .console import *
+from . import io
+__all__.extend( io.__all__ )
+from .io import *
 
-from . import servers
-__all__.extend( servers.__all__ )
-from .servers import *
+#from . import slurm
+#__all__.extend( slurm.__all__ )
+#from .slurm import *
+
+#from . import manager
+#__all__.extend( manager.__all__ )
+#from .manager import *
+
+#from . import schedulers
+#__all__.extend( schedulers.__all__ )
+#from .schedulers import *
