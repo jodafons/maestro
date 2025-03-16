@@ -8,9 +8,9 @@ from fastapi import APIRouter, File, UploadFile, Request, Form, HTTPException
 from fastapi.responses import RedirectResponse, StreamingResponse 
 
 
-from qio.db import get_db_service
-from qio import schemas, get_manager_service
-from qio.routes import remote_app, raise_authentication_failure, raise_http_exception
+from maestro.db import get_db_service
+from maestro import schemas, get_manager_service
+from maestro.routes import remote_app, raise_authentication_failure, raise_http_exception
 
 
 
