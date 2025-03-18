@@ -4,7 +4,7 @@ import os
 import shutil
 import pickle
 from loguru         import logger
-from typing         import Any
+from typing         import Any, Callable
 from expand_folders import expand_folders
 from maestro        import schemas, random_id, md5checksum
 from maestro.db     import get_db_service, models
@@ -16,11 +16,13 @@ __io_service = None
 class IOJob:
 
     def __init__(self, job_id : str, volume : str):
-        self.volume   = volume
-        self.job_id   = job_id
-        db_service    = get_db_service()
-        self.task_id  = db_service.job(job_id).fetch_task()
-        self.basepath = f"{self.volume}/tasks/{self.task_id}/{self.job_id}"
+        self.volume    = volume
+        self.job_id    = job_id
+        db_service     = get_db_service()   
+        user_id        = db_service.job(job_id).fetch_owner()
+        self.user_name = db_service.user(user_id).fetch_name()
+        self.task_name = db_service.job(job_id).fetch_task_name()
+        self.basepath  = f"{self.volume}/{self.user_name}/tasks/{self.task_name}/{self.job_id}"
 
     def mkdir(self):
         os.makedirs(self.basepath, exist_ok=True)
@@ -33,8 +35,10 @@ class IODataset:
         self.volume     = volume
         self.dataset_id = dataset_id
         db_service      = get_db_service()
+        user_id         = db_service.dataset(dataset_id).fetch_owner()
+        self.user_name  = db_service.user(user_id).fetch_name()
         self.name       = db_service.dataset(dataset_id).fetch_name()
-        self.basepath   = f"{self.volume}/datasets/{name}"
+        self.basepath   = f"{self.volume}/{self.user_name}/datasets/{self.name}"
 
     def count(self):
         return len(expand_folders(self.basepath)) if os.path.exists(self.basepath) else 0
@@ -64,7 +68,7 @@ class IODataset:
             if not db_service.dataset(self.dataset_id).check_file_existence_by_name( filename ):
                 with db_service() as session:
                     file_id = random_id()
-                    dataset_db = session.query(models.Dataset).filter_by(dataset_id=self.dataset_id).one()
+                    dataset_db       = session.query(models.Dataset).filter_by(dataset_id=self.dataset_id).one()
                     file_db          = models.File(file_id=file_id, dataset_id=self.dataset_id)
                     file_db.name     = filename
                     file_db.file_md5 = md5checksum( filepath )
@@ -82,13 +86,11 @@ class IODataset:
         return True
 
 
-
-
-    def load(self, filename : str) -> Any:
+    def load(self, filename : str, load_f : Callable=None) -> Any:
         
         filepath=f"{self.basepath}/{filename}"
         if not self.check_existence(filename):
-            raise QioError(f"file with name {filename} does not exist into the dataset and storage.")
+            raise MaestroError(f"file with name {filename} does not exist into the dataset and storage.")
         
         if filename.endswith(".pkl"):
             with open(filepath, 'rb') as f:
@@ -96,8 +98,10 @@ class IODataset:
         elif filename.endswith(".json"):
             with open(filepath, 'r') as f:
                 object = schemas.json_load(f)
+        elif load_f:
+            object = load_f(filepath)
         else:
-            raise QioError(f"Its not possible load file with name {filename} using this extension.")
+            raise MaestroError(f"Its not possible load file with name {filename} using this extension.")
         return object
 
     def check_existence(self, filename):
@@ -109,10 +113,7 @@ class IOService:
 
     def __init__(self, volume : str):
         self.volume = volume
-        os.makedirs(f"{volume}", exist_ok=True)
-        os.makedirs(f"{volume}/tasks", exist_ok=True)
-        os.makedirs(f"{volume}/datasets", exist_ok=True)
-        
+        os.makedirs(f"{volume}", exist_ok=True)  
 
     def job(self, job_id : str) -> IOJob:
         return IOJob(job_id, self.volume)

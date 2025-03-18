@@ -11,10 +11,10 @@ from loguru            import logger
 from fastapi           import FastAPI
 from fastapi.responses import PlainTextResponse
 from maestro           import setup_logs
-#from maestro           import get_manager_service
+from maestro           import get_manager_service, create_user
 #from maestro           import get_scheduler_service
 #from maestro           import get_slurm_service
-#from maestro           import routes
+from maestro           import routes
 from maestro.db        import get_db_service, recreate_db
 from maestro.io        import get_io_service
 
@@ -61,16 +61,19 @@ def run( args ):
     # create app
     #
     app = FastAPI(title=__name__)
-    #app.include_router(routes.remote_app)
-    #app.include_router(routes.dataset_app)
+    app.include_router(routes.remote_app)
+    app.include_router(routes.user_app)
+    app.include_router(routes.dataset_app)
     #app.include_router(routes.task_app)
     #app.include_router(routes.image_app)
 
 
     @app.on_event("startup")
     def startup_event():
+        envs={}
         # create all services for the first time...
-        #get_manager_service(args.host, envs=envs)
+        get_manager_service(envs=envs)
+        create_user()
         #get_slurm_service(args.slurm_account)
         #scheduler_service = get_scheduler_service()
         #scheduler_service.start()    
@@ -88,8 +91,8 @@ def run( args ):
         return PlainTextResponse("OK", status_code=200)
 
 
-    app_level = "warning"
-    #app_level = 'info'
+    #app_level = "warning"
+    app_level = 'info'
     port = int(args.host.split(':')[2])
     uvicorn.run(app, port=port, log_level=app_level, host="0.0.0.0")
                 

@@ -24,13 +24,9 @@ class DatasetManager:
 
     def __init__(
         self, 
-        user_id : str,
-        host    : str, 
-        envs    : Dict[str,str]
+        envs : Dict[str,str]
     ):
-        self.host=host
-        self.envs=envs
-
+       self.envs=envs
 
 
     def create(
@@ -56,7 +52,7 @@ class DatasetManager:
         dataset_db.dataset_id  = new_id
         dataset_db.name        = dataset.name
         dataset_db.description = dataset.description
-        dataset_db.dataset_type= DatasetType.FILES
+        dataset_db.data_type   = DatasetType.FILES
         db_service.save_dataset(dataset_db)
 
         io_service = get_io_service()
@@ -247,14 +243,14 @@ class DatasetManager:
 
         db_service = get_db_service()
         io_service = get_io_service()
-
+        print(name)
         if not db_service.check_dataset_existence_by_name(name):
             reason=f"dataset with name {name} does not exist into the db."
             logger.info(reason)
             return StatusCode.SUCCESS(False)
 
         dataset_id = db_service.fetch_dataset_from_name(name)
-
+        print(dataset_id)
         if filename and not io_service.dataset(dataset_id).check_existence(filename):
             reason=f"filename with name {filename} does not exist into the dataset {name}"
             logger.info(reason)

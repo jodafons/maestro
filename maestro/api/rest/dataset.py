@@ -12,8 +12,8 @@ from expand_folders import expand_folders
 from urllib.parse import urljoin
 from typing import List, Union
 from loguru import logger
-from .. import schemas
-from ...exceptions import *
+from maestro import schemas
+from maestro.exceptions import MaestroRuntimeError
 
 
 
@@ -27,7 +27,7 @@ def md5checksum(fname):
 
 
 
-class MaestroRuntimeDatasetAPIClient:
+class DatasetAPIClient:
 
 
     def __init__(self, session ):
@@ -42,7 +42,7 @@ class MaestroRuntimeDatasetAPIClient:
         res = self.session.put(f"/remote/dataset/options/exist", data=payload)
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise MaetroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             return res[2].json()
 

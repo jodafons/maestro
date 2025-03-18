@@ -23,13 +23,11 @@ class TaskManager:
     def __init__(
         self, 
         user_id : str,
-        host    : str, 
         envs    : Dict[str,str],
     ):
-        self.host=host
         self.envs=envs
         self.user_id=user_id
-        self.username=get_db_service().user(user_id).fetch_username()
+        self.use_rname=get_db_service().user(user_id).fetch_name()
 
 
     def status(

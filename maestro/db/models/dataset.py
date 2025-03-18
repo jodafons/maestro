@@ -34,7 +34,7 @@ class Dataset(Base):
     updated_time   = Column(DateTime)
     description    = Column(String, default="")
     visible        = Column(Boolean  , default=True)
-    dataset_type   = Column(Enum(DatasetFlavor) , default=DatasetType.FILES)
+    dataset_type   = Column(Enum(DatasetType) , default=DatasetType.FILES)
     files          = relationship("File", order_by="File.id", back_populates="dataset")
 
 
@@ -51,7 +51,7 @@ class File(Base):
     dataset_id    = Column(String(64))
     file_md5      = Column(String(64))
     name          = Column(String)
-    file_type     = Column(Enum(FileStatus) , default=FileType.DATA)
+    file_type     = Column(Enum(FileType) , default=FileType.DATA)
     path          = Column(String)
     updated_time  = Column(DateTime)     
     dataset       = relationship("Dataset", back_populates="files")

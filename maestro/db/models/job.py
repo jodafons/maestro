@@ -45,6 +45,7 @@ class Job (Base):
     id                  = Column(Integer, primary_key = True)
     job_id              = Column(String(64))
     task_id             = Column(String(64))
+    user_id             = Column(String(64))
     command             = Column(String , default="")
     workarea            = Column(String)
     envs                = Column(String, default="{}")
@@ -94,18 +95,18 @@ class DBJob:
     def check_existence(self):
         session = self.__session()
         try:
-           exp = session.query( 
+           job = session.query( 
                     session.query(Task).filter_by(job_id=self.job_id).exists() 
            ).scalar()
-           return exp
+           return job
         finally:
             session.close()
 
     def update_status(self, status : JobStatus):
         session = self.__session()
         try:
-            exp = session.query(Job).filter_by(job_id=self.job_id).one()
-            setattr(exp, "status", status)
+            job = session.query(Job).filter_by(job_id=self.job_id).one()
+            setattr(job, "status", status)
             session.commit()
         finally:
             session.close()
@@ -114,13 +115,13 @@ class DBJob:
         session = self.__session()
         try:
             fields = [Job.status]
-            exp = (
+            job = (
                 session.query(Job)
                 .filter_by(job_id=self.job_id)
                 .options(load_only(*fields))
                 .one()
             )
-            return exp.status
+            return job.status
         finally:
             session.close()
 
@@ -128,25 +129,25 @@ class DBJob:
         session = self.__session()
         try:
             fields = [Job.task_id]
-            exp = (
+            job = (
                 session.query(Job)
                 .filter_by(job_id=self.job_id)
                 .options(load_only(*fields))
                 .one()
             )
-            return exp.task_id
+            return job.task_id
         finally:
             session.close()
 
     def fetch_owner(self):
         session = self.__session()
         try:
-            exp = (
+            job = (
                 session.query(Job)
                 .filter_by(job_id=self.job_id)
                 .one()
             )
-            return exp.task.user_id
+            return job.task.user_id
         finally:
             session.close()
 

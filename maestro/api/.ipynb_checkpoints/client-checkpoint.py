@@ -1,26 +1,17 @@
 
 __all__ = [
-    "RemoteSession",
     "APIClient",
     "get_session_api",
 ]
 
 import requests
 
-from typing import Union, List
-from tabulate import tabulate
 from urllib.parse import urljoin
-from maestro import schemas
-from maestro.exceptions import MaestroRemoteCreationError, MaestroConnectionError, MaestroTokenNotValidError
-
-
 from .rest.dataset import DatasetAPIClient
 #from .rest.image import ImageAPIClient
 #from .rest.task import TaskAPIClient
-#from ..task import Group
-#from ..api import schemas
-#from ..api.client import get_dell_runtime_session_api
-#from ..exceptions import *
+from . import schemas
+from .exceptions import RemoteCreationError, MaestroConnectionError, TokenNotValidError
 
 __api_session = None
 
@@ -28,7 +19,7 @@ def get_session_api(host:str=None, token: str=None):
     global __api_session
     if not __api_session:
         if not host or not token:
-            raise MaestroRemoteCreationError
+            raise RemoteCreationError
         __api_session = APIClient(host,token)
     return __api_session
 
@@ -44,9 +35,9 @@ class APIClient:
         if res.status_code != 200:
             raise MaestroConnectionError
         payload = {"params_str": schemas.json_encode( {"token":self.__token} ) }
-        res = requests.put(f"{self.host}/remote/user/token", data=payload)
+        res = requests.put(f"{self.host}/remote/token", data=payload)
         if res.status_code != 200:
-            raise MaestroTokenNotValidError
+            raise TokenNotValidError
         self.headers = {"Connection": "Keep-Alive", "Keep-Alive": "timeout=1000, max=1000", "token" : self.__token}
 
     def post(self, path, data, files=None):
@@ -75,57 +66,3 @@ class APIClient:
 
     #def task(self) -> TaskAPIClient:
     #    return TaskAPIClient(self)
-    
-    
-
-
-class RemoteSession:
-    r"""
-   
-    """
-    def __init__(
-        self, 
-        host: str,
-        token : str, 
-    ):
-        self.host = host
-        self.__api_client = get_session_api( host, token )
-
-
-    #def list_tasks(self, match_with : str="*") -> List[schemas.TaskInfo]:
-    #    """
-    #    
-    #    """
-    #    return self.__api_client.task().list(match_with=match_with)
-
-
-    def list_datasets(self, match_with : str="*") -> List[schemas.Dataset]:
-        """
-        
-        """
-        return self.__api_client.dataset().list(match_with=match_with)
- 
- 
-    #def print_tasks( self, match_with : str="*" ) -> str:
-    #    """
-    #    
-    #    """
-    #    tasks = [ [task.task_id, task.name, task.flavor, task.status] for task in self.list_tasks(match_with)]
-    #    tasks = tabulate(tasks, headers= ["id", "name", "type", "status"],  tablefmt="psql")
-    #    print(tasks) 
-
-    def print_datasets( self, match_with : str="*" ) -> str:
-        """
-        
-        """
-        datasets = [ [dataset.dataset_id , dataset.name, len(dataset.files), dataset.flavor] for dataset in self.list_datasets(match_with) ]
-        datasets = tabulate(datasets, headers= ["id", "name", "files", "type"],  tablefmt="psql")
-        print(datasets)   
-        
-        
-    #def create( self, tasks : List[schemas.TaskInputs]) -> Group:
-    #    """
-    #    
-    #    """
-    #    return self.__api_client.task().create(tasks)
-

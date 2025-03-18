@@ -4,7 +4,7 @@ __all__ = ["Dataset"]
 from tabulate import tabulate
 from typing import List, Union, Dict
 from .client import get_session_api
-from . import schemas
+from maestro import schemas
 
 
 class Dataset:
@@ -18,7 +18,7 @@ class Dataset:
         description : str="",
     ) -> None:
         
-        self.__api_client = get_dell_runtime_session_api()
+        self.__api_client = get_session_api()
         self.name         = name
         self.description  = description
         if self.__api_client.dataset().check_existence(name):

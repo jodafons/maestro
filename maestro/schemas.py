@@ -1,11 +1,33 @@
 
 __all__ = []
 
+import json
 from typing import Dict, Any, Union, List
 from pydantic import BaseModel
 
 
+encoder=json.JSONEncoder
+decoder=json.JSONDecoder
 
+def json_encode( obj : Any ) -> str:
+    return json.dumps( obj, cls=encoder) 
+
+def json_decode( obj : str ) -> Any:
+    return json.loads( obj , cls=decoder)
+
+def json_save( obj, f ):
+   json.dump(obj, f, cls=encoder)
+
+def json_load( f ):
+   return json.load(f,  cls=decoder)
+
+class User(BaseModel):
+    name    : str
+    user_id : str=""
+    
+class Credential(BaseModel):
+    token   : str
+    user_id : str
 
 class TaskInputs(BaseModel):
     name           : str=""
@@ -37,4 +59,13 @@ class Job(BaseModel):
     job_id          : str=""
     envs            : Dict={}
     command         : str=""
+
+
+class Dataset(BaseModel):
+    dataset_id       : str=""
+    user_id          : str=""
+    name             : str=""
+    description      : str=""
+    files            : List[ Dict[str, Union[str,float] ]]=[]
+    data_type        : str=""
 

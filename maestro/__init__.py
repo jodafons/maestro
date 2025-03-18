@@ -141,10 +141,14 @@ from .io import *
 #__all__.extend( slurm.__all__ )
 #from .slurm import *
 
-#from . import manager
-#__all__.extend( manager.__all__ )
-#from .manager import *
+from . import manager
+__all__.extend( manager.__all__ )
+from .manager import *
 
 #from . import schedulers
 #__all__.extend( schedulers.__all__ )
 #from .schedulers import *
+
+from . import api
+__all__.extend( api.__all__ )
+from .api import *

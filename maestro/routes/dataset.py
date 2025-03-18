@@ -19,7 +19,6 @@ dataset_app = APIRouter()
 
 @dataset_app.put("/dataset/options/{option}" , status_code=200, tags=['dataset'])
 async def options( 
-    user_id        : str,
     option         : str,
     params_str     : str=Form(),
 ):
@@ -29,27 +28,26 @@ async def options(
 
     if option=="create":
         description  = params['description']
-        users        = params['allow_users']     
         dataset = schemas.Dataset(name=name, 
                                   user_id=user_id, 
                                   description=description,
                                   users=users)
-        sc = manager.dataset(user_id).create( dataset )
+        sc = manager.dataset().create( dataset )
 
     elif option=="describe":
-        sc   = manager.dataset(user_id).describe(name)
+        sc   = manager.dataset().describe(name)
 
     elif option=="exist":
         filename = params["filename"] if "filename" in params else None
-        sc = manager.dataset(user_id).check_existence(name, filename=filename)
+        sc = manager.dataset().check_existence(name, filename=filename)
 
     elif option=="list":
         match_with = params["match_with"]
-        sc = manager.dataset(user_id).list(match_with)
+        sc = manager.dataset().list(match_with)
 
     elif option=="identity":
         name = params["name"]
-        sc = manager.dataset(user_id).identity(name)
+        sc = manager.dataset().identity(name)
 
     else:
         raise HTTPException(detail=f"option {option} does not exist into the database service.")
@@ -67,7 +65,7 @@ async def download(
 ) -> StreamingResponse : 
     
     manager = get_manager_service()
-    sc = manager.dataset(user_id).download( name, filename )
+    sc = manager.dataset().download( name, filename )
     raise_http_exception(sc)
     zipfilename = sc.result()
     logger.info(f"reading from {zipfilename}...")
