@@ -27,28 +27,28 @@ class Dataset:
             self.dataset_id = None
 
     def print(self):
-        files = self.describe()
-        headers = ["filename", "md5", "size (mb)"]
-        table = [ [f['filename'], f['md5'], f['filesize_mb']] for f in files ]
+        files = self.describe().files 
+        headers = ["filename", "md5"]
+        table = [ [f['filename'], f['md5']] for f in files ]
         table = tabulate(table, headers=headers, tablefmt="psql")
         print(f"Dataset name : {self.name}"   )
         print(f"dataset id   : {self.dataset_id}")
         print(table)
 
     def describe(self) -> Union[schemas.Dataset,None]:
-        return self.__api_client.dataset().describe(self.name).files if self.dataset_id else None
+        return self.__api_client.dataset().describe(self.name) if self.dataset_id else None
         
     def list(self) -> List[Dict]:
         return self.describe().files if self.dataset_id else []
         
     def create(self) -> str:
         if not self.dataset_id:
-            self.dataset_id = self.__api_client.dataset().create( self.name, self.description, allow_users=self.allow_users)
+            self.dataset_id = self.__api_client.dataset().create( self.name, self.description)
         return self.dataset_id
         
-    def upload(self, files : Union[List[str], str] ) -> bool:
-        return self.__api_client.dataset().upload( self.name, files ) if self.dataset_id else False
+    def upload(self, files : Union[List[str], str] , as_link : bool=False) -> bool:
+        return self.__api_client.dataset().upload( self.name, files, as_link=as_link ) if self.dataset_id else False
                    
-    def download( self,  targetfolder : str=None ) -> bool:
-        return self.__api_client.dataset().download(self.name, targetfolder) if self.dataset_id else False
+    def download( self,  targetfolder : str=None, as_link : bool=False ) -> bool:
+        return self.__api_client.dataset().download(self.name, targetfolder, as_link=as_link) if self.dataset_id else False
         

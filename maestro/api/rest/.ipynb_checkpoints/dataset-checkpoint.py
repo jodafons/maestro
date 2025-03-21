@@ -12,10 +12,18 @@ from expand_folders import expand_folders
 from urllib.parse import urljoin
 from typing import List, Union
 from loguru import logger
-from maestro import schemas, md5checksum
+from maestro import schemas
+from maestro.exceptions import MaestroRuntimeError
 
 
 
+
+def md5checksum(fname):
+    md5 = hashlib.md5()
+    f = open(fname, "rb")
+    while chunk := f.read(4096):
+        md5.update(chunk)
+    return md5.hexdigest()
 
 
 
@@ -34,7 +42,7 @@ class DatasetAPIClient:
         res = self.session.put(f"/remote/dataset/options/exist", data=payload)
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             return res[2].json()
 
@@ -48,7 +56,7 @@ class DatasetAPIClient:
         res = self.session.put(f"/remote/dataset/options/identity", data=payload)
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             return res[2].json()
        
@@ -63,7 +71,7 @@ class DatasetAPIClient:
         res = self.session.put(f"/remote/dataset/options/describe", data=payload)
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             return schemas.Dataset(**res[2].json())
 
@@ -78,7 +86,7 @@ class DatasetAPIClient:
         res = self.session.put(f"/remote/dataset/options/list", data=payload)
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             return [schemas.Dataset(**d) for d in res[2].json()]
 
@@ -98,7 +106,7 @@ class DatasetAPIClient:
 
         if res[0] != 200:
             detail = res[2].json()["detail"]
-            raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+            raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         else:
             dataset_id = res[2].json()
             logger.debug(f"Received dataset_id: {dataset_id}")
@@ -129,13 +137,13 @@ class DatasetAPIClient:
             res = self.session.put(f"/remote/dataset/options/exist", data=payload)
             if res[0]!=200:
                 detail = res[2].json()["detail"]
-                raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+                raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
             
             exist = res[2].json()
             if exist:
                 continue
             
-            payload = {'expected_file_md5':file_md5, 'filename':filename, 'name':name, 'filepath':filepath}
+            payload = {'expected_file_md5':file_md5, 'filename':filename, 'name':name, 'from_filepath':filepath}
             if not as_link:
                 zipfolder   = tempfile.mkdtemp()
                 zipfilename = f"{zipfolder}/file.zip"
@@ -148,9 +156,10 @@ class DatasetAPIClient:
             else:
                 res = self.session.put(f"/remote/dataset/upload", data=payload)
 
+            
             if res[0] != 200:
                 detail = res[2].json()["detail"]
-                raise RuntimeError(f"Received {res[0]} as status code. detail: {detail}")
+                raise MaestroRuntimeError(f"Received {res[0]} as status code. detail: {detail}")
         
         return True
 
@@ -159,13 +168,12 @@ class DatasetAPIClient:
         self, 
         name          : str, 
         targetfolder  : str = None,
-        as_link       : bool=False
     ):
 
 
         dataset = self.describe(name)
         if not dataset:
-            raise RuntimeError(f"dataset with name {name} does not exist.")
+            raise MaestroRuntimeError(f"dataset with name {name} does not exist.")
 
         if not targetfolder:
             targetfolder = f"{os.getcwd()}/{name}"
@@ -174,38 +182,33 @@ class DatasetAPIClient:
 
         for file_info in tqdm( dataset.files , desc="downloading files...", ncols=100):
 
-            if not as_link:
+            filename    = file_info["filename"]
+            expected_file_md5 = file_info['md5']
+            zipfolder   = tempfile.mkdtemp()
+            zipfilename = f"{zipfolder}/file.zip"
 
-                filename    = file_info["filename"]
-                expected_file_md5 = file_info['md5']
-                zipfolder   = tempfile.mkdtemp()
-                zipfilename = f"{zipfolder}/file.zip"
+            payload = {"filename":filename, "name":name}
+            url = urljoin(self.session.host, f"/remote/dataset/download")
 
-                payload = {"filename":filename, "name":name}
-                url = urljoin(self.session.host, f"/remote/dataset/download")
+            with self.session().put(url, data=payload, stream=True, headers=self.session.headers) as r:
+                if r.status_code!=200:
+                    detail = r.json()["detail"]
+                    raise MaestroRuntimeError(f"Received {r.status_code} as status code. detail: {detail}")
+                with open(zipfilename, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=1014):
+                        f.write(chunk)
 
-                with self.session().put(url, data=payload, stream=True, headers=self.session.headers) as r:
-                    if r.status_code!=200:
-                        detail = r.json()["detail"]
-                        raise RuntimeError(f"Received {r.status_code} as status code. detail: {detail}")
-                    with open(zipfilename, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=1014):
-                            f.write(chunk)
+            unpackfolder = tempfile.mkdtemp()
+            shutil.unpack_archive(zipfilename, extract_dir=unpackfolder, format='zip')
+            os.remove(zipfilename)
 
-                unpackfolder = tempfile.mkdtemp()
-                shutil.unpack_archive(zipfilename, extract_dir=unpackfolder, format='zip')
-                os.remove(zipfilename)
+            filepath = f"{unpackfolder}/{filename}"
+            file_md5 = md5checksum( filepath )
 
-                filepath = f"{unpackfolder}/{filename}"
-                file_md5 = md5checksum( filepath )
+            if file_md5 != expected_file_md5:
+                raise MaestroRuntimeError(f"file with name {filename} is corrupted. try again.")
 
-                if file_md5 != expected_file_md5:
-                    raise RuntimeError(f"file with name {filename} is corrupted. try again.")
-
-                shutil.move(filepath, f"{targetfolder}/{filename}")
-            else:
-                targetfile = f"{targetfolder}/{file_info['filename']}"
-                os.symlink( file_info['filepath'], targetfile )
+            shutil.move(filepath, f"{targetfolder}/{filename}")
 
         return True
 

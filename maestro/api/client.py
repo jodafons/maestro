@@ -11,11 +11,11 @@ from typing import Union, List
 from tabulate import tabulate
 from urllib.parse import urljoin
 from maestro import schemas
-from maestro.exceptions import MaestroRemoteCreationError, MaestroConnectionError, MaestroTokenNotValidError
+from maestro.exceptions import RemoteCreationError, ConnectionError, TokenNotValidError
 
 
 from .rest.dataset import DatasetAPIClient
-#from .rest.image import ImageAPIClient
+from .rest.image import ImageAPIClient
 #from .rest.task import TaskAPIClient
 #from ..task import Group
 #from ..api import schemas
@@ -28,7 +28,7 @@ def get_session_api(host:str=None, token: str=None):
     global __api_session
     if not __api_session:
         if not host or not token:
-            raise MaestroRemoteCreationError
+            raise RemoteCreationError
         __api_session = APIClient(host,token)
     return __api_session
 
@@ -42,11 +42,11 @@ class APIClient:
         self.host = host
         res = requests.get(f"{self.host}/status")
         if res.status_code != 200:
-            raise MaestroConnectionError
+            raise ConnectionError
         payload = {"params_str": schemas.json_encode( {"token":self.__token} ) }
         res = requests.put(f"{self.host}/remote/user/token", data=payload)
         if res.status_code != 200:
-            raise MaestroTokenNotValidError
+            raise TokenNotValidError
         self.headers = {"Connection": "Keep-Alive", "Keep-Alive": "timeout=1000, max=1000", "token" : self.__token}
 
     def post(self, path, data, files=None):
@@ -67,8 +67,8 @@ class APIClient:
     def __call__(self):
         return self.session
 
-    #def image(self) -> ImageAPIClient:
-    #    return ImageAPIClient(self)
+    def image(self) -> ImageAPIClient:
+        return ImageAPIClient(self)
 
     def dataset(self) -> DatasetAPIClient:
         return DatasetAPIClient(self)

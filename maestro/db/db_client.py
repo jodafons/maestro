@@ -94,6 +94,14 @@ class DBService:
             session.commit()
         finally:
             session.close()
+            
+    def save_dataset(self, dataset: Dataset):
+        session = self.session()
+        try:
+            session.add(dataset)
+            session.commit()
+        finally:
+            session.close()
 
     def check_user_existence( self, user_id : str ) -> bool: 
         return self.user(user_id).check_existence()
@@ -152,13 +160,11 @@ class DBService:
         finally:
             session.close()    
 
-    def check_token_existence( self, token : str ) -> bool:
+    def fetch_dataset_from_name( self,  name : str) -> str:
         session = self.__session()
         try:
-           user = session.query( 
-                    session.query(User).filter_by(token=token).exists() 
-           ).scalar()
-           return user
+           dataset = session.query(Dataset).filter_by(name=name).one()
+           return dataset.dataset_id
         finally:
             session.close()
 
@@ -206,7 +212,8 @@ def create_user():
     name = os.environ["USER"]
     if not db_service.check_user_existence_by_name(name):
         user_id = random_id()
-        token = random_token()
+        #token = random_token()
+        token = "fcad6b3734b74e7e901c58903dc416f8c5029cf224714f518f3f04ac379d7b7a"
         user = User(user_id=user_id, name=name, token=token)
         logger.info(f"Creating user {name} with id {user_id}")
         db_service.save_user(user)

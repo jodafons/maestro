@@ -30,11 +30,12 @@ class Dataset(Base):
 
     id             = Column(Integer, primary_key=True)
     dataset_id     = Column(String(64))
+    user_id        = Column(String(64))
     name           = Column(String)
     updated_time   = Column(DateTime)
     description    = Column(String, default="")
     visible        = Column(Boolean  , default=True)
-    dataset_type   = Column(Enum(DatasetType) , default=DatasetType.FILES)
+    data_type      = Column(Enum(DatasetType) , default=DatasetType.FILES)
     files          = relationship("File", order_by="File.id", back_populates="dataset")
 
 
@@ -109,6 +110,20 @@ class DBDataset:
                 .one()
             )
             return dataset.dataset_type
+        finally:
+            session.close()
+
+    def fetch_owner(self):
+        session = self.__session()
+        try:
+            fields = [Dataset.user_id]
+            dataset = (
+                session.query(Dataset)
+                .filter_by(dataset_id=self.dataset_id)
+                .options(load_only(*fields))
+                .one()
+            )
+            return dataset.user_id
         finally:
             session.close()
 

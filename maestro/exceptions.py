@@ -1,6 +1,6 @@
 
 
-class MaestroRuntimeError(Exception):
+class RuntimeError(Exception):
     """Base class for errors raised by Qiskit."""
 
     def __init__(self, *message):
@@ -12,22 +12,22 @@ class MaestroRuntimeError(Exception):
         """Return the message."""
         return repr(self.message)
 
-class MaestroRemoteCreationError(MaestroRuntimeError):
+class RemoteCreationError(RuntimeError):
     """Raised when an error"""
 
     message = "its not possible to create a session. please set the remote first."
 
-class MaestroConnectionError(MaestroRuntimeError):
+class ConnectionError(RuntimeError):
     """Raised when an error"""
 
     message = "the server connection is not found."
 
-class MaestroTokenNotValidError(MaestroRuntimeError):
+class TokenNotValidError(RuntimeError):
     """Raised when an error"""
 
     message = "the token is not valid."
 
-class MaestroDownloadError(MaestroRuntimeError):
+class DownloadError(RuntimeError):
     """Raised when an error"""
 
     message = "failed to download content from server"

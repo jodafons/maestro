@@ -7,11 +7,10 @@ import zipfile
 import tempfile
 import traceback
 
-from loguru         import logger
-from typing         import Dict
-from fastapi        import File, UploadFile
-
-from maestro    import StatusCode
+from loguru     import logger
+from typing     import Dict
+from fastapi    import File, UploadFile
+from maestro    import StatusCode, symlink
 from maestro    import schemas, random_id, md5checksum
 from maestro.db import models, get_db_service, DatasetType, FileType
 from maestro.io import get_io_service
@@ -24,9 +23,13 @@ class DatasetManager:
 
     def __init__(
         self, 
-        envs : Dict[str,str]
+        user_id : str,
+        envs    : Dict[str,str]={}
     ):
-       self.envs=envs
+        db_service=get_db_service()
+        self.user_id=user_id
+        self.envs=envs
+        self.user_name= db_service.user(user_id).fetch_name()
 
 
     def create(
@@ -37,8 +40,8 @@ class DatasetManager:
         name       = dataset.name
         db_service = get_db_service()
 
-        if not name.startswith(f'user.{self.username}.'):
-            reason=f"the name dataset must follow the name rule: 'user.{self.username}.DATASET_NAME'"
+        if not name.startswith(f'user.{self.user_name}.'):
+            reason=f"the name dataset must follow the name rule: 'user.{self.user_name}.DATASET_NAME'"
             logger.error(reason)
             return StatusCode.FAILURE(reason=reason)
 
@@ -50,6 +53,7 @@ class DatasetManager:
         dataset_db             = models.Dataset()
         new_id                 = random_id()
         dataset_db.dataset_id  = new_id
+        dataset_db.user_id     = self.user_id
         dataset_db.name        = dataset.name
         dataset_db.description = dataset.description
         dataset_db.data_type   = DatasetType.FILES
@@ -66,6 +70,7 @@ class DatasetManager:
         self, 
         name                : str,
         filename            : str,
+        from_filepath       : str,
         expected_file_md5   : str,
         force_overwrite     : bool=False,
         file                : UploadFile=File(None)     
@@ -89,33 +94,42 @@ class DatasetManager:
             logger.error(reason)
             return StatusCode.FAILURE(reason=reason)
         
-        zipfolder   = tempfile.mkdtemp()
-        zipfilename = f"{zipfolder}/file.zip"
-        
-        try:
-            with open(zipfilename, 'wb+') as f:
-                while contents := file.file.read(1024*1024):
-                    f.write(contents)
-        except:
-            traceback.print_exc()
-            reason = f"its not possible to open the sent file..."
-        finally:
-            file.file.close()
-
-        if not os.path.exists(zipfilename):
-            reason = f"its not possible to found the file in cache..."
-            logger.error(reason)
-            return StatusCode.FAILURE(reason=reason)
-
         targetfolder  = io_service.dataset(dataset_id).basepath
-        unpackfolder  = tempfile.mkdtemp()
+        
+        if file:
+        
+            zipfolder   = tempfile.mkdtemp()
+            zipfilename = f"{zipfolder}/file.zip"
+        
+            try:
+                with open(zipfilename, 'wb+') as f:
+                    while contents := file.file.read(1024*1024):
+                        f.write(contents)
+            except:
+                traceback.print_exc()
+                reason = f"its not possible to open the sent file..."
+            finally:
+                file.file.close()
 
-        logger.info(f"unpacking {zipfilename} file into {unpackfolder}...")
-        shutil.unpack_archive(zipfilename, extract_dir=unpackfolder, format='zip')
-        os.remove(zipfilename)
+            if not os.path.exists(zipfilename):
+                reason = f"its not possible to found the file in cache..."
+                logger.error(reason)
+                return StatusCode.FAILURE(reason=reason)
 
-        filepath = f"{unpackfolder}/{filename}"
-        file_md5 = md5checksum( filepath )
+            unpackfolder  = tempfile.mkdtemp()
+
+            logger.info(f"unpacking {zipfilename} file into {unpackfolder}...")
+            shutil.unpack_archive(zipfilename, extract_dir=unpackfolder, format='zip')
+            os.remove(zipfilename)
+
+            filepath = f"{unpackfolder}/{filename}"
+            file_md5 = md5checksum( filepath )
+
+           
+        else:
+            logger.info("setting as link...")
+            file_md5      = md5checksum( from_filepath )
+            filepath      = from_filepath
 
         if file_md5 != expected_file_md5:
             reason = f"the md5 hash of the transfed file is different than the expected hash value."
@@ -130,7 +144,7 @@ class DatasetManager:
                 file_db.file_id     = random_id()
                 file_db.name        = filename
                 file_db.file_md5    = file_md5
-                file_db.file_type   = FileType.DATA
+                file_db.file_type   = FileType.DATA if file else FileType.LINK
                 logger.info(f"saving file {filepath} into db.")
                 dataset_db.files.append(file_db)
                 session.commit()
@@ -140,64 +154,15 @@ class DatasetManager:
             traceback.print_exc()
             return StatusCode.FAILURE(reason=reason)
 
-        shutil.move(filepath, f"{targetfolder}/{filename}")
+        if file:
+            shutil.move(filepath, f"{targetfolder}/{filename}")
+        else:
+            logger.info(f"creating link from {filepath} to {targetfolder}/{filename}...")
+            symlink(filepath, f"{targetfolder}/{filename}")
+
         logger.info(f"saving file {filename} into the database and storage {targetfolder}...")
         return StatusCode.SUCCESS()
     
-
-
-    def upload_as_link(
-        self, 
-        name                : str,
-        filename            : str,
-        filepath            : str,   
-        force_overwrite     : bool=False,
-    )-> StatusCode:
-
-        logger.info("uploading dataset into the database...")
-
-        db_service = get_db_service()
-
-        if not db_service.check_dataset_existence_by_name(name):
-            reason=f"dataset with name {name} does not exist into the database."
-            logger.error(reason)
-            return StatusCode.FAILURE(reason=reason)
-
-        dataset_id = db_service.fetch_dataset_from_name(name)
-
-        io_service = get_io_service()
-        
-        if not force_overwrite and io_service.dataset(dataset_id).check_existence(filename):
-            reason = f"its not possible to upload the file with name {filename}. duplicated filename into the storage."
-            logger.error(reason)
-            return StatusCode.FAILURE(reason=reason)
-        
-        file_md5      = md5checksum( filepath )
-        targetfolder  = io_service.dataset(dataset_id).basepath
-        targerpath    = f"{targetfolder}/{filename}"
-        os.link(filepath, targerpath)
-
-        try:
-            # preparing to add into the dataset db and io
-            with db_service() as session:
-                dataset_db          = session.query(models.Dataset).filter_by(dataset_id=dataset_id).one() 
-                file_db             = models.File()
-                file_db.file_id     = random_id()
-                file_db.name        = filename
-                file_db.file_md5    = file_md5
-                file_db.file_type   = FileType.LINK
-                logger.info(f"saving file {filepath} into db.")
-                dataset_db.files.append(file_db)
-                session.commit()
-        except:
-            reason=f"we found an error during the file writting into the storage and db."
-            logger.error(reason)
-            traceback.print_exc()
-            return StatusCode.FAILURE(reason=reason)
-
-        shutil.move(filepath, f"{targetfolder}/{filename}")
-        logger.info(f"saving file {filename} into the database and storage {targetfolder}...")
-        return StatusCode.SUCCESS()
     
     
 
@@ -243,14 +208,12 @@ class DatasetManager:
 
         db_service = get_db_service()
         io_service = get_io_service()
-        print(name)
         if not db_service.check_dataset_existence_by_name(name):
             reason=f"dataset with name {name} does not exist into the db."
             logger.info(reason)
             return StatusCode.SUCCESS(False)
 
         dataset_id = db_service.fetch_dataset_from_name(name)
-        print(dataset_id)
         if filename and not io_service.dataset(dataset_id).check_existence(filename):
             reason=f"filename with name {filename} does not exist into the dataset {name}"
             logger.info(reason)
@@ -265,6 +228,7 @@ class DatasetManager:
     ) -> StatusCode:
         
         db_service = get_db_service()
+        io_service = get_io_service()
 
         if not db_service.check_dataset_existence_by_name(name):
             reason=f"dataset with name {name} does not exist into the database."
@@ -275,16 +239,19 @@ class DatasetManager:
 
         dataset = schemas.Dataset()
 
+        folder_path=io_service.dataset(dataset_id).basepath
+
         with db_service() as session:
             dataset_db           = session.query(models.Dataset).filter_by(dataset_id=dataset_id).one()
+            dataset.user_id      = dataset_db.user_id
             dataset.dataset_id   = dataset_db.dataset_id
             dataset.description  = dataset_db.description
             dataset.name         = dataset_db.name
-            dataset.status       = dataset_db.status.value
-            dataset.dtype         = dataset_db.dtype.value
+            dataset.data_type    = dataset_db.data_type.value
             files = []
             for file_db in dataset_db.files:
-                data = {'filename':file_db.name , 'md5': file_db.file_md5}
+                filepath=f"{folder_path}/{file_db.name}"
+                data = {'filename':file_db.name , 'md5': file_db.file_md5, "filepath":filepath}
                 files.append(data)
             dataset.files = files
                 
@@ -302,7 +269,7 @@ class DatasetManager:
         with db_service() as session:
             datasets_from_db = session.query(models.Dataset).filter(models.Dataset.name.like(match_with)).all()
             for dataset_db in datasets_from_db:
-                if (('*' in dataset_db.allow_users) or (self.user_id in dataset_db.allow_users)) and (dataset_db.visible):
+                if (dataset_db.visible):
                     names.append(dataset_db.name)
         datasets=[ self.describe(name).result() for name in names]     
         return StatusCode.SUCCESS(datasets)
@@ -321,10 +288,6 @@ class DatasetManager:
             return StatusCode.SUCCESS(False)
 
         dataset_id = db_service.fetch_dataset_from_name(name)
-        # NOTE: all user can download it if the dataset is set to *. if not, only a restricted list of users can see it
-        if not db_service.dataset(dataset_id).check_authorization(self.user_id):
-            reason=f"the current user {self.user_id} is not authorized to retreive the dataset with name {name}."
-            logger.info(reason)
-            return StatusCode.FAILURE(reason=reason)
+        
         
         return StatusCode.SUCCESS(dataset_id)

@@ -2,19 +2,16 @@ __all__ = ["image_app"]
 
 import io
 
-from typing import Optional, List
-from fastapi import APIRouter, File, UploadFile, Request, Form, HTTPException
-from fastapi.responses import RedirectResponse, StreamingResponse 
-
-
-from maestro.db import get_db_service, DatasetFlavor
-from maestro import schemas, get_manager_service
-from maestro.routes import remote_app, raise_authentication_failure, raise_http_exception
+from typing             import Optional, List
+from fastapi            import APIRouter, File, UploadFile, Request, Form, HTTPException
+from fastapi.responses  import RedirectResponse, StreamingResponse 
+from maestro.db         import get_db_service, DatasetType
+from maestro            import schemas, get_manager_service
+from maestro.routes     import remote_app, raise_authentication_failure, raise_http_exception, fetch_user_from_request
 
 
 
 image_app = APIRouter()
-
 
 
 @image_app.put("/image/options/{user_id}/{option}" , status_code=200, tags=['image'])
@@ -29,20 +26,6 @@ async def options(
 
     if option=="describe":
         sc   = manager.dataset(user_id).describe(name)
-   
-    elif option=="allow":
-        users = params["allow_users"]
-        sc = manager.dataset(user_id).allow_users_access( users )
-    
-    elif option=="revoke":
-        users = params["allow_users"]
-        sc = manager.dataset(user_id).revoke_users_access( users )
-
-    elif option=="recover":
-        sc = manager.dataset(user_id).activate(name)
-
-    elif option=="delete":
-        sc = manager.dataset(user_id).deactivate(name)
 
     elif option=="exist":
         sc = manager.dataset(user_id).check_existence(name)
@@ -66,13 +49,17 @@ async  def create_and_upload(
     user_id                : str,
     name                   : str=Form(),
     filename               : str=Form(),
+    filepath               : str=Form(),    
     expected_file_md5      : str=Form(),
     description            : str=Form(""),
-    allow_users            : List[str]=Form(["*"]),
     file                   : Optional[UploadFile]=File(None),
 ) -> str:
     manager = get_manager_service()
-    sc = manager.image(user_id).create_and_upload( name, filename, expected_file_md5, description, allow_users, file=file )
+    sc = manager.image(user_id).create_and_upload( name, 
+                                                   filename, 
+                                                   filepath,
+                                                   expected_file_md5, 
+                                                   description, file=file )
     raise_http_exception(sc)
     return sc.result()
 
@@ -88,7 +75,7 @@ async def options(
 ): 
     db_service = get_db_service()    
     raise_authentication_failure(request)
-    user_id = db_service.fetch_user_from_token( request.headers["token"] )
+    user_id = fetch_user_from_request(request)
     return RedirectResponse(f"/image/options/{user_id}/{option}")
 
 
@@ -98,5 +85,5 @@ async def create_and_upload(
 ) -> bool: 
     raise_authentication_failure(request)
     db_service = get_db_service()
-    user_id = db_service.fetch_user_from_token( request.headers["token"] )
+    user_id = fetch_user_from_request(request)
     return RedirectResponse(f"/image/create_and_upload/{user_id}")

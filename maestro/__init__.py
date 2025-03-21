@@ -5,13 +5,15 @@ __all__ = [
     "random_id",
     "random_token",
     "md5checksum",
+    "symlink",
     "StatusCode",
     ]
 
-import uuid, hashlib, sys, argparse
+import uuid, hashlib, sys, argparse, os, errno
 from loguru import logger
 from rich_argparse import RichHelpFormatter
 from copy import copy
+
 
 GB=1024
 
@@ -69,7 +71,16 @@ def md5checksum(fname):
         md5.update(chunk)
     return md5.hexdigest()
 
-
+def symlink(target, link_name):
+    try:
+        os.symlink(target, link_name)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            os.remove(link_name)
+            os.symlink(target, link_name)
+        else:
+            raise e
+          
 class StatusObj(object):
 
   _status = 1
@@ -125,6 +136,10 @@ class StatusCode(object):
   FAILURE = StatusObj(0)
   FATAL   = StatusObj(-1)
 
+from . import backend
+__all__.extend( backend.__all__ )
+from .backend import *
+
 from . import schemas
 __all__.extend( schemas.__all__ )
 from .schemas import *
@@ -137,17 +152,13 @@ from . import io
 __all__.extend( io.__all__ )
 from .io import *
 
-#from . import slurm
-#__all__.extend( slurm.__all__ )
-#from .slurm import *
-
 from . import manager
 __all__.extend( manager.__all__ )
 from .manager import *
 
-#from . import schedulers
-#__all__.extend( schedulers.__all__ )
-#from .schedulers import *
+from . import loop
+__all__.extend( loop.__all__ )
+from .loop import *
 
 from . import api
 __all__.extend( api.__all__ )

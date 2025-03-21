@@ -27,7 +27,7 @@ class TaskManager:
     ):
         self.envs=envs
         self.user_id=user_id
-        self.use_rname=get_db_service().user(user_id).fetch_name()
+        self.user_name=get_db_service().user(user_id).fetch_name()
 
 
     def status(
@@ -84,7 +84,6 @@ class TaskManager:
             task.user_id   = task_db.user_id
             task.partition = task_db.partition.value
             task.status    = task_db.status.value
-            task.flavor    = task_db.flavor
             jobs = []
             for job_db in task_db.jobs:
                 table[job_db.status.value]+=1
@@ -171,10 +170,6 @@ class TaskManager:
                 reason=f"the image with name {task.image} does not exist into the database."
                 return StatusCode.FAILURE(reason=reason)
 
-            image_id = db_service.fetch_dataset_from_name( task.image )
-            if not db_service.dataset(image_id).check_authorization( self.username ):
-                reason=f"you are not authorized to use the image with name {task.image}."
-                return StatusCode.FAILURE(reason=reason)
 
             #
             # NOTE: stage 3, checking input dataset
@@ -185,12 +180,7 @@ class TaskManager:
                 logger.error(reason)
                 return StatusCode.FAILURE(reason=reason)
             
-            if db_service.check_dataset_existence_by_name(task.input):
-                dataset_id = db_service.fetch_dataset_from_name(task.input)
-                if not db_service.dataset(dataset_id).check_authorization(self.user_id):
-                    reason=f"the user {self.username} is not authorized to use dataset with name {task.input}"
-                    return StatusCode.FAILURE(reason=reason)
-            else:
+            if not db_service.check_dataset_existence_by_name(task.input):
                 logger.info(f"the dataset with name {task.input} will be create in future.")
 
 
@@ -207,12 +197,7 @@ class TaskManager:
                     logger.error(reason)
                     return StatusCode.FAILURE(reason=reason)
             
-                if db_service.check_dataset_existence_by_name(value): 
-                    dataset_id = db_service.fetch_dataset_from_name(value)
-                    if not db_service.dataset(dataset_id).check_authorization(self.user_id):
-                        reason=f"the user {self.username} is not authorized to use dataset with name {value}"
-                        return StatusCode.FAILURE(reason=reason)
-                else:
+                if not db_service.check_dataset_existence_by_name(value): 
                     logger.info(f"the dataset with name {value} will be create in future.")
 
             #

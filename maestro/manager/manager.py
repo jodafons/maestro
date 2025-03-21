@@ -14,7 +14,7 @@ from maestro.db       import get_db_service, models
 from .user            import UserManager
 #from .task            import TaskManager
 from .dataset         import DatasetManager
-#from .image           import ImageManager
+from .image           import ImageManager
 
 __manager_service = None
 
@@ -25,8 +25,8 @@ class Manager:
         self.envs=envs
         logger.info(f"manager...")
 
-    #def image(self, user_id : str) -> ImageManager:
-    #    return ImageManager(user_id, self.envs)
+    def image(self, user_id : str) -> ImageManager:
+        return ImageManager(user_id, self.envs)
 
     #def task(self, user_id : str) -> TaskManager:
     #    return TaskManager(user_id, self.envs)
@@ -34,8 +34,8 @@ class Manager:
     def user(self):
         return UserManager(self.envs)
 
-    def dataset(self) -> DatasetManager:
-        return DatasetManager(self.envs)
+    def dataset(self, user_id : str) -> DatasetManager:
+        return DatasetManager(user_id, self.envs)
 
 
 def get_manager_service( envs : Dict[str,str]={} ) -> Manager:

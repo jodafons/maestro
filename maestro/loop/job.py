@@ -1,0 +1,194 @@
+#!/usr/bin/env python
+
+import glob
+import argparse
+import traceback
+import os, sys, errno
+
+from pprint  import pprint
+from time    import sleep
+from loguru  import logger
+from qio     import Popen, JobStatus, setup_logs, get_io_service, get_db_service
+from ..ram   import RAM 
+
+
+def create_symlink( from_path, to_path):
+    try:
+        os.symlink(from_path, to_path)
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            os.remove(to_path)
+            os.symlink(from_path, to_path)
+    return to_path
+
+         
+def run( args ):
+
+    db_service = get_db_service(args.db_string)
+    io_service = get_io_service(args.volume)
+    job_service= db_service.job(args.job_id)
+    workarea   = io_service.job(args.job_id).mkdir()
+    task       = db_service.task( args.task_id ).fetch_task_inputs()
+    command    = task.command
+    
+    os.environ["JOB_WORKAREA"]   = workarea
+    os.environ["JOB_ID"]         = args.job_id
+    device = os.environ.get("CUDA_VISIBLE_DEVICES","-1")
+    logger.info(f"device number is {device}")
+     
+    setup_logs(args.name, args.message_level, save=False, color="red")
+    logger.info(f"⌛ starting env builder for job {args.job_id}...")
+
+    logger.info("starting...")
+    job_service.update_status(JobStatus.RUNNING)
+
+    logger.info(f"workarea {workarea}...")
+
+
+  
+    imagename = io_service.dataset(args.image_id).files().values()
+    imagename = list(imagename)[0]
+    logger.info(f"using singularity image with name {imagename}.")
+    basepath  = io_service.dataset(args.image_id).basepath
+    linkpath  = create_symlink(f"{basepath}/{imagename}", f"{workarea}/{imagename}")
+    image     = linkpath
+
+    for key, name in task.secondary_data.items():
+        logger.info(f"creating secondary data link for {name} inside of the job workarea.")
+        dataset_id = db_service.fetch_dataset_from_name( name )
+        basepath = io_service.dataset(dataset_id).basepath
+        linkpath = create_symlink( f"{basepath}" , f"{workarea}/{name}")
+        command = command.replace(f"%{key}", linkpath)    
+
+    if task.input!="":
+        dataset_id, file_id = args.input.split(":") 
+        filename = io_service.dataset(dataset_id).files() [file_id]
+        logger.info(f"creating input data link for {task.input} inside of the job workarea.")
+        name = db_service.dataset(dataset_id).fetch_name()
+        basepath = io_service.dataset(dataset_id).basepath
+        linkpath = create_symlink( f"{basepath}/{filename}", f"{workarea}/{name}.{filename}")
+        command = command.replace(f"%IN", linkpath)
+      
+    outputs = []
+      
+    for key, filename in task.outputs.items():
+        name = f"{task.name}.{filename}"
+        logger.info(f"creating output data link for {name} inside of the job workarea.")
+        dataset_id = db_service.fetch_dataset_from_name(name)
+        filepath = f"{workarea}/{args.job_id}.{filename}"
+        command = command.replace(f"%{key}", filepath)
+        io_service.dataset(dataset_id).mkdir()
+        outputs.append( (dataset_id, filepath) )
+            
+    print(command)
+        
+    entrypoint = f"{workarea}/entrypoint.sh"
+    with open(entrypoint,'w') as f:
+        f.write(f"cd {workarea}\n")
+        f.write(command)
+            
+    stop=False
+    try:
+        binds   = f'--bind {args.volume}:{args.volume}'
+        command = f"singularity exec --nv --writable-tmpfs {binds} {image} bash {entrypoint}"
+        command = command.replace('  ',' ') 
+        
+        envs = {}
+        envs["JOB_ID"]               = args.job_id
+        envs["JOB_WORKAREA"]         = workarea 
+        envs["TF_CPP_MIN_LOG_LEVEL"] = "3"
+        envs["CUDA_VISIBLE_ORDER"]   = "PCI_BUS_ID"
+        envs["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES","-1")
+        envs.update(task.envs)
+        
+        pprint(envs)
+        
+        logger.info("🚀 run job!")   
+        print(command)
+        proc = Popen(command, envs = envs)
+        proc.run_async()
+        ram = RAM()
+
+        while proc.is_alive():
+            sleep(1)
+            db_status = job_service.fetch_status()
+            ok = ram(proc , job_id=args.job_id) 
+            if db_status == JobStatus.KILL or not ok:
+                proc.kill()
+                proc.join()
+                if not ok: # stop because some memory condition
+                    job_service.update_status(JobStatus.FAILED)
+                else: # stop because the user tell it
+                    job_service.update_status(JobStatus.KILLED)
+                stop=True
+    except:
+        traceback.print_exc()
+        job_service.update_status(JobStatus.FAILED)
+        stop=True
+
+    if stop:
+        sys.exit(0)
+
+
+    if proc.status()!="completed":
+        logger.error(f"🚨 something happing during the job execution. exiting with status {proc.status()}")
+        job_service.update_status(JobStatus.FAILED)
+        sys.exit(0)
+    
+    
+    logger.info("uploading output files into the storage...")
+    for dataset_id, filename in outputs:
+        name = db_service.dataset(dataset_id).fetch_name()
+        files= glob.glob(filename)
+        for filepath in files:
+            logger.info(f"⚡saving {filepath} into dataset with name {name}...")
+            ok = io_service.dataset( dataset_id ).save( filepath )
+            if not ok:
+                logger.error(f"🚨 something happing during save from {filepath} to dataset with name {name}")
+                job_service.update_status(JobStatus.FAILED)
+                sys.exit(0)
+    
+    job_service.update_status(JobStatus.COMPLETED)
+    sys.exit(0)
+
+
+
+
+
+
+
+#
+# args 
+#
+def args_parser():
+    
+    common_parser = argparse.ArgumentParser(description = '', add_help = False)
+
+    common_parser.add_argument('-n','--name', action='store', dest='name', required = True,
+                        help = "the server name.")
+    
+    common_parser.add_argument('-l','--message-level', action='store', dest='message_level', required = False, 
+                        default="INFO",
+                        help = "the message level.")
+  
+    common_parser.add_argument('-i','--image-id', action='store', dest='image_id', required = True, 
+                        help = "the image.")
+    
+    common_parser.add_argument('-j','--job-id', action='store', dest='job_id', required = True, 
+                        help = "the job id.")
+    
+    common_parser.add_argument('-t','--task-id', action='store', dest='task_id', required = True, 
+                        help = "the task id.")
+  
+    common_parser.add_argument('--input', action='store', dest='input', required = True, 
+                        help = "the input id at form dataset_id:file_id.")
+  
+    common_parser.add_argument('-v','--volume', action='store', dest='volume', required = True, 
+                        help = "the volume")
+  
+    database_parser = argparse.ArgumentParser(description = '', add_help = False)
+
+    database_parser.add_argument('--database-string', action='store', dest='db_string', type=str, required=True,
+                                 help = "the database url used to store all tasks and jobs. default can be passed by DB_STRING environ.")
+
+    return [common_parser, database_parser]
