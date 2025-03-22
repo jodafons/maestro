@@ -156,6 +156,10 @@ from . import manager
 __all__.extend( manager.__all__ )
 from .manager import *
 
+from . import backend
+__all__.extend( backend.__all__ )
+from .backend import *
+
 from . import loop
 __all__.extend( loop.__all__ )
 from .loop import *

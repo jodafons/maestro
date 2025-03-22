@@ -9,12 +9,10 @@ import traceback
 
 from loguru          import logger
 from time            import sleep, time
-from qio             import Partition
-from qio             import schemas, TaskStatus, JobStatus, RunnerStatus
-from qio.io          import get_io_service
-from qio.db          import models, get_db_service
-from qio.slurm       import get_slurm_service
-from qio.manager     import get_manager_service
+from maestro         import schemas, TaskStatus, JobStatus
+from maestro.io      import get_io_service
+from maestro.db      import models, get_db_service
+from maestro         import get_backend_service, get_manager_service
 from .task           import TaskScheduler
 
 #
@@ -57,7 +55,7 @@ class SchedulerFIFO(threading.Thread):
         logger.debug("⌛ schedule loop...")
         self.prepare_tasks()
         self.keep_tasks_alive()
-        self.queue_jobs( disable_resources_checker=True )
+        self.queue_jobs()
 
 
     def keep_tasks_alive(self):
@@ -95,13 +93,12 @@ class SchedulerFIFO(threading.Thread):
         logger.debug(f"prepare tasks in {time()-start} seconds")
 
 
-    def queue_jobs(self, partition : Partition, disable_resources_checker : bool=False):
+    def queue_jobs(self):
 
         start=time()
         db_service    = get_db_service()
         io_service    = get_io_service()
         backend       = get_backend_service()
-        logger.debug(f"🚀 checking {partition.value} partition...")
         procs=10
         try:
   
@@ -109,7 +106,7 @@ class SchedulerFIFO(threading.Thread):
                 jobs = (session.query(models.Job)\
                                .filter(models.Job.status==JobStatus.ASSIGNED)\
                                #.filter(models.Job.partition==partition)\
-                               .filter(models.Job.sjob_id==-1)\
+                               .filter(models.Job.backend_job_id==-1)\
                                .order_by(models.Job.priority.desc())\
                                .order_by(models.Job.id).limit(procs).all() )
                 job_ids = [job_db.job_id for job_db in jobs]
@@ -122,7 +119,7 @@ class SchedulerFIFO(threading.Thread):
                     workarea   = io_service.job(job_id).mkdir()
                     envs.update(job_db.get_envs())
                     envs["JOB_ID"]               = job_id
-                    envs["EXPERIMENT_WORKAREA"]  = workarea
+                    envs["JOB_WORKAREA"]         = workarea
                     envs["CUDA_VISIBLE_ORDER"]   = "PCI_BUS_ID"
                     envs["TF_CPP_MIN_LOG_LEVEL"] = "3"
                     #envs["CUDA_VISIBLE_DEVICES"] = "-1" if self.device<0 else str(self.device)
@@ -130,7 +127,7 @@ class SchedulerFIFO(threading.Thread):
                     command  = f"cd {workarea}\n"
                     command += f". {virtualenv}/bin/activate\n"
                     command += f"{job_db.command}\n"
-                    job_name = f"{job_db.job_type}.{job_id}"
+                    job_name = f"job.executor.{job_id}"
                     ok, job = backend.run( command    = job_db.command,
                                            cpus       = job_db.reserved_cpu_number,
                                            mem        = job_db.reserved_sys_memory_mb,
@@ -140,8 +137,8 @@ class SchedulerFIFO(threading.Thread):
                                            envs       = envs,
                                            virtualenv = virtualenv)
                     if ok:
-                        job_db.sjob_id = job['job_id']
-                        job_db.sjob_state = slurm_service.status(job_db.sjob_id)
+                        job_db.backend_job_id = job['job_id']
+                        job_db.backend_state = backend.status(job_db.backend_job_id)
                         job_db.ping()
                         session.commit()
         except:

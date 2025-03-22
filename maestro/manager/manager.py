@@ -12,7 +12,7 @@ from maestro          import JobStatus
 from maestro          import schemas
 from maestro.db       import get_db_service, models
 from .user            import UserManager
-#from .task            import TaskManager
+from .task            import TaskManager
 from .dataset         import DatasetManager
 from .image           import ImageManager
 
@@ -28,8 +28,8 @@ class Manager:
     def image(self, user_id : str) -> ImageManager:
         return ImageManager(user_id, self.envs)
 
-    #def task(self, user_id : str) -> TaskManager:
-    #    return TaskManager(user_id, self.envs)
+    def task(self, user_id : str) -> TaskManager:
+        return TaskManager(user_id, self.envs)
 
     def user(self):
         return UserManager(self.envs)

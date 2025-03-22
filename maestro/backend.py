@@ -26,7 +26,6 @@ class JobLogger(threading.Thread):
     def run(self):
         while self.status() not in ["failed", "completed", "stopped", "suspended"]:
             time.sleep(5)
-            print("PRINTTTTT!!!")
             self.loop() 
     
     def loop(self):
@@ -58,7 +57,7 @@ class SlurmService():
              workarea : str, 
              envs : Dict[str,str]={}, 
              virtualenv : str=None,
-             pre_exec   : str=os.environ["SLURM_PRE_EXEC_COMMAND_TO_APPLY_FOR_ALL_JOBS"],
+             #pre_exec   : str=os.environ["SLURM_PRE_EXEC_COMMAND_TO_APPLY_FOR_ALL_JOBS"],
         ):
         
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -86,7 +85,7 @@ class SlurmService():
             f.write(f"echo Node: $SLURM_JOB_NODELIST\n")
             f.write(f"export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\n")
             f.write(f"echo OMP_NUM_HTREADS: $SLURM_CPUS_PER_TASK\n")
-            f.write(f"{pre_exec}\n")    
+            #f.write(f"{pre_exec}\n")    
             f.write(f"{command} > {workarea}/output.log\n")
             f.write(f"wait\n")
             f.flush()

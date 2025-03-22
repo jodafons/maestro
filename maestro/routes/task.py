@@ -10,14 +10,14 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 
 
 from maestro import get_db_service, schemas, get_manager_service
-from maestro.routes import remote_app, raise_authentication_failure, raise_http_exception
+from maestro.routes import remote_app, raise_authentication_failure, raise_http_exception, fetch_user_from_request
 
 
 task_app     = APIRouter()
 
 
 
-@task_app.put("/task/{option}" , status_code=200, tags=['task'])
+@task_app.put("/task/options/{option}/{user_id}" , status_code=200, tags=['task'])
 async def task_options( 
     user_id        : str,
     option         : str,
@@ -53,11 +53,12 @@ async def task_options(
     return sc.result()
 
 
-@remote_app.put("/remote/task/{option}", status_code=200, tags=['remote'])
+@remote_app.put("/remote/task/options/{option}", status_code=200, tags=['remote'])
 async def options( 
     option  : str,
     request : Request
 ): 
     db_service = get_db_service()    
     raise_authentication_failure(request)
-    return RedirectResponse(f"/task/options/{option}")
+    user_id = fetch_user_from_request(request)
+    return RedirectResponse(f"/task/options/{option}/{user_id}")

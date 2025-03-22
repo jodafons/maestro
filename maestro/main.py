@@ -3,8 +3,8 @@
 import sys
 import argparse
 
-from maestro                            import get_argparser_formatter
-from maestro.main                       import args_parser as pilot_parser
+from maestro           import get_argparser_formatter
+from maestro.app       import args_parser as pilot_parser
 
 
 
@@ -33,11 +33,11 @@ def build_argparser( custom : bool=False):
 def run_parser(args):
     if args.mode == "run":
         if args.option == "pilot":
-            from maestro.main import run
+            from maestro.app import run
             run(args)
     elif args.mode == "task":
         if args.option == "job":
-            from maestro.jobs.main import run
+            from maestro.job import run
             run(args)
       
 
@@ -55,25 +55,3 @@ def run():
 
 if __name__ == "__main__":
   run()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

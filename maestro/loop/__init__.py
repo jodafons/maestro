@@ -6,6 +6,6 @@ __scheduler_service = None
 def get_scheduler_service():
     global __scheduler_service
     if not __scheduler_service:
-        from .scheduler_fifo import SchedulerFIFO as Scheduler
-        __scheduler_service = Scheduler(do_monitor=False)
+        from .scheduler import SchedulerFIFO as Scheduler
+        __scheduler_service = Scheduler()
     return __scheduler_service

@@ -16,11 +16,9 @@ from maestro.exceptions import RemoteCreationError, ConnectionError, TokenNotVal
 
 from .rest.dataset import DatasetAPIClient
 from .rest.image import ImageAPIClient
-#from .rest.task import TaskAPIClient
-#from ..task import Group
-#from ..api import schemas
-#from ..api.client import get_dell_runtime_session_api
-#from ..exceptions import *
+from .rest.task import TaskAPIClient
+from maestro.api.models.task import Group
+from maestro import schemas
 
 __api_session = None
 
@@ -73,8 +71,8 @@ class APIClient:
     def dataset(self) -> DatasetAPIClient:
         return DatasetAPIClient(self)
 
-    #def task(self) -> TaskAPIClient:
-    #    return TaskAPIClient(self)
+    def task(self) -> TaskAPIClient:
+        return TaskAPIClient(self)
     
     
 
@@ -92,11 +90,11 @@ class RemoteSession:
         self.__api_client = get_session_api( host, token )
 
 
-    #def list_tasks(self, match_with : str="*") -> List[schemas.TaskInfo]:
-    #    """
-    #    
-    #    """
-    #    return self.__api_client.task().list(match_with=match_with)
+    def list_tasks(self, match_with : str="*") -> List[schemas.TaskInfo]:
+        """
+        
+        """
+        return self.__api_client.task().list(match_with=match_with)
 
 
     def list_datasets(self, match_with : str="*") -> List[schemas.Dataset]:
@@ -106,26 +104,27 @@ class RemoteSession:
         return self.__api_client.dataset().list(match_with=match_with)
  
  
-    #def print_tasks( self, match_with : str="*" ) -> str:
-    #    """
-    #    
-    #    """
-    #    tasks = [ [task.task_id, task.name, task.flavor, task.status] for task in self.list_tasks(match_with)]
-    #    tasks = tabulate(tasks, headers= ["id", "name", "type", "status"],  tablefmt="psql")
-    #    print(tasks) 
+    def print_tasks( self, match_with : str="*" ) -> str:
+        """
+        
+        """
+        tasks = [ [task.task_id, task.name, task.flavor, task.status] for task in self.list_tasks(match_with)]
+        tasks = tabulate(tasks, headers= ["id", "name", "type", "status"],  tablefmt="psql")
+        print(tasks) 
+
 
     def print_datasets( self, match_with : str="*" ) -> str:
         """
         
         """
-        datasets = [ [dataset.dataset_id , dataset.name, len(dataset.files), dataset.flavor] for dataset in self.list_datasets(match_with) ]
+        datasets = [ [dataset.dataset_id , dataset.name, len(dataset.files), dataset.data_type] for dataset in self.list_datasets(match_with) ]
         datasets = tabulate(datasets, headers= ["id", "name", "files", "type"],  tablefmt="psql")
         print(datasets)   
         
         
-    #def create( self, tasks : List[schemas.TaskInputs]) -> Group:
-    #    """
-    #    
-    #    """
-    #    return self.__api_client.task().create(tasks)
+    def create( self, tasks : List[schemas.TaskInputs]) -> Group:
+        """
+        
+        """
+        return self.__api_client.task().create(tasks)
 

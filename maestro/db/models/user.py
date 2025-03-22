@@ -64,7 +64,6 @@ class DBUser:
         session = self.__session()
         try:
            user = session.query(User).filter_by(user_id=self.user_id).one()
-
            return user.name
         finally:
             session.close()

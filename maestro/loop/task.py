@@ -6,9 +6,9 @@ import threading
 from sqlalchemy import or_, and_
 from loguru import logger
 from time import sleep
-from qio.db import models, get_db_service
-from qio import JobStatus, TaskState, TaskStatus, task_final_status
-from qio.exceptions import *
+from maestro.db import models, get_db_service
+from maestro import JobStatus, TaskState, TaskStatus, task_final_status
+from maestro.exceptions import *
 
 
 def test_job_fail( app, task: models.Task ) -> bool:
@@ -25,7 +25,7 @@ def test_job_assigned( app, task: models.Task ) -> bool:
   """
   logger.debug("test_job_assigned")
   task.jobs[0].status =  JobStatus.ASSIGNED
-  task.jobs[0].sjob_id = -1
+  task.jobs[0].backend_job_id = -1
   task.jobs[0].priority = 10 * task.jobs[0].priority # multiply by 10 to force this job to the top of the queue
   return True
 
@@ -58,7 +58,7 @@ def task_registered( app, task: models.Task ) -> bool:
   logger.debug("task_assigned")
   for job in task.jobs:
       job.status =  JobStatus.REGISTERED
-      job.sjob_id = -1
+      job.backend_job_id = -1
       job.retry  = 0
   return True
 
@@ -70,7 +70,7 @@ def task_assigned( app, task: models.Task ) -> bool:
   logger.debug("task_assigned")
   for job in task.jobs:
       job.status =  JobStatus.ASSIGNED
-      job.sjob_id = -1
+      job.backend_job_id = -1
       job.retry  = 0
   return True
 
@@ -127,7 +127,7 @@ def retry_failed_jobs( app, task: models.Task ) -> bool:
       if job.retry < 5:
         job.status = JobStatus.ASSIGNED
         job.retry +=1
-        job.sjon_id = -1 
+        job.backend_jon_id = -1 
 
   # NOTE: If we have exps to retry we must keep the current state and dont finalized the task
   return True
@@ -184,12 +184,12 @@ def trigger_task_retry( app, task: models.Task ) -> bool:
         if (job.status != JobStatus.COMPLETED):
           job.status = JobStatus.ASSIGNED
           job.retry  = 0 
-          job.sjob_id = -1
+          job.backend_job_id = -1
 
     elif (task.status == TaskStatus.KILLED) or (task.status == TaskStatus.BROKEN):
       for job in task.jobs:
         job.status = JobStatus.REGISTERED
-        job.sjob_id = -1
+        job.backend_job_id = -1
         job.retry  = 0 
 
     else:
@@ -258,12 +258,12 @@ class TaskScheduler(threading.Thread):
           if not job_db.is_alive():
             #logger.debug(f"putting back job {job_db.job_id} with status {job_db.status} into the queue...")
             job_db.status = JobStatus.ASSIGNED
-            job_db.slurm_job_id= ""
+            job_db.backend_job_id = -1
             job_db.ping()
         session.commit()
-    except QioDBError as e:
+    except:
       traceback.print_exc()
-      logger.error(e)
+      #logger.error(e)
       return False
     
     task_status = TaskStatus.UNKNOWN
@@ -274,8 +274,7 @@ class TaskScheduler(threading.Thread):
         # NOTE: All tasks assigned to remove should not be returned by the database.
         #task = session().query(Task).filter(Task.status!=TaskStatus.REMOVED).with_for_update().all()
         task = session.query(models.Task).filter(models.Task.task_id==self.task_id).with_for_update().first()
-        #print([job.status for job in task.jobs])
-
+        
         logger.debug(f"task in {task.status} status.")
         # Run all JobStatus triggers to find the correct transiction
         for state in self.states:
@@ -287,7 +286,7 @@ class TaskScheduler(threading.Thread):
                 logger.debug(f"Moving task from {state.source} to {state.target} state.")
                 task.status = state.target
                 break
-            except QioDBError as e:
+            except:
               logger.error(f"Found a problem to execute the transition from {state.source} to {state.target} state.")
               traceback.print_exc()
               break
@@ -313,17 +312,13 @@ class TaskScheduler(threading.Thread):
 
  
 
-    except QioDBError as e:
+    except:
       traceback.print_exc()
-      logger.error(e)
       return False
 
-    #logger.debug(f"task current status is {task_status}")
     if task_status in task_final_status:
        logger.debug(f"stopping task loop with status {task_status}")
        self.stop()
-
-    #logger.debug("Commit all database changes.")
 
     return True
 
@@ -349,8 +344,6 @@ class TaskScheduler(threading.Thread):
         return True
     
     
-
-
     self.states = [
       Transition( source=TaskStatus.REGISTERED, target=TaskStatus.ASSIGNED   , relationship=[task_registered]),
     ]

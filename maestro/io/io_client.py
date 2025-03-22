@@ -21,7 +21,8 @@ class IOJob:
         db_service     = get_db_service()   
         user_id        = db_service.job(job_id).fetch_owner()
         self.user_name = db_service.user(user_id).fetch_name()
-        self.task_name = db_service.job(job_id).fetch_task_name()
+        task_id        = db_service.job(job_id).fetch_task()
+        self.task_name = db_service.task(task_id).fetch_name()
         self.basepath  = f"{self.volume}/tasks/{self.task_name}/{self.job_id}"
 
     def mkdir(self):
@@ -41,15 +42,18 @@ class IODataset:
         self.basepath   = f"{self.volume}/datasets/{self.name}"
 
     def count(self):
-        return len(expand_folders(self.basepath)) if os.path.exists(self.basepath) else 0
+        return len(self.files())
+        
         
     def mkdir(self):
         os.makedirs(self.basepath, exist_ok=True)
         return self.basepath
     
-    def files(self):
+    def files(self, with_file_id : bool=False):
         db_service = get_db_service()
-        return db_service.dataset(self.dataset_id).get_all_file_ids()
+        files = db_service.dataset(self.dataset_id).get_all_file_ids()
+        return list(files.keys()) if with_file_id else files
+    
     
     def save(self, filepath : str, filename : str=None ):
         
@@ -90,7 +94,7 @@ class IODataset:
         
         filepath=f"{self.basepath}/{filename}"
         if not self.check_existence(filename):
-            raise MaestroError(f"file with name {filename} does not exist into the dataset and storage.")
+            raise RuntimeError(f"file with name {filename} does not exist into the dataset and storage.")
         
         if filename.endswith(".pkl"):
             with open(filepath, 'rb') as f:
@@ -101,13 +105,11 @@ class IODataset:
         elif load_f:
             object = load_f(filepath)
         else:
-            raise MaestroError(f"Its not possible load file with name {filename} using this extension.")
+            raise RuntimeError(f"Its not possible load file with name {filename} using this extension.")
         return object
 
     def check_existence(self, filename):
         return os.path.exists(f"{self.basepath}/{filename}")
-
-
 
 
 
@@ -121,55 +123,19 @@ class IOImage:
         self.user_name  = db_service.user(user_id).fetch_name()
         self.name       = db_service.dataset(dataset_id).fetch_name()
         self.basepath   = f"{self.volume}/images/{self.name}"
-
-    def count(self):
-        return len(expand_folders(self.basepath)) if os.path.exists(self.basepath) else 0
         
     def mkdir(self):
         os.makedirs(self.basepath, exist_ok=True)
         return self.basepath
     
-    def files(self):
-        db_service = get_db_service()
-        return db_service.dataset(self.dataset_id).get_all_file_ids()
-    
-    def save(self, filepath : str, filename : str=None ):
-        
-        if not filename:
-            filename = filepath.split('/')[-1]
-        targetpath = f"{self.basepath}/{filename}"
-        
-        try:
-            shutil.copy( filepath, targetpath)
-        except:
-            logger.error(f"its not possible to copy from {filepath} to {targetpath}")
-            return False
-        
-        try:
-            db_service      = get_db_service()
-            if not db_service.dataset(self.dataset_id).check_file_existence_by_name( filename ):
-                with db_service() as session:
-                    file_id = random_id()
-                    dataset_db       = session.query(models.Dataset).filter_by(dataset_id=self.dataset_id).one()
-                    file_db          = models.File(file_id=file_id, dataset_id=self.dataset_id)
-                    file_db.name     = filename
-                    file_db.file_md5 = md5checksum( filepath )
-                    dataset_db.files.append(file_db)
-                    session.commit()
-            else:
-                with db_service() as session:
-                    file_db = session.query(models.File).filter_by(dataset_id=self.dataset_id).filter_by(name=filename).one()
-                    file_db.file_md5 = md5checksum( filepath )
-                    session.commit()
-        except:
-            logger.error(f"its not possible to commit into the database.")
-            return False
-        
-        return True
+    def path(self):
+        image = io_service.dataset(self.dataset_id).files()
+        return f"{self.basepath}/{image[0]}" if len(image) == 1 else None
 
     def check_existence(self, filename):
-        return os.path.exists(f"{self.basepath}/{filename}")
-
+        return io_service.dataset(self.dataset_id).count() == 1    
+        
+        
 
 
 

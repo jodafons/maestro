@@ -41,6 +41,7 @@ class TaskInputs(BaseModel):
     memory_mb      : int=-1
     gpu_memory_mb  : int=-1
     cpu_cores      : int=-1
+    partition      : str=""
     
     def get_output_data(self, key:str) -> str:
         return f"{self.name}.{self.outputs[key]}"

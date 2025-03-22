@@ -10,16 +10,9 @@ from time    import sleep
 from loguru  import logger
 from qio     import Popen, JobStatus, setup_logs, get_io_service, get_db_service
 from ..ram   import RAM 
+from maestro import symlink
 
 
-def create_symlink( from_path, to_path):
-    try:
-        os.symlink(from_path, to_path)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            os.remove(to_path)
-            os.symlink(from_path, to_path)
-    return to_path
 
          
 def run( args ):
@@ -37,7 +30,7 @@ def run( args ):
     logger.info(f"device number is {device}")
      
     setup_logs(args.name, args.message_level, save=False, color="red")
-    logger.info(f"⌛ starting env builder for job {args.job_id}...")
+    logger.info(f"starting env builder for job {args.job_id}...")
 
     logger.info("starting...")
     job_service.update_status(JobStatus.RUNNING)
@@ -45,19 +38,17 @@ def run( args ):
     logger.info(f"workarea {workarea}...")
 
 
-  
-    imagename = io_service.dataset(args.image_id).files().values()
-    imagename = list(imagename)[0]
+    imagepath = io_service.image(args.image_id).path()
+    imagename = imagepath.split("/")[-1]
     logger.info(f"using singularity image with name {imagename}.")
-    basepath  = io_service.dataset(args.image_id).basepath
-    linkpath  = create_symlink(f"{basepath}/{imagename}", f"{workarea}/{imagename}")
+    linkpath  = symlink(imagepath, f"{workarea}/{imagename}")
     image     = linkpath
 
     for key, name in task.secondary_data.items():
         logger.info(f"creating secondary data link for {name} inside of the job workarea.")
         dataset_id = db_service.fetch_dataset_from_name( name )
         basepath = io_service.dataset(dataset_id).basepath
-        linkpath = create_symlink( f"{basepath}" , f"{workarea}/{name}")
+        linkpath = symlink( f"{basepath}" , f"{workarea}/{name}")
         command = command.replace(f"%{key}", linkpath)    
 
     if task.input!="":
@@ -66,7 +57,7 @@ def run( args ):
         logger.info(f"creating input data link for {task.input} inside of the job workarea.")
         name = db_service.dataset(dataset_id).fetch_name()
         basepath = io_service.dataset(dataset_id).basepath
-        linkpath = create_symlink( f"{basepath}/{filename}", f"{workarea}/{name}.{filename}")
+        linkpath = symlink( f"{basepath}/{filename}", f"{workarea}/{name}.{filename}")
         command = command.replace(f"%IN", linkpath)
       
     outputs = []
@@ -131,7 +122,7 @@ def run( args ):
 
 
     if proc.status()!="completed":
-        logger.error(f"🚨 something happing during the job execution. exiting with status {proc.status()}")
+        logger.error(f"something happing during the job execution. exiting with status {proc.status()}")
         job_service.update_status(JobStatus.FAILED)
         sys.exit(0)
     
@@ -141,10 +132,10 @@ def run( args ):
         name = db_service.dataset(dataset_id).fetch_name()
         files= glob.glob(filename)
         for filepath in files:
-            logger.info(f"⚡saving {filepath} into dataset with name {name}...")
+            logger.info(f"saving {filepath} into dataset with name {name}...")
             ok = io_service.dataset( dataset_id ).save( filepath )
             if not ok:
-                logger.error(f"🚨 something happing during save from {filepath} to dataset with name {name}")
+                logger.error(f"something happing during save from {filepath} to dataset with name {name}")
                 job_service.update_status(JobStatus.FAILED)
                 sys.exit(0)
     

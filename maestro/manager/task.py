@@ -7,10 +7,12 @@ from datetime   import datetime
 from typing     import Dict, Union, List
 from time       import time
 from itertools  import islice
+from maestro    import StatusCode, schemas, random_id
 from maestro.db import get_db_service, models, job_status
+from maestro.db import TaskStatus, JobStatus
 from maestro.io import get_io_service
 
-
+GB=1024
 
 def chunks(lst, n : int=50):
     """Yield successive n-sized chunks from lst."""
@@ -82,7 +84,7 @@ class TaskManager:
             task.task_id   = task_db.task_id
             task.name      = task_db.name
             task.user_id   = task_db.user_id
-            task.partition = task_db.partition.value
+            task.partition = task_db.partition
             task.status    = task_db.status.value
             jobs = []
             for job_db in task_db.jobs:
@@ -155,8 +157,8 @@ class TaskManager:
             #
             # NOTE: stage 1, checking task
             #
-            if not task.name.startswith( f"user.{self.username}."):
-                reason=f"the name dataset must follow the name rule: 'user.{self.username}.name'"
+            if not task.name.startswith( f"user.{self.user_name}."):
+                reason=f"the name dataset must follow the name rule: 'user.{self.user_name}.name'"
                 return StatusCode.FAILURE(reason=reason)
             
             if db_service.check_task_existence_by_name( task.name ):
@@ -331,6 +333,7 @@ class TaskManager:
             dataset_id = random_id()
             dataset_db = models.Dataset()
             dataset_db.dataset_id = dataset_id
+            dataset_db.user_id = self.user_id
             dataset_db.name = f"{task.name}.{name}"
             dataset_db.updated_time = datetime.now()
             db_service.save_dataset( dataset_db )
@@ -348,6 +351,7 @@ class TaskManager:
                 job_db         = models.Job(job_type="executor")
                 job_db.job_id  = job_id
                 job_db.task_id = task_id
+                job_db.user_id = self.user_id
 
                 # Where and How?
                 job_db.partition              = task_db.partition

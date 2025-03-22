@@ -3,7 +3,7 @@ __all__ = ["Image"]
 
 from tabulate import tabulate
 from typing import List, Union, Dict
-from .client import get_session_api
+from maestro.api.client import get_session_api
 from maestro import schemas
 
 

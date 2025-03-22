@@ -64,7 +64,7 @@ def run( args ):
     app.include_router(routes.remote_app)
     app.include_router(routes.user_app)
     app.include_router(routes.dataset_app)
-    #app.include_router(routes.task_app)
+    app.include_router(routes.task_app)
     app.include_router(routes.image_app)
 
 
@@ -73,7 +73,7 @@ def run( args ):
         envs={}
         get_manager_service(envs=envs)
         create_user()
-        get_slurm_service(args.slurm_account)
+        get_backend_service(args.slurm_account)
         scheduler_service = get_scheduler_service()
         scheduler_service.start()    
 

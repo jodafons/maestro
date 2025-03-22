@@ -223,3 +223,17 @@ class DBTask:
             return task.parents
         finally:
             session.close()
+            
+    def fetch_name(self):
+        session = self.__session()
+        try:
+            fields = [Task.name]
+            task = (
+                session.query(Task)
+                .filter_by(task_id=self.task_id)
+                .options(load_only(*fields))
+                .one()
+            )
+            return task.name
+        finally:
+            session.close()

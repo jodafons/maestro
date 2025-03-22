@@ -59,6 +59,9 @@ class Job (Base):
     taskid              = Column(Integer, ForeignKey('task.id'))
     partition           = Column(String , default="")
     status              = Column(Enum(JobStatus), default=JobStatus.REGISTERED )
+    
+    backend_job_id      = Column(Integer, default=-1)
+    backend_state       = Column(String(64), default="")
 
     # job resource reservation
     used_sys_memory_mb       = Column(Float  , default=0 )
