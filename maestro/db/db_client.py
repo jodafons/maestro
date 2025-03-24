@@ -7,15 +7,13 @@ __all__ = [
 
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy     import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-from loguru import logger
-
-# local package
-from maestro import random_id, random_token
-from .models import DBJob, DBTask, DBDataset, DBUser, Base
-from .models import Job, Task, Dataset, User, TaskMonitor
+from datetime       import datetime
+from loguru         import logger
+from maestro.utils  import random_id
+from .models        import DBJob, DBTask, DBDataset, DBUser, Base
+from .models        import Job, Task, Dataset, User, TaskMonitor
 
 __db_service = None
 

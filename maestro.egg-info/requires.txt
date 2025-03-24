@@ -8,6 +8,7 @@ loguru
 nvsmi
 psycopg2-binary
 py-cpuinfo
+pyslurm@ git+https://github.com/PySlurm/pyslurm.git
 python-multipart
 requests
 requests_oauthlib

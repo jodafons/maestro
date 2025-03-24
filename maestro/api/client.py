@@ -1,6 +1,6 @@
 
 __all__ = [
-    "RemoteSession",
+    "Provider",
     "APIClient",
     "get_session_api",
 ]
@@ -77,7 +77,7 @@ class APIClient:
     
 
 
-class RemoteSession:
+class Provider:
     r"""
    
     """
@@ -108,7 +108,7 @@ class RemoteSession:
         """
         
         """
-        tasks = [ [task.task_id, task.name, task.flavor, task.status] for task in self.list_tasks(match_with)]
+        tasks = [ [task.task_id, task.name, task.status] for task in self.list_tasks(match_with)]
         tasks = tabulate(tasks, headers= ["id", "name", "type", "status"],  tablefmt="psql")
         print(tasks) 
 

@@ -92,8 +92,7 @@ def run( args ):
 
     #app_level = "warning"
     app_level = 'info'
-    port = int(args.host.split(':')[2])
-    uvicorn.run(app, port=port, log_level=app_level, host="0.0.0.0")
+    uvicorn.run(app, port=args.port, log_level=app_level, host="0.0.0.0")
                 
 
 
@@ -104,19 +103,20 @@ def args_parser():
     
     common_parser = argparse.ArgumentParser(description = '', add_help = False)
 
-    common_parser.add_argument('--host', action='store', dest='host', required = False, 
-                        default="http://localhost:7000",
-                        help = "the host url.") 
+    common_parser.add_argument('--port', action='store', dest='port', required = False,  type=int,
+                        default=7000,
+                        help = "the port endpoint") 
     
     common_parser.add_argument('-n','--name', action='store', dest='name', required = False, 
-                        default="mastro-master",
+                        default="app",
                         help = "the server name.")
     
     common_parser.add_argument('-l','--message-level', action='store', dest='message_level', required = False, 
                         default="INFO",
                         help = "the message level. default can be passed by ORCH_MESSAGE_LEVEL environ.")
     
-    common_parser.add_argument('-v','--volume', action='store', dest='volume', required = True, 
+    common_parser.add_argument('-v','--volume', action='store', dest='volume', required = False,
+                        default=f"{os.getcwd()}/data", 
                         help = "the volume used to store everything. ") 
     
 
@@ -135,7 +135,7 @@ def args_parser():
     slurm_parser = argparse.ArgumentParser(description = '', add_help = False)
     
     slurm_parser.add_argument('--slurm-account', action='store', dest='slurm_account', type=str,
-                                required=False, default=os.environ.get("SLURM_ACCOUNT",""),
+                                required=False, default=os.environ.get("USER",""),
                                 help = "the slurm account used to submit jobs. default can be passed by SLURM_ACCOUNT environ.")
     
     return [common_parser, database_parser, slurm_parser]

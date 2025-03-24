@@ -1,0 +1,5 @@
+2025-03-24 15:16:49.231 | INFO     | maestro.loop.job:run:32 - device number is -1
+INFO:    Could not find any nv files on this host!
+WARNING: Could not find any nv libraries on this host!
+WARNING: You may need to manually edit /usr/local/etc/singularity/nvliblist.conf
+2025-03-24 18:18:04.174 | INFO     | __main__:run:43 - saving into /home/joao.pinto/git_repos/maestro/data/tasks/user.joao.pinto.simple_task3/71f525ddfe62/71f525ddfe62.result.json...

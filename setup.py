@@ -32,7 +32,7 @@ setup(
     ],
     entry_points = {
         'console_scripts' : [
-            'maestro = maestro.cli.main:run',
+            'maestro = maestro.main:run',
         ]
     }
 )

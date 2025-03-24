@@ -40,6 +40,8 @@ mkdir -p $DB_PATH
 mkdir -p $MAESTRO_IMAGES_PATH
 
 
+#export SLURM_INCLUDE_DIR=/mnt/market_place/slurm_build/build/include
+export SLURM_LIB_DIR=/usr/lib
 
 if [ -d "$VIRTUALENV_PATH" ]; then
     echo "$VIRTUALENV_PATH exists."

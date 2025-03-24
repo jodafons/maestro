@@ -1,23 +1,15 @@
 __all__ = ["TaskManager"]
 
-import pickle
 
 from loguru     import logger
 from datetime   import datetime
-from typing     import Dict, Union, List
-from time       import time
-from itertools  import islice
+from typing     import Dict, List
 from maestro    import StatusCode, schemas, random_id
 from maestro.db import get_db_service, models, job_status
 from maestro.db import TaskStatus, JobStatus
 from maestro.io import get_io_service
 
 GB=1024
-
-def chunks(lst, n : int=50):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
 
 
 class TaskManager:
@@ -46,22 +38,6 @@ class TaskManager:
 
         status = db_service.task(task_id).fetch_status()
         return StatusCode.SUCCESS(status)
-
-
-    def identity(
-        self,
-        name     : str,
-    ) -> StatusCode:
-
-        db_service = get_db_service()
-        
-        if not db_service.check_task_existence_by_name(name):
-            reason=f"dataset with name {name} does not exist into the db."
-            logger.info(reason)
-            return StatusCode.SUCCESS(False)
-
-        dataset_id = db_service.fetch_task_from_name(name)
-        return StatusCode.SUCCESS(dataset_id)
 
 
     def describe(
@@ -107,7 +83,7 @@ class TaskManager:
         with db_service() as session:
             tasks_from_db = session.query(models.Task).filter(models.Task.name.like(match_with)).all()
             for task_db in tasks_from_db:
-                names.append(task_db.name)
+                names.append(task_db.task_id)
         tasks = [self.describe(name).result() for name in names]
         return StatusCode.SUCCESS(tasks)
 
@@ -303,7 +279,7 @@ class TaskManager:
                 return StatusCode.FAILURE(reason=reason)
             
             dataset_id=db_service.fetch_dataset_from_name(task.input)
-            files = io_service.dataset(dataset_id).files()
+            files = io_service.dataset(dataset_id).files(with_file_id=True)
             files=[ f"{dataset_id}:{file_id}" for file_id in files.keys()]
         else:
             files = [""]
@@ -348,7 +324,7 @@ class TaskManager:
             for file_id in files:
 
                 job_id         = random_id()
-                job_db         = models.Job(job_type="executor")
+                job_db         = models.Job()
                 job_db.job_id  = job_id
                 job_db.task_id = task_id
                 job_db.user_id = self.user_id
@@ -360,8 +336,8 @@ class TaskManager:
                 job_db.reserved_sys_memory_mb = task.memory_mb if task.memory_mb>0 else 5*GB
                 job_db.reserved_gpu_memory_mb = task.gpu_memory_mb if task.gpu_memory_mb>0 else (0 if job_db.device=="cpu" else 5*GB)
 
-                name    = f"job-executor-{job_id}"
-                command = f"maestro task executor"
+                name    = f"job-{job_id}"
+                command = f"maestro run job"
                 command+= f" --volume {volume}"
                 command+= f" --database-string {db_string}"
                 command+= f" --task-id {task_id}"

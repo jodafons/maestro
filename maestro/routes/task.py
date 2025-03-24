@@ -42,10 +42,6 @@ async def task_options(
         match_with = params["match_with"]
         sc = manager.task(user_id).list(match_with)
     
-    elif option=="identity":
-        name = params["name"]
-        sc = manager.task(user_id).identity(name)
-
     else:
         raise HTTPException(detail=f"option {option} does not exist into the database service.", status_code=409)
 

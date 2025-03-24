@@ -16,4 +16,4 @@ tabulate
 expand_folders
 Cython
 uvicorn
-#pyslurm @ git+https://github.com/PySlurm/pyslurm.git
+pyslurm @ git+https://github.com/PySlurm/pyslurm.git

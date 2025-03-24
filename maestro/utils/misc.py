@@ -1,4 +1,9 @@
-__all__ = ["random_id", "random_token", "md5checksum", "symlink"]
+__all__ = [
+    "random_id", 
+    "random_token", 
+    "md5checksum", 
+    "symlink",
+]
 
 
 import os
@@ -22,13 +27,15 @@ def md5checksum(fname):
         md5.update(chunk)
     return md5.hexdigest()
 
-def symlink(target, link_name):
+def symlink(target, linkpath):
     try:
-        os.symlink(target, link_name)
+        os.symlink(target, linkpath)
+        return linkpath
     except OSError as e:
         if e.errno == errno.EEXIST:
-            os.remove(link_name)
-            os.symlink(target, link_name)
+            os.remove(linkpath)
+            os.symlink(target, linkpath)
+            return linkpath
         else:
             raise e
          

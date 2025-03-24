@@ -9,8 +9,7 @@ from maestro  import schemas
 class Group:
     def __init__(self, task_ids : List[str]):
         self.tasks = [Task(task_id) for task_id in task_ids]
-        from maestro.api.client  import get_session_api
-        self.__api_client = get_session_api()    
+        
         
     def print(self):
         rows  = []
@@ -33,7 +32,7 @@ class Task:
         self,
         task_id    : str,
     ) -> None:
-        from maestro import get_session_api
+        from maestro  import get_session_api
         self.__api_client = get_session_api()
         self.task_id = task_id
         self._result = None

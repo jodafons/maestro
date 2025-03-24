@@ -3,13 +3,13 @@
 import glob
 import argparse
 import traceback
-import os, sys, errno
+import os, sys
 
 from pprint  import pprint
 from time    import sleep
 from loguru  import logger
-from qio     import Popen, JobStatus, setup_logs, get_io_service, get_db_service
-from ..ram   import RAM 
+from maestro import Popen, JobStatus, setup_logs, get_io_service, get_db_service
+from maestro import MemoryMonitor
 from maestro import symlink
 
 
@@ -23,6 +23,8 @@ def run( args ):
     workarea   = io_service.job(args.job_id).mkdir()
     task       = db_service.task( args.task_id ).fetch_task_inputs()
     command    = task.command
+    
+    print(command)
     
     os.environ["JOB_WORKAREA"]   = workarea
     os.environ["JOB_ID"]         = args.job_id
@@ -53,7 +55,7 @@ def run( args ):
 
     if task.input!="":
         dataset_id, file_id = args.input.split(":") 
-        filename = io_service.dataset(dataset_id).files() [file_id]
+        filename = io_service.dataset(dataset_id).files(with_file_id=True) [file_id]
         logger.info(f"creating input data link for {task.input} inside of the job workarea.")
         name = db_service.dataset(dataset_id).fetch_name()
         basepath = io_service.dataset(dataset_id).basepath
@@ -98,7 +100,7 @@ def run( args ):
         print(command)
         proc = Popen(command, envs = envs)
         proc.run_async()
-        ram = RAM()
+        ram = MemoryMonitor()
 
         while proc.is_alive():
             sleep(1)

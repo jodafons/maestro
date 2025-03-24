@@ -52,7 +52,7 @@ class IODataset:
     def files(self, with_file_id : bool=False):
         db_service = get_db_service()
         files = db_service.dataset(self.dataset_id).get_all_file_ids()
-        return list(files.keys()) if with_file_id else files
+        return list(files.values()) if not with_file_id else files
     
     
     def save(self, filepath : str, filename : str=None ):
@@ -106,6 +106,7 @@ class IODataset:
             object = load_f(filepath)
         else:
             raise RuntimeError(f"Its not possible load file with name {filename} using this extension.")
+        
         return object
 
     def check_existence(self, filename):
@@ -129,10 +130,13 @@ class IOImage:
         return self.basepath
     
     def path(self):
+        io_service = get_io_service()
         image = io_service.dataset(self.dataset_id).files()
+        print(image)
         return f"{self.basepath}/{image[0]}" if len(image) == 1 else None
 
-    def check_existence(self, filename):
+    def check_existence(self):
+        io_service = get_io_service()
         return io_service.dataset(self.dataset_id).count() == 1    
         
         

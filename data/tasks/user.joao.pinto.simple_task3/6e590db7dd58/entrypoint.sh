@@ -1,0 +1,2 @@
+cd /home/joao.pinto/git_repos/maestro/data/tasks/user.joao.pinto.simple_task3/6e590db7dd58
+python /app.py -j /home/joao.pinto/git_repos/maestro/data/tasks/user.joao.pinto.simple_task3/6e590db7dd58/user.joao.pinto.dataset.5.json -o /home/joao.pinto/git_repos/maestro/data/tasks/user.joao.pinto.simple_task3/6e590db7dd58/6e590db7dd58.result.json
