@@ -1,0 +1,39 @@
+{
+    "run": {
+        "nov": 100,
+        "nov_per_job": 10,
+        "run_number": 20250324,
+        "seed": 512
+    },
+    "stages": [
+        {
+            "name": "step_1",
+            "script": "gen_zee.py",
+            "extra_args": {
+                "seed": "%SEED",
+                "run-number": "%RUN_NUMBER",
+                "event-numbers": "%EVENT_NUMBERS"
+            },
+            "output": "%JOB_WORKAREA/Zee.EVT.%JOB_ID.root"
+        }
+    ],
+    "job": {
+        "event_numbers": [
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39
+        ],
+        "seed": 2048,
+        "job_id": 3,
+        "extra_envs": {
+            "LOOP": 0.0
+        }
+    }
+}

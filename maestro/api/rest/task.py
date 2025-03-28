@@ -64,7 +64,7 @@ class TaskAPIClient:
             tasks = [tasks]
             
         payload = {
-           "tasks" : [ task.dict() for task in tasks],
+           "tasks" : [ task.model_dump() for task in tasks],
         }
 
         payload = {"params_str" : schemas.json_encode(payload)}

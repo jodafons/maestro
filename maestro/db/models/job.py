@@ -48,8 +48,6 @@ class Job (Base):
     user_id             = Column(String(64))
     command             = Column(String , default="")
     workarea            = Column(String)
-    envs                = Column(String, default="{}")
-    binds               = Column(String, default="{}")
     timer               = Column(DateTime)
     priority            = Column(Integer , default=1)
     device              = Column(String  , default="cpu")
@@ -75,12 +73,7 @@ class Job (Base):
     start_time               = Column(DateTime)
     updated_time             = Column(DateTime)
 
-    def get_envs(self):
-      return eval(self.envs)
     
-    def get_binds(self):
-      return eval(self.binds)
-
     def ping(self):
         self.updated_time = datetime.now()
         

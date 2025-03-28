@@ -80,7 +80,7 @@ class Task (Base):
 
     @task_inputs.setter
     def task_inputs(self, task_inputs : schemas.TaskInputs):
-        self.task_inputs_str=schemas.json_encode(task_inputs.dict())
+        self.task_inputs_str=schemas.json_encode(task_inputs.model_dump())
 
     @property 
     def parents( self ) -> List[str]:

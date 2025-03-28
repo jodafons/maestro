@@ -83,6 +83,8 @@ def run( args ):
     stop=False
     try:
         binds   = f'--bind {args.volume}:{args.volume}'
+        for key,value in task.binds.items():
+            binds+= f' --bind {key}:{value}'
         command = f"singularity exec --nv --writable-tmpfs {binds} {image} bash {entrypoint}"
         command = command.replace('  ',' ') 
         

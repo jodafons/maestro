@@ -5,7 +5,7 @@ import json
 from typing import Dict, Any, Union, List
 from pydantic import BaseModel
 
-
+GB=1024
 encoder=json.JSONEncoder
 decoder=json.JSONDecoder
 
@@ -37,10 +37,11 @@ class TaskInputs(BaseModel):
     outputs        : Dict[str,str]={}
     secondary_data : Dict[str,str]={}
     envs           : Dict[str,str]={}
+    binds          : Dict[str,str]={}
     device         : str="cpu"
-    memory_mb      : int=-1
-    gpu_memory_mb  : int=-1
-    cpu_cores      : int=-1
+    memory_mb      : int=5*GB
+    gpu_memory_mb  : int=0*GB
+    cpu_cores      : int=8
     partition      : str=""
     
     def get_output_data(self, key:str) -> str:
@@ -52,16 +53,9 @@ class TaskInfo(BaseModel):
     user_id        : str=""
     partition      : str=""
     status         : str=""
-    flavor         : str=""
     counts         : Dict[str,int]={}
     jobs           : List[str]=[]
     
-class Job(BaseModel):
-    job_id          : str=""
-    envs            : Dict={}
-    command         : str=""
-
-
 class Dataset(BaseModel):
     dataset_id       : str=""
     user_id          : str=""

@@ -119,6 +119,9 @@ def args_parser():
                         default=f"{os.getcwd()}/data", 
                         help = "the volume used to store everything. ") 
     
+    common_parser.add_argument('-b','--binds', action='store', dest='binds', required = False, type=str,
+                        default="{'/home':'/home', '/mnt/cern_data':'/mnt/cern_data'}", 
+                        help = "the bind volumes. ") 
 
 
     database_parser = argparse.ArgumentParser(description = '', add_help = False)
